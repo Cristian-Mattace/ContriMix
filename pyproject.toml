@@ -1,0 +1,59 @@
+[tool.poetry]
+name = "intraminibatch_permutation_drit"
+version = "0.1.0"
+description = "Intraminibatch permutation for content and attribute disentanglement"
+authors = ["Tan Nguyen <huutan86@gmail.com>"]
+license = "MIT"
+
+[tool.poetry.dependencies]
+python = "3.8.8"
+efficientnet-pytorch = "0.7.1"
+h5py = "2.9.0"
+jupyter = "1.0.0"
+jupyter-client = "6.1.11"
+jupyter-console = "6.2.0"
+jupyter-core = "4.7.1"
+jupyter_server = "1.9.0"
+jupyterlab-git = "0.30.0b2"
+jupyterlab-pygments = "0.1.2"
+jupyterlab-widgets = "1.0.0"
+jupyter-server-proxy = "3.1.0"
+lpips = "0.1.4"
+matplotlib = "~=3.0"
+notebook = "6.1.5"
+numpy = "1.18"
+packaging = "20.9"
+pandas = "1.0"
+python-gflags = "3.1.2"
+python-logstash = "0.4.6"
+pytorch-lightning = "1.7.5"
+pyvips = "2.1.8"
+scikit-image = "0.14.2"
+scikit-learn = "0.23.2"
+scikit-multilearn = "0.2.0"
+scipy = "1.4.1"
+tensorboard = "2.9.1"
+zarr = "2.4.0"
+zipp = "3.4.0"
+PyYAML = "5.4"
+tifffile = "2020.7.24"
+torch = {url = "https://download.pytorch.org/whl/cu115/torch-1.11.0%2Bcu115-cp38-cp38-linux_x86_64.whl"}
+torchvision = {url = "https://download.pytorch.org/whl/cu115/torchvision-0.12.0%2Bcu115-cp38-cp38-linux_x86_64.whl"}
+torchtuples = "^0.2.0"
+torch-geometric = "2.0.1"
+torchmetrics = "0.9.1"
+shapely = ">=1.5"
+pillow = "6.0.0"
+
+[tool.poetry.dev-dependencies]
+black = "22.8.0"
+coverage = "4.5.4"
+flake8 = "5.0.4"
+mock = "3.0.5"
+pytest = "6.2.2"
+escapism = "1.0.1"
+pre-commit = "^2.6.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
