@@ -2,6 +2,7 @@
 
 This module is adapted from the WILDSDataset
 """
+import os
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -18,11 +19,18 @@ from ip_drit.slide import Slide
 
 
 class AbstractPublicDataset(ABC):
-    """A class that defines the interfaces for different public dataset."""
-    def __init__(self) -> None:
-        self._dataset_name: Optional[str] = None
-        self._dataset_dir: Optional[str] = None
+    """A class that defines the interfaces for different public dataset.
 
+    Args:
+        dataset_dir: The target folder for storing the dataset.
+    """
+    _dataset_name: Optional[str] = None
+    _version: Optional[str] = None
+    def __init__(self, dataset_dir: str) -> None:
+        self._dataset_dir: str = dataset_dir
+
+    def _make_sure_folder_exists(self):
+        os.path.mkdir(self._dataset_dir, )
     @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset."""
@@ -32,6 +40,11 @@ class AbstractPublicDataset(ABC):
     def dataset_dir(self) -> str:
         """Returns the location of the dataset."""
         return self._dataset_dir
+
+    @property
+    def version(self) -> str:
+        return self._version
+
 
 
 class MultiDomainDataset(Dataset):
