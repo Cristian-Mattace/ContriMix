@@ -15,7 +15,7 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from constants import INPUT_PATCH_SIZE_PIXELS
 from constants import NUM_STAIN_VECTORS
 from ip_drit.datamodule import MultiDomainDataModule
-from ip_drit.datamodule._dataset import MultiDomainDataset
+from ip_drit.datasets._dataset import MultiDomainDataset
 from ip_drit.loss import ImageConsistencyLossType
 from ip_drit.models import GeneratorType
 from ip_drit.patch_transform import RGBToTransmittance

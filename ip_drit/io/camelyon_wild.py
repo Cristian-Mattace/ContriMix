@@ -1,1 +1,0 @@
-"""A module that is in charge of downloading the WILDS Camelyon 17 dataset into a folder."""

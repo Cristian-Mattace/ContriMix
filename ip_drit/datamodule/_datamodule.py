@@ -4,7 +4,7 @@ from typing import List
 import pytorch_lightning as pl
 from torch.utils.data import DataLoader
 
-from ._dataset import MultiDomainDataset
+from ..datasets._dataset import MultiDomainDataset
 from ip_drit.patch_transform import RandomFlip
 from ip_drit.patch_transform import RandomRotate
 from ip_drit.patch_transform import RGBToTransmittance

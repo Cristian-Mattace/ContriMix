@@ -1,9 +1,13 @@
-"""A module that defines the dataset for images from different domains."""
+"""A module that defines the public datasets from different domains.
+
+This module is adapted from the WILDSDataset
+"""
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
-
+from abc import ABC
+from abc import abstractmethod
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -11,6 +15,23 @@ from torchvision.transforms import Compose
 
 from ip_drit.sampling import Sample
 from ip_drit.slide import Slide
+
+
+class AbstractPublicDataset(ABC):
+    """A class that defines the interfaces for different public dataset."""
+    def __init__(self) -> None:
+        self._dataset_name: Optional[str] = None
+        self._dataset_dir: Optional[str] = None
+
+    @property
+    def dataset_name(self) -> str:
+        """Returns the name of the dataset."""
+        return self._dataset_name
+
+    @property
+    def dataset_dir(self) -> str:
+        """Returns the location of the dataset."""
+        return self._dataset_dir
 
 
 class MultiDomainDataset(Dataset):
