@@ -7,6 +7,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from pathlib import Path
 from abc import ABC
 from abc import abstractmethod
 import numpy as np
@@ -26,11 +27,13 @@ class AbstractPublicDataset(ABC):
     """
     _dataset_name: Optional[str] = None
     _version: Optional[str] = None
-    def __init__(self, dataset_dir: str) -> None:
-        self._dataset_dir: str = dataset_dir
+    def __init__(self, dataset_dir: Path) -> None:
+        self._dataset_dir: Path = dataset_dir
+        self._make_sure_folder_exists()
 
     def _make_sure_folder_exists(self):
-        os.path.mkdir(self._dataset_dir, )
+        self._dataset_dir.mkdir(exist_ok=True)
+
     @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset."""
