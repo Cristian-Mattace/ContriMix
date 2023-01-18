@@ -6,7 +6,9 @@ from pathlib import Path
 def main(argv):
     del argv
     logging.info("Running the Camelyon 17 dataset benchmark.")
-    camelyon_dataset = CamelyonDataset(dataset_dir=Path('~/Documents/datasets/camelyon17/'))
+    all_dataset_dir = Path("/Users/tan.nguyen/datasets")
+    all_dataset_dir.mkdir(exist_ok=True)
+    camelyon_dataset = CamelyonDataset(dataset_dir=all_dataset_dir / "camelyon17/")
 
 if __name__ == "__main__":
     app.run(main)

@@ -9,15 +9,18 @@ from typing import Optional
 from typing import Tuple
 from pathlib import Path
 from abc import ABC
+from absl import logging
 from abc import abstractmethod
 import numpy as np
 import torch
+import time
 from torch.utils.data import Dataset
 from torchvision.transforms import Compose
 
 from ip_drit.sampling import Sample
 from ip_drit.slide import Slide
-
+from ._utils import download_and_extract_archive
+logging.set_verbosity(logging.INFO)
 
 class AbstractPublicDataset(ABC):
     """A class that defines the interfaces for different public dataset.
@@ -27,12 +30,52 @@ class AbstractPublicDataset(ABC):
     """
     _dataset_name: Optional[str] = None
     _version: Optional[str] = None
-    def __init__(self, dataset_dir: Path) -> None:
-        self._dataset_dir: Path = dataset_dir
-        self._make_sure_folder_exists()
+    _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {}
 
-    def _make_sure_folder_exists(self):
-        self._dataset_dir.mkdir(exist_ok=True)
+    def __init__(self, dataset_dir: Path) -> None:
+        self._data_dir: Path = dataset_dir
+        self._patch_size_pixels: Optional[Tuple[int, int]] = None
+        self._make_sure_folder_exists()
+        if not self._dataset_exists_locally():
+            logging.info(f"{self._dataset_name} does not exist locally. Downloading it now!")
+            self._download_dataset()
+
+    def _make_sure_folder_exists(self) -> None:
+        self._data_dir.mkdir(exist_ok=True)
+
+    def _dataset_exists_locally(self) -> bool:
+        download_url = self._DOWNLOAD_URL_BY_VERSION[self._version]
+        # There are two ways to download a dataset:
+        # 1. Automatically through the WILDS package
+        # 2. From a third party (e.g. OGB-MolPCBA is downloaded through the OGB package)
+        # Datasets downloaded from a third party need not have a download_url and RELEASE text file.
+        version_file = os.path.join(self._data_dir, f'RELEASE_v{self.version}.txt')
+        return os.path.exists(self._data_dir) and os.path.exists(version_file)
+
+    def _download_dataset(self) -> None:
+        download_url = self._DOWNLOAD_URL_BY_VERSION[self._version]
+
+        #from wilds.datasets.download_utils import download_and_extract_archive
+        logging.info(f'Downloading dataset to {self._data_dir}...')
+        logging.info(f'You can also download the dataset manually at https://wilds.stanford.edu/downloads.')
+
+        try:
+            start_time = time.time()
+            download_and_extract_archive(
+                url=download_url,
+                download_root=self._data_dir,
+                extract_root=self._data_dir,
+                filename='archive.tar.gz',
+                remove_finished=True)
+
+            logging.info(f"\nIt took {round((time.time() - start_time) / 60, 2)} minutes to download.\n")
+        except Exception as e:
+            logging.info(f"\n{os.path.join(self._data_dir, 'archive.tar.gz')} may be corrupted. Please try deleting it and rerunning this command.\n")
+            raise e
+
+    @staticmethod
+
+
 
     @property
     def dataset_name(self) -> str:
@@ -42,11 +85,15 @@ class AbstractPublicDataset(ABC):
     @property
     def dataset_dir(self) -> str:
         """Returns the location of the dataset."""
-        return self._dataset_dir
+        return self._data_dir
 
     @property
     def version(self) -> str:
         return self._version
+
+    @property
+    def patch_size_pixel(self) -> Tuple[int, int]:
+        return self._patch_size_pixels
 
 
 
