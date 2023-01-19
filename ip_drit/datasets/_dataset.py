@@ -3,6 +3,7 @@
 This module is adapted from the WILDSDataset
 """
 import os
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -73,17 +74,13 @@ class AbstractPublicDataset(ABC):
             logging.info(f"\n{os.path.join(self._data_dir, 'archive.tar.gz')} may be corrupted. Please try deleting it and rerunning this command.\n")
             raise e
 
-    @staticmethod
-
-
-
     @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset."""
         return self._dataset_name
 
     @property
-    def dataset_dir(self) -> str:
+    def dataset_dir(self) -> Path:
         """Returns the location of the dataset."""
         return self._data_dir
 
@@ -94,8 +91,46 @@ class AbstractPublicDataset(ABC):
     @property
     def patch_size_pixel(self) -> Tuple[int, int]:
         return self._patch_size_pixels
+    
+    @abstractmethod
+    def get_input(self, idx: int) -> np.ndarray:
+        """
+        Gets the input image with index 'idx'.
 
+        Args:
+            idx: The index of the input image to get.
 
+        Returns:
+            A numpy array of the loaded image.
+        """
+        raise NotImplementedError
+
+    @property
+    def split_dict(self) -> Optional[Dict[str, int]]:
+        return getattr(self, "_SPLIT_INDEX_BY_SPLIT_STRING", None)
+
+    @property
+    def metadata_map(self) -> Optional[Dict[str, Any]]:
+        """
+        Returns a dictionary that, for each metadata field, contains a list that maps from
+        integers (in metadata_array) to a string representing what that integer means.
+        This is only used for logging, so that we print out more intelligible metadata values.
+        Each key must be in metadata_fields.
+        For example, if we have
+            metadata_fields = ['hospital', 'y']
+            metadata_map = {'hospital': ['East', 'West']}
+        then if metadata_array[i, 0] == 0, the i-th data point belongs to the 'East' hospital
+        while if metadata_array[i, 0] == 1, it belongs to the 'West' hospital.
+        """
+        return getattr(self, '_metadata_map', None)
+
+    @property
+    def metadata_fields(self) -> List[str]:
+        """
+        A list of strings naming each column of the metadata table, e.g., ['hospital', 'y'].
+        Must include 'y'.
+        """
+        return self._metadata_fields
 
 class MultiDomainDataset(Dataset):
     """A custom dataset that contains images from different domains.
