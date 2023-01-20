@@ -5,6 +5,7 @@ from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
 from ._utils import move_to
 from ip_drit.common.grouper import AbstractGrouper
+from ip_drit.common.metrics import ElementwiseLoss
 
 class ERM(SingleModelAlgorithm):
     """A class that implements the ERM algorithm.
@@ -13,6 +14,7 @@ class ERM(SingleModelAlgorithm):
         config: A dictionary that defines the configuration to load the model.
         d_out: The dimension of the model output.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
+        loss: The loss module
 
     References:
         https://binhu7.github.io/courses/ECE598/Spring2019/files/Lecture4.pdf
@@ -22,7 +24,7 @@ class ERM(SingleModelAlgorithm):
             config: Dict[str, Any],
             d_out: int,
             grouper: AbstractGrouper,
-            loss,
+            loss: ElementwiseLoss,
             metric,
             n_train_steps: int):
         model = initialize_model_from_configuration(config, d_out)
@@ -35,7 +37,7 @@ class ERM(SingleModelAlgorithm):
             metric=metric,
             n_train_steps=n_train_steps,
         )
-        self.use_unlabeled_y = config.use_unlabeled_y # Expect x,y,m from unlabeled loaders and train on the unlabeled y
+        self._use_unlabeled_y = config['use_unlabeled_y'] # Expect x,y,m from unlabeled loaders and train on the unlabeled y
 
     def process_batch(self, batch, unlabeled_batch=None):
         """

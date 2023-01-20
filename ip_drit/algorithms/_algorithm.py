@@ -14,7 +14,7 @@ class Algorithm(nn.Module):
         self._device = device
         self._out_device = 'cpu'
         self._has_log = False
-        self.reset_log()
+        self._reset_log()
 
     def update(self, batch: Tuple[torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
@@ -102,3 +102,11 @@ class Algorithm(nn.Module):
         if to_out_device:
             out_dict = move_to(out_dict, self.out_device)
         return out_dict
+
+
+    def _reset_log(self) -> None:
+        """
+        Resets log by clearing out the internal log, Algorithm.log_dict
+        """
+        self._has_log = False
+        self._log_dict = {}

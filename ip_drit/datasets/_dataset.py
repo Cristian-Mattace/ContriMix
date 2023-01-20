@@ -4,6 +4,7 @@ This module is adapted from the WILDSDataset
 """
 import os
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -32,6 +33,7 @@ class AbstractPublicDataset(ABC):
     _dataset_name: Optional[str] = None
     _version: Optional[str] = None
     _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {}
+    _metadata_fields: List[str] = []
 
     def __init__(self, dataset_dir: Path) -> None:
         self._data_dir: Path = dataset_dir
@@ -92,7 +94,6 @@ class AbstractPublicDataset(ABC):
     def patch_size_pixel(self) -> Tuple[int, int]:
         return self._patch_size_pixels
     
-    @abstractmethod
     def get_input(self, idx: int) -> np.ndarray:
         """
         Gets the input image with index 'idx'.
@@ -131,6 +132,113 @@ class AbstractPublicDataset(ABC):
         Must include 'y'.
         """
         return self._metadata_fields
+
+    @property
+    def split_array(self) -> np.ndarray:
+        """
+        An array of integers, with split_array[i] representing what split the i-th data point
+        belongs to.
+        """
+        return self._split_array
+
+    @property
+    def collate(self) -> Optional[Callable]:
+        """
+        Torch function to collate items in a batch.
+        By default, returns None -> uses default torch collate.
+        """
+        return getattr(self, '_collate', None)
+
+    @property
+    def metadata_array(self):
+        """
+        A Tensor of metadata, with the i-th row representing the metadata associated with
+        the i-th data point. The columns correspond to the metadata_fields defined above.
+        """
+        return self._metadata_array
+    def get_subset(self, split: str, frac: float=1.0, transform: Optional[Callable] =None):
+        """
+        Return a subset of a dataset based on the split definition.
+
+        Args:
+            split: A Split identifier, e.g., 'train', 'ood_val', 'test', 'id_val'. Must be a key in in self.split_dict.
+            frac (optional): What fraction of the split to randomly sample. Used for fast development on a small dataset.
+                Defaults to 1.0.
+            transform (optional): Any data transformations to be applied to the input x. Defaults to None, in which case,
+                no transformation will be performed.
+        Output:
+            - subset (WILDSSubset): A (potentially subsampled) subset of the WILDSDataset.
+        """
+        if split not in self.split_dict:
+            raise ValueError(f"Split name {split} is not found in dataset's split_dict.")
+
+        split_idx = np.where(self.split_array == self.split_dict[split])[0]
+
+        if frac < 1.0:
+            # Randomly sample a fraction of the split
+            num_to_retain = int(np.round(float(len(split_idx)) * frac))
+            split_idx = np.sort(np.random.permutation(split_idx)[:num_to_retain])
+
+        return SubsetPublicDataset(self, split_idx, transform)
+
+class SubsetPublicDataset(AbstractPublicDataset):
+    """
+    A class that acts like `torch.utils.data.Subset`.
+    We pass in `transform` (which is used for data augmentation) explicitly
+    because it can potentially vary on the training vs. test subsets.
+
+    `do_transform_y` (bool):
+
+    Args:
+        full_dataset: The full dataset that includes the datapoints from all splits
+
+        do_transform_y: When this is false (the default), `self.transform ` acts only on  `x`. Set this to true if
+            self.transform` should operate on `(x,y)` instead of just `x`.
+    """
+    def __init__(self,
+                 full_dataset: AbstractPublicDataset,
+                 indices: List[int],
+                 transform,
+                 do_transform_y: bool=False):
+        self._dataset = full_dataset
+        self._indices = indices
+        inherited_attrs = ['_dataset_name', '_data_dir', '_collate',
+                           '_split_scheme', '_split_dict', '_split_names',
+                           '_y_size', '_n_classes',
+                           '_metadata_fields', '_metadata_map']
+        for attr_name in inherited_attrs:
+            if hasattr(self._dataset, attr_name):
+                setattr(self, attr_name, getattr(self._dataset, attr_name))
+        self._transform = transform
+        self._do_transform_y = do_transform_y
+
+    def __getitem__(self, idx):
+        x, y, metadata = self._dataset[self._indices[idx]]
+        if self._transform is not None:
+            if self._do_transform_y:
+                x, y = self._transform(x, y)
+            else:
+                x = self._transform(x)
+        return x, y, metadata
+
+    def __len__(self):
+        return len(self._indices)
+
+    @property
+    def split_array(self):
+        return self._dataset._split_array[self._indices]
+
+    @property
+    def y_array(self):
+        return self._dataset._y_array[self._indices]
+
+    @property
+    def metadata_array(self):
+        return self._dataset.metadata_array[self._indices]
+
+    def eval(self, y_pred, y_true, metadata):
+        return self._dataset.eval(y_pred, y_true, metadata)
+
 
 class MultiDomainDataset(Dataset):
     """A custom dataset that contains images from different domains.

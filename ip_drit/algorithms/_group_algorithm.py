@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 from ._algorithm import Algorithm
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.scheduler.scheduler import step_scheduler
+from ip_drit.scheduler._scheduler import step_scheduler
 
 class GroupAlgorithm(Algorithm):
     """
