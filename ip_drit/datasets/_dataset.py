@@ -11,8 +11,8 @@ from typing import Optional
 from typing import Tuple
 from pathlib import Path
 from abc import ABC
-from absl import logging
 from abc import abstractmethod
+from absl import logging
 import numpy as np
 import torch
 import time
@@ -21,6 +21,9 @@ from torchvision.transforms import Compose
 
 from ip_drit.sampling import Sample
 from ip_drit.slide import Slide
+from ip_drit.common.metrics import Metric
+from ip_drit.logger import Logger
+
 from ._utils import download_and_extract_archive
 logging.set_verbosity(logging.INFO)
 
@@ -181,6 +184,93 @@ class AbstractPublicDataset(ABC):
 
         return SubsetPublicDataset(self, split_idx, transform)
 
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, torch.Tensor, torch.Tensor]:
+        # Any transformations are handled by the WILDSSubset
+        # since different subsets (e.g., train vs test) might have different transforms
+        x = self.get_input(idx)
+        y = self.y_array[idx]
+        metadata = self.metadata_array[idx]
+        return x, y, metadata
+
+    @property
+    def y_array(self) -> torch.Tensor:
+        """
+        A Tensor of targets (e.g., labels for classification tasks),
+        with y_array[i] representing the target of the i-th data point.
+        y_array[i] can contain multiple elements.
+        """
+        return self._y_array
+
+    @property
+    def original_resolution(self) -> Tuple[int, int]:
+        """
+        Original image resolution for image datasets.
+        """
+        return getattr(self, '_original_resolution', None)
+
+    @abstractmethod
+    def eval(
+            self,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            metadata: torch.Tensor,
+            prediction_fn:Optional[Callable]=None) -> Tuple[Dict, str]:
+        """
+        Args:
+            y_pred: Predicted targets or predicted logit.
+            y_true: True targets
+            metadata: Metadata
+            prediction_fn (optional): A function that converts the logits to the predicted label.
+        Output:
+            A dictionary of results
+            A pretty print version of the results
+        """
+        raise NotImplementedError
+
+    @staticmethod
+    def _standard_group_eval(
+            metric: Metric,
+            grouper,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            metadata: torch.Tensor,
+            aggregate: bool=True) -> Tuple[Dict, str]:
+        """
+        Args:
+            metric: Metric to use for eval
+            grouper: Grouper object that converts metadata into groups
+            y_pred: Predicted targets
+            y_true: True targets
+            metadata: Metadata
+            aggregate (optional): If True, aggregate the results. Defaults to True.
+        Output:
+            A dictionary of results.
+            A pretty print version of the results
+        """
+        results, results_str = {}, ''
+        if aggregate:
+            results.update(metric.compute(y_pred, y_true))
+            results_str += f"Average {metric.name}: {results[metric.agg_metric_field]:.3f}\n"
+
+        g = grouper.metadata_to_group(metadata)
+        group_results = metric.compute_group_wise(y_pred, y_true, g, grouper.n_groups)
+        for group_idx in range(grouper.n_groups):
+            group_str = grouper.group_field_str(group_idx)
+            group_metric = group_results[metric.group_metric_field(group_idx)]
+            group_counts = group_results[metric.group_count_field(group_idx)]
+            results[f'{metric.name}_{group_str}'] = group_metric
+            results[f'count_{group_str}'] = group_counts
+            if group_results[metric.group_count_field(group_idx)] == 0:
+                continue
+            results_str += (
+                f'  {grouper.group_str(group_idx)}  '
+                f"[n = {group_results[metric.group_count_field(group_idx)]:6.0f}]:\t"
+                f"{metric.name} = {group_results[metric.group_metric_field(group_idx)]:5.3f}\n")
+        results[f'{metric.worst_group_metric_field}'] = group_results[f'{metric.worst_group_metric_field}']
+        results_str += f"Worst-group {metric.name}: {group_results[metric.worst_group_metric_field]:.3f}\n"
+        return results, results_str
+
+
 class SubsetPublicDataset(AbstractPublicDataset):
     """
     A class that acts like `torch.utils.data.Subset`.
@@ -199,7 +289,7 @@ class SubsetPublicDataset(AbstractPublicDataset):
                  full_dataset: AbstractPublicDataset,
                  indices: List[int],
                  transform,
-                 do_transform_y: bool=False):
+                 do_transform_y: bool=False) -> None:
         self._dataset = full_dataset
         self._indices = indices
         inherited_attrs = ['_dataset_name', '_data_dir', '_collate',
@@ -236,8 +326,13 @@ class SubsetPublicDataset(AbstractPublicDataset):
     def metadata_array(self):
         return self._dataset.metadata_array[self._indices]
 
-    def eval(self, y_pred, y_true, metadata):
-        return self._dataset.eval(y_pred, y_true, metadata)
+    def eval(
+            self,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            metadata: torch.Tensor,
+            prediction_fn: Optional[Callable] = None) -> Tuple[Dict, str]:
+        return self._dataset.eval(y_pred, y_true, metadata, prediction_fn=prediction_fn)
 
 
 class MultiDomainDataset(Dataset):
@@ -307,3 +402,44 @@ class MultiDomainDataset(Dataset):
             sample.row_idx - self._input_patch_size_pixels // 2 : sample.row_idx + self._input_patch_size_pixels // 2,
             sample.col_idx - self._input_patch_size_pixels // 2 : sample.col_idx + self._input_patch_size_pixels // 2,
         ]
+
+    @staticmethod
+    def _standard_group_eval(
+            metric: Metric,
+            grouper,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            metadata: torch.Tensor,
+            aggregate: bool=True) -> Tuple[Dict, str]:
+        """
+        Args:
+            - metric (Metric): Metric to use for eval
+            - grouper (CombinatorialGrouper): Grouper object that converts metadata into groups
+            y_pred: Predicted targets
+            y_true: True targets
+            metadata: Metadata
+        Output:
+            A dictionary of results
+            A pretty print version of the results
+        """
+        results, results_str = {}, ''
+        if aggregate:
+            results.update(metric.compute(y_pred, y_true))
+            results_str += f"Average {metric.name}: {results[metric.agg_metric_field]:.3f}\n"
+        g = grouper.metadata_to_group(metadata)
+        group_results = metric.compute_group_wise(y_pred, y_true, g, grouper.n_groups)
+        for group_idx in range(grouper.n_groups):
+            group_str = grouper.group_field_str(group_idx)
+            group_metric = group_results[metric.group_metric_field(group_idx)]
+            group_counts = group_results[metric.group_count_field(group_idx)]
+            results[f'{metric.name}_{group_str}'] = group_metric
+            results[f'count_{group_str}'] = group_counts
+            if group_results[metric.group_count_field(group_idx)] == 0:
+                continue
+            results_str += (
+                f'  {grouper.group_str(group_idx)}  '
+                f"[n = {group_results[metric.group_count_field(group_idx)]:6.0f}]:\t"
+                f"{metric.name} = {group_results[metric.group_metric_field(group_idx)]:5.3f}\n")
+        results[f'{metric.worst_group_metric_field}'] = group_results[f'{metric.worst_group_metric_field}']
+        results_str += f"Worst-group {metric.name}: {group_results[metric.worst_group_metric_field]:.3f}\n"
+        return results, results_str

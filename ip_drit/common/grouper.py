@@ -142,6 +142,28 @@ class CombinatorialGrouper(AbstractGrouper):
         else:
             return groups
 
+    def group_field_str(self, group: int):
+        return self.group_str(group).replace('=', ':').replace(',','_').replace(' ','')
+
+    def group_str(self, group: int):
+        if self._groupby_fields is None:
+            return 'all'
+
+        # group is just an integer, not a Tensor
+        n = len(self._factors_np)
+        metadata = np.zeros(n)
+        for i in range(n-1):
+            metadata[i] = (group % self._factors_np[i+1]) // self._factors_np[i]
+        metadata[n-1] = group // self._factors_np[n-1]
+        group_name = ''
+        for i in reversed(range(n)):
+            meta_val = int(metadata[i])
+            if self._metadata_map is not None:
+                if self._groupby_fields[i] in self._metadata_map:
+                    meta_val = self._metadata_map[self._groupby_fields[i]][meta_val]
+            group_name += f'{self._groupby_fields[i]} = {meta_val}, '
+        group_name = group_name[:-2]
+        return group_name
 def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
     """
     This differs from split_into_groups in how it handles missing groups.

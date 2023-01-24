@@ -1,5 +1,6 @@
 from ._loss import ElementwiseLoss, Loss, MultiTaskLoss
 from ._all_metrics import MSE, Accuracy, MultiTaskAccuracy, MultiTaskAveragePrecision
+from ._metric import Metric
 from ._all_metrics import ElementwiseLoss
 from ._all_metrics import multiclass_logits_to_pred
 from ._all_metrics import binary_logits_to_pred

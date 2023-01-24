@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+from typing import Tuple
 from pandas.api.types import CategoricalDtype
 
 def minimum(numbers, empty_val=0.):
@@ -71,11 +72,11 @@ def get_counts(g, n_groups):
     counts[unique_groups] = unique_counts.float()
     return counts
 
-def avg_over_groups(v, g, n_groups):
+def avg_over_groups(v: torch.Tensor, g: torch.Tensor, n_groups: int) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Args:
-        v (Tensor): Vector containing the quantity to average over.
-        g (Tensor): Vector of the same length as v, containing group information.
+        v: Vector containing the quantity to average over.
+        g: Vector of the same length as v, containing group information.
     Returns:
         group_avgs (Tensor): Vector of length num_groups
         group_counts (Tensor)

@@ -1,17 +1,22 @@
 """A module that defines a the Camelyon 17 dataset."""
 import os
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from pathlib import Path
 from enum import Enum
 from enum import auto
 
 import numpy as np
 import pandas as pd
+from PIL import Image
+
 import torch
 from ._dataset import AbstractPublicDataset
-from PIL import Image
+from ip_drit.common.metrics import Accuracy
+from ip_drit.common.grouper import CombinatorialGrouper
 
 class SplitScheme(Enum):
     OFFICIAL = auto()
@@ -38,13 +43,18 @@ class CamelyonDataset(AbstractPublicDataset):
     def __init__(self, dataset_dir: Path, split_scheme: SplitScheme = SplitScheme.OFFICIAL) -> None:
         self._version = '1.0'
         super().__init__(dataset_dir=dataset_dir)
-        self._patch_size_pixels = (96, 96)
+        self._original_resolution = (96, 96)
 
         # Read in metadata
         self._metadata_df: pd.DataFrame = pd.read_csv(
             os.path.join(self._data_dir, 'metadata.csv'),
             index_col=0,
             dtype={'patient': 'str'})
+
+        # Hack to reduce the number of samples
+        self._metadata_df = self._metadata_df.loc[:200, :]
+
+        self._y_array = torch.LongTensor(self._metadata_df['tumor'].values)
 
         self._n_classes = 2
 
@@ -67,6 +77,10 @@ class CamelyonDataset(AbstractPublicDataset):
             dim=1,
         )
         self._metadata_fields: List[str] = ['hospital', 'slide', 'y']
+        self._eval_grouper = CombinatorialGrouper(
+            dataset=self,
+            groupby_fields=['slide'],
+        )
 
     def _update_split_field_of_metadata(self) -> None:
         centers = self._metadata_df['center']
@@ -83,10 +97,37 @@ class CamelyonDataset(AbstractPublicDataset):
         slide_mask = (self._metadata_df['slide'] == 23)
         self._metadata_df.loc[slide_mask, 'split'] = self._SPLIT_INDEX_BY_SPLIT_STRING['train']
 
-    def get_input(self, idx: int) -> np.ndarray:
+    def get_input(self, idx: int) -> Image:
+        """Returns an input image in the order of C x H x W"""
         im_file_name = os.path.join(
             self._data_dir,
             self._file_names[idx],
         )
-        return np.asarray(Image.open(im_file_name).convert('RGB'))
+        return Image.open(im_file_name).convert('RGB')
 
+
+    def eval(
+            self,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            metadata: torch.Tensor,
+            prediction_fn:Optional[Callable]=None) -> Tuple[Dict, str]:
+        """
+        Computes all evaluation metrics .
+        Args:
+            y_pred: Predictions from a model. By default, they are predicted labels. But they can also be other model
+                outputs such that prediction_fn(y_pred) are predicted labels.
+            y_true: Ground-truth labels
+            metadata: Metadata.
+            prediction_fn: A function that turns y_pred into predicted labels.
+        Output:
+            A dictionary of evaluation metrics, keyed by the name of the metrics.
+            A string summarizing the evaluation metrics
+        """
+        metric = Accuracy(prediction_fn=prediction_fn)
+        return self._standard_group_eval(
+            metric,
+            self._eval_grouper,
+            y_pred,
+            y_true,
+            metadata)

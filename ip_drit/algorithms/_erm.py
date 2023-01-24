@@ -27,7 +27,7 @@ class ERM(SingleModelAlgorithm):
             loss: ElementwiseLoss,
             metric,
             n_train_steps: int):
-        model = initialize_model_from_configuration(config, d_out)
+        model = initialize_model_from_configuration(config, d_out, output_classifier=True)
         # initialize module
         super().__init__(
             config=config,
@@ -58,9 +58,9 @@ class ERM(SingleModelAlgorithm):
                 - unlabeled_y_true (Tensor): true labels for unlabeled batch for fully-supervised ERM experiments
         """
         x, y_true, metadata = batch
-        x = move_to(x, self.device)
-        y_true = move_to(y_true, self.device)
-        g = move_to(self.grouper.metadata_to_group(metadata), self.device)
+        x = move_to(x, self._device)
+        y_true = move_to(y_true, self._device)
+        g = move_to(self._grouper.metadata_to_group(metadata), self._device)
 
         outputs = self.get_model_output(x, y_true)
 
@@ -85,9 +85,9 @@ class ERM(SingleModelAlgorithm):
         return results
 
     def objective(self, results):
-        labeled_loss = self.loss.compute(results['y_pred'], results['y_true'], return_dict=False)
-        if self.use_unlabeled_y and 'unlabeled_y_true' in results:
-            unlabeled_loss = self.loss.compute(
+        labeled_loss = self._loss.compute(results['y_pred'], results['y_true'], return_dict=False)
+        if self._use_unlabeled_y and 'unlabeled_y_true' in results:
+            unlabeled_loss = self._loss.compute(
                 results['unlabeled_y_pred'],
                 results['unlabeled_y_true'],
                 return_dict=False

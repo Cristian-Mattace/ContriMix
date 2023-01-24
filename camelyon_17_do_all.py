@@ -1,7 +1,7 @@
 """A script to run the benchmark for the Camelyon dataset."""
 import argparse
 import logging
-
+import os
 import torch.cuda
 from absl import app
 from ip_drit.datasets.camelyon17 import CamelyonDataset
@@ -18,6 +18,9 @@ from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.common.data_loaders import get_train_loader
 from ip_drit.datasets import SubsetPublicDataset
 from ip_drit.logger import Logger
+from ip_drit.logger import BatchLogger
+from ip_drit.patch_transform import initialize_transform
+from ip_drit.patch_transform import TransformationType
 from torch.utils.data import DataLoader
 from train import train
 
@@ -34,16 +37,24 @@ def main(argv):
     config_dict: Dict[str, Any] = {
         'algorithm': ModelAlgorithm.ERM,
         'model': WildModel.DENSENET121,
+
+        'transform': TransformationType.WEAK,
+        'target_resolution': None,  # Keep the original dataset resolution
+
+        'scheduler_metric_split': 'val',
+
         'group_by_fields': ['hospital'],
-        'loss_function': 'cross_entropy',
+        'loss_function': 'multitask_bce',
         'algo_log_metric': 'accuracy',
+        'log_dir': str(log_dir),
         'gradient_accumulation_steps': 1,
-        'n_epochs': 5,
+        'n_epochs': 20,
+        'log_every': 2,
         'train_loader': 'group',
         'batch_size': 32,
         'uniform_over_groups': True,  # If True, sample examples such that batches are uniform over groups.
-        'distinct_groups': True, # If True, enforce groups sampled per batch are distinct.
-        'n_groups_per_batch': 4,
+        'distinct_groups': False, # If True, enforce groups sampled per batch are distinct.
+        'n_groups_per_batch': 1,  #4
 
         'scheduler': 'linear_schedule_with_warmup',
         'scheduler_kwargs': {
@@ -65,23 +76,28 @@ def main(argv):
         'device': torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
 
         'use_unlabeled_y': False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
+        'verbose': True,
     }
 
     logger = Logger(fpath=str(log_dir / 'log.txt'))
 
     train_grouper = _initialize_grouper(full_dataset=camelyon_dataset, group_by_fields=config_dict['group_by_fields'])
-    algorithm = initialize_algorithm(
-        config=config_dict,
-        split_dict_by_name=_configure_split_dict_by_names(
+
+    split_dict_by_names=_configure_split_dict_by_names(
             full_dataset=camelyon_dataset,
             grouper=train_grouper,
             config_dict=config_dict,
-        ),
+        )
+
+    algorithm = initialize_algorithm(
+        config=config_dict,
+        split_dict_by_name=split_dict_by_names,
         train_grouper=train_grouper
     )
 
     train(
         algorithm=algorithm,
+        split_dict_by_name=split_dict_by_names,
         general_logger=logger,
         config_dict=config_dict,
         epoch_offset=0,
@@ -106,7 +122,11 @@ def _configure_split_dict_by_names(
         split_dict[split_name]['dataset'] = full_dataset.get_subset(
             split=split_name,
             frac=1.0,
-            transform=None
+            transform= initialize_transform(
+                transform_name=config_dict['transform'],
+                config_dict=config_dict,
+                full_dataset=full_dataset,
+            )
         )
 
         split_dict[split_name]['loader'] = _get_data_loader_by_split_name(
@@ -115,6 +135,18 @@ def _configure_split_dict_by_names(
             split_name=split_name,
             config_dict=config_dict,
         )
+
+        split_dict[split_name]['eval_logger'] = BatchLogger(
+            os.path.join(config_dict['log_dir'], f'{split_name}_eval.csv'), mode='w', use_wandb=False,
+        )
+
+        split_dict[split_name]['algo_logger'] = BatchLogger(
+            os.path.join(config_dict['log_dir'], f'{split_name}_train.csv'), mode='w', use_wandb=False,
+        )
+
+        split_dict[split_name]['verbose'] = config_dict['verbose']
+        split_dict[split_name]['split'] = split_name
+
     return split_dict
 
 def _get_data_loader_by_split_name(

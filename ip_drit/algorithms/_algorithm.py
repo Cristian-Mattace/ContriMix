@@ -14,7 +14,7 @@ class Algorithm(nn.Module):
         self._device = device
         self._out_device = 'cpu'
         self._has_log = False
-        self._reset_log()
+        self.reset_log()
 
     def update(self, batch: Tuple[torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
@@ -47,13 +47,13 @@ class Algorithm(nn.Module):
         """
         self._is_training = mode
         super().train(mode)
-        self._reset_log()
+        self.reset_log()
 
     @property
     def has_log(self) -> bool:
         return self._has_log
 
-    def _reset_log(self) -> None:
+    def reset_log(self) -> None:
         """
         Resets log by clearing out the internal log, Algorithm.log_dict
         """
@@ -100,11 +100,11 @@ class Algorithm(nn.Module):
         """
         out_dict = detach_and_clone(in_dict)
         if to_out_device:
-            out_dict = move_to(out_dict, self.out_device)
+            out_dict = move_to(out_dict, self._out_device)
         return out_dict
 
 
-    def _reset_log(self) -> None:
+    def reset_log(self) -> None:
         """
         Resets log by clearing out the internal log, Algorithm.log_dict
         """

@@ -17,7 +17,7 @@ from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.common.metrics import binary_logits_to_pred
 
 algo_log_metrics = {
-    'accuracy': Accuracy(prediction_fn=multiclass_logits_to_pred),
+    'accuracy': Accuracy(prediction_fn=binary_logits_to_pred),
     'mse': MSE(),
     'multitask_accuracy': MultiTaskAccuracy(prediction_fn=multiclass_logits_to_pred),
     'multitask_binary_accuracy': MultiTaskAccuracy(prediction_fn=binary_logits_to_pred),

@@ -97,21 +97,29 @@ class Metric:
         else:
             return agg_metric
 
-    def compute_group_wise(self, y_pred, y_true, g, n_groups, return_dict=True):
+    def compute_group_wise(
+            self,
+            y_pred: torch.Tensor,
+            y_true: torch.Tensor,
+            g: torch.Tensor,
+            n_groups: int,
+            return_dict: bool=True):
         """
         Computes metrics for each group. This is a wrapper around _compute.
         Args:
-            - y_pred (Tensor): Predicted targets or model output
-            - y_true (Tensor): True targets
-            - g (Tensor): groups
-            - n_groups (int): number of groups
-            - return_dict (bool): Whether to return the output as a dictionary or a tensor
-        Output (return_dict=False):
+            y_pred: Predicted targets or model output
+            y_true: True targets
+            g: groups
+            n_groups: number of groups
+            return_dict: Whether to return the output as a dictionary or a tensor
+
+        Outputs
+        If return_dict=False:
             - group_metrics (Tensor): tensor of size (n_groups, ) including the average metric for each group
             - group_counts (Tensor): tensor of size (n_groups, ) including the group count
             - worst_group_metric (0-dim tensor): worst-group metric
             - For empty inputs/groups, corresponding metrics are tensor(0.)
-        Output (return_dict=True):
+        else:
             - results (dict): Dictionary of results
         """
         group_metrics, group_counts, worst_group_metric = self._compute_group_wise(y_pred, y_true, g, n_groups)
@@ -181,6 +189,7 @@ class ElementwiseMetric(Metric):
         return avg_metric
 
     def _compute_group_wise(self, y_pred, y_true, g, n_groups):
+        y_pred = torch.reshape(y_pred, y_true.shape)
         element_wise_metrics = self._compute_element_wise(y_pred, y_true)
         group_metrics, group_counts = avg_over_groups(element_wise_metrics, g, n_groups)
         worst_group_metric = self.worst(group_metrics[group_counts>0])

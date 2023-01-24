@@ -1,10 +1,10 @@
 import torch, time
 import numpy as np
-from typing import List
+from typing import Union
 from ._algorithm import Algorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.scheduler._scheduler import step_scheduler
-
+from ip_drit.common.utils import numel
 class GroupAlgorithm(Algorithm):
     """
     A class defined for algorithms with group-wise logging.
@@ -46,20 +46,20 @@ class GroupAlgorithm(Algorithm):
         """
         results = self.sanitize_dict(results, to_out_device=False)
         # check all the fields exist
-        for field in self.logged_fields:
+        for field in self._logged_fields:
             assert field in results, f"field {field} missing"
         # compute statistics for the current batch
         batch_log = {}
         with torch.no_grad():
-            for m in self.logged_metrics:
-                if not self.no_group_logging:
+            for m in self._logged_metrics:
+                if not self._no_group_logging:
                     group_metrics, group_counts, worst_group_metric = m.compute_group_wise(
                         results['y_pred'],
                         results['y_true'],
                         results['g'],
                         self.grouper.n_groups,
                         return_dict=False)
-                    batch_log[f'{self.group_prefix}{m.name}'] = group_metrics
+                    batch_log[f'{self._group_prefix}{m.name}'] = group_metrics
                 batch_log[m.agg_metric_field] = m.compute(
                     results['y_pred'],
                     results['y_true'],
@@ -67,35 +67,35 @@ class GroupAlgorithm(Algorithm):
             count = numel(results['y_true'])
 
         # transfer other statistics in the results dictionary
-        for field in self.logged_fields:
-            if field.startswith(self.group_prefix) and self.no_group_logging:
+        for field in self._logged_fields:
+            if field.startswith(self._group_prefix) and self._no_group_logging:
                 continue
             v = results[field]
             if isinstance(v, torch.Tensor) and v.numel()==1:
                 batch_log[field] = v.item()
             else:
                 if isinstance(v, torch.Tensor):
-                    assert v.numel()==self.grouper.n_groups, "Current implementation deals only with group-wise statistics or a single-number statistic"
-                    assert field.startswith(self.group_prefix)
+                    assert v.numel()==self._grouper.n_groups, "Current implementation deals only with group-wise statistics or a single-number statistic"
+                    assert field.startswith(self._group_prefix)
                 batch_log[field] = v
 
         # update the log dict with the current batch
         if not self._has_log: # since it is the first log entry, just save the current log
             self.log_dict = batch_log
-            if not self.no_group_logging:
-                self.log_dict[self.group_count_field] = group_counts
-            self.log_dict[self.count_field] = count
+            if not self._no_group_logging:
+                self.log_dict[self._group_count_field] = group_counts
+            self.log_dict[self._count_field] = count
         else: # take a running average across batches otherwise
             for k, v in batch_log.items():
-                if k.startswith(self.group_prefix):
-                    if self.no_group_logging:
+                if k.startswith(self._group_prefix):
+                    if self._no_group_logging:
                         continue
-                    self.log_dict[k] = update_average(self.log_dict[k], self.log_dict[self.group_count_field], v, group_counts)
+                    self.log_dict[k] = _update_average(self.log_dict[k], self.log_dict[self._group_count_field], v, group_counts)
                 else:
-                    self.log_dict[k] = update_average(self.log_dict[k], self.log_dict[self.count_field], v, count)
-            if not self.no_group_logging:
-                self.log_dict[self.group_count_field] += group_counts
-            self.log_dict[self.count_field] += count
+                    self.log_dict[k] = _update_average(self.log_dict[k], self.log_dict[self._count_field], v, count)
+            if not self._no_group_logging:
+                self.log_dict[self._group_count_field] += group_counts
+            self.log_dict[self._count_field] += count
         self._has_log = True
 
     def get_log(self):
@@ -104,23 +104,23 @@ class GroupAlgorithm(Algorithm):
         """
         sanitized_log = {}
         for k, v in self.log_dict.items():
-            if k.startswith(self.group_prefix):
-                field = k[len(self.group_prefix):]
-                for g in range(self.grouper.n_groups):
+            if k.startswith(self._group_prefix):
+                field = k[len(self._group_prefix):]
+                for g in range(self._grouper.n_groups):
                     # set relevant values to NaN depending on the group count
-                    count = self.log_dict[self.group_count_field][g].item()
-                    if count==0 and k!=self.group_count_field:
+                    count = self.log_dict[self._group_count_field][g].item()
+                    if count==0 and k!=self._group_count_field:
                         outval = np.nan
                     else:
                         outval = v[g].item()
                     # add to dictionary with an appropriate name
                     # in practice, it is saving each value as {field}_group:{g}
                     added = False
-                    for m in self.logged_metrics:
+                    for m in self._logged_metrics:
                         if field==m.name:
                             sanitized_log[m.group_metric_field(g)] = outval
                             added = True
-                    if k==self.group_count_field:
+                    if k==self._group_count_field:
                         sanitized_log[self.loss.group_count_field(g)] = outval
                         added = True
                     elif not added:
@@ -141,7 +141,7 @@ class GroupAlgorithm(Algorithm):
             - log_access (bool): whether the scheduler_metric can be fetched from internal log
                                  (self.log_dict)
         """
-        for scheduler, metric_name in zip(self.schedulers, self.scheduler_metric_names):
+        for scheduler, metric_name in zip(self._schedulers, self._scheduler_metric_names):
             if scheduler is None:
                 continue
             if is_epoch and scheduler.step_every_batch:
@@ -189,35 +189,35 @@ class GroupAlgorithm(Algorithm):
         log = self.get_log()
 
         # Process aggregate logged fields
-        for field in self.logged_fields:
-            if field.startswith(self.group_prefix):
+        for field in self._logged_fields:
+            if field.startswith(self._group_prefix):
                 continue
             results_str += (
                 f'{field}: {log[field]:.3f}\n'
             )
 
         # Process aggregate logged metrics
-        for metric in self.logged_metrics:
+        for metric in self._logged_metrics:
             results_str += (
                 f'{metric.agg_metric_field}: {log[metric.agg_metric_field]:.3f}\n'
             )
 
         # Process logs for each group
-        if not self.no_group_logging:
-            for g in range(self.grouper.n_groups):
+        if not self._no_group_logging:
+            for g in range(self._grouper.n_groups):
                 group_count = log[f"count_group:{g}"]
                 if group_count <= 0:
                     continue
 
                 results_str += (
-                    f'  {self.grouper.group_str(g)}  '
+                    f'  {self._grouper.group_str(g)}  '
                     f'[n = {group_count:6.0f}]:\t'
                 )
 
                 # Process grouped logged fields
-                for field in self.logged_fields:
-                    if field.startswith(self.group_prefix):
-                        field_suffix = field[len(self.group_prefix):]
+                for field in self._logged_fields:
+                    if field.startswith(self._group_prefix):
+                        field_suffix = field[len(self._group_prefix):]
                         log_key = f'{field_suffix}_group:{g}'
                         results_str += (
                             f'{field_suffix}: '
@@ -225,7 +225,7 @@ class GroupAlgorithm(Algorithm):
                         )
 
                 # Process grouped metric fields
-                for metric in self.logged_metrics:
+                for metric in self._logged_metrics:
                     results_str += (
                         f'{metric.name}: '
                         f'{log[metric.group_metric_field(g)]:5.3f}\t'
@@ -235,3 +235,16 @@ class GroupAlgorithm(Algorithm):
             results_str += '\n'
 
         return results_str
+
+def _update_average(prev_avg: float, prev_counts: Union[int, torch.Tensor], curr_avg: float, curr_counts: Union[int, torch.Tensor]) -> float:
+    denom = prev_counts + curr_counts
+    if isinstance(curr_counts, torch.Tensor):
+        denom += (denom==0).float()
+    elif isinstance(curr_counts, int) or isinstance(curr_counts, float):
+        if denom==0:
+            return 0.
+    else:
+        raise ValueError('Type of curr_counts not recognized')
+    prev_weight = prev_counts/denom
+    curr_weight = curr_counts/denom
+    return prev_weight*prev_avg + curr_weight*curr_avg

@@ -19,7 +19,7 @@ class WildModel(Enum):
 def initialize_model_from_configuration(
         config: Dict[str, Any],
         d_out: int,
-        output_separate_featurizer_and_classifier: bool = False,
+        output_classifier: bool = False,
     ) -> nn.Module:
     """Initializes the model based on the input configuration file.
 
@@ -29,7 +29,7 @@ def initialize_model_from_configuration(
     Args:
         config: A configuration dictionary for the model to be initialized.
         d_out: The dimensionality of the output.
-        output_separate_featurizer_and_classifier: output_separate_featurizer_and_classifier
+        output_classifier: Creates a sequential architecture in which the classifier will be at the output.
 
     Returns:
          If output_separate_featurizer_and_classifier=True:
@@ -48,7 +48,7 @@ def initialize_model_from_configuration(
 
         out = featurizer
 
-        if output_separate_featurizer_and_classifier:
+        if output_classifier:
             classifier = nn.Linear(
                 featurizer.d_out, d_out
             )
@@ -60,12 +60,7 @@ def initialize_model_from_configuration(
         # If True, Algorithm.process_batch() will call model(x, y) during training,
         # and model(x, None) during eval.
         if not hasattr(out, 'needs_y'):
-            # Sometimes model is a tuple of (featurizer, classifier)
-            if output_separate_featurizer_and_classifier:
-                for submodel in out:
-                    submodel.needs_y = False
-            else:
-                out.needs_y = False
+            out.needs_y = False
         return out
 
 def _initialize_torchvision_model(name: WildModel, d_out: int, **kwargs):

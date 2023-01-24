@@ -97,9 +97,9 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 - unlabeled_features (Tensor): features for unlabeled batch
         """
         x, y_true, metadata = batch
-        x = move_to(x, self.device)
-        y_true = move_to(y_true, self.device)
-        g = move_to(self.grouper.metadata_to_group(metadata), self.device)
+        x = move_to(x, self._device)
+        y_true = move_to(y_true, self._device)
+        g = move_to(self.grouper.metadata_to_group(metadata), self._device)
 
         outputs = self.get_model_output(x, y_true)
 
@@ -135,7 +135,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 - y_pred (Tensor)
                 - objective (float)
         """
-        assert not self.is_training
+        assert not self._is_training
         results = self.process_batch(batch)
         results['objective'] = self.objective(results).item()
         self.update_log(results)
@@ -158,7 +158,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 - y_pred (Tensor)
                 - objective (float)
         """
-        assert self.is_training
+        assert self._is_training
 
         # process this batch
         results = self.process_batch(batch, unlabeled_batch)
@@ -166,15 +166,15 @@ class SingleModelAlgorithm(GroupAlgorithm):
         # update running statistics and update model if we've reached end of effective batch
         self._update(
             results,
-            should_step=(((self.batch_idx + 1) % self.gradient_accumulation_steps == 0) or (is_epoch_end))
+            should_step=(((self._batch_idx + 1) % self._gradient_accumulation_steps == 0) or (is_epoch_end))
         )
         self.update_log(results)
 
         # iterate batch index
         if is_epoch_end:
-            self.batch_idx = 0
+            self._batch_idx = 0
         else:
-            self.batch_idx += 1
+            self._batch_idx += 1
 
         # return only this batch's results
         return self.sanitize_dict(results)
@@ -193,13 +193,13 @@ class SingleModelAlgorithm(GroupAlgorithm):
         # update model and logs based on effective batch
         if should_step:
             if self._max_grad_norm:
-                clip_grad_norm_(self.model.parameters(), self._max_grad_norm)
-            self.optimizer.step()
+                clip_grad_norm_(self._model.parameters(), self._max_grad_norm)
+            self._optimizer.step()
             self.step_schedulers(
                 is_epoch=False,
-                metrics=self.log_dict,
+                metrics=self._log_dict,
                 log_access=False)
-            self.model.zero_grad()
+            self._model.zero_grad()
 
     def save_metric_for_logging(self, results, metric, value):
         if isinstance(value, torch.Tensor):

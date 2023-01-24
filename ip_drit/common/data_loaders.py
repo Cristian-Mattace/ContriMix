@@ -119,33 +119,33 @@ class GroupSampler:
             raise ValueError(f'The dataset has only {len(group_ids)} examples but the batch size is {batch_size}. There must be enough examples to form at least one complete batch.')
 
         self._group_ids = group_ids
-        self.unique_groups, self.group_indices, unique_counts = split_into_groups(group_ids)
+        self._unique_groups, self._group_indices, unique_counts = split_into_groups(group_ids)
 
-        self.distinct_groups = distinct_groups
-        self.n_groups_per_batch = n_groups_per_batch
-        self.n_points_per_group = batch_size // n_groups_per_batch
+        self._distinct_groups = distinct_groups
+        self._n_groups_per_batch = n_groups_per_batch
+        self._n_points_per_group = batch_size // n_groups_per_batch
 
-        self.dataset_size = len(group_ids)
-        self.num_batches = self.dataset_size // batch_size
+        self._dataset_size = len(group_ids)
+        self._num_batches = self._dataset_size // batch_size
 
         if uniform_over_groups: # Sample uniformly over groups
-            self.group_prob = None
+            self._group_prob = None
         else: # Sample a group proportionately to its size
-            self.group_prob = unique_counts.numpy() / unique_counts.numpy().sum()
+            self._group_prob = unique_counts.numpy() / unique_counts.numpy().sum()
 
     def __iter__(self):
-        for batch_id in range(self.num_batches):
+        for batch_id in range(self._num_batches):
             # Note that we are selecting group indices rather than groups
             groups_for_batch = np.random.choice(
-                len(self.unique_groups),
-                size=self.n_groups_per_batch,
-                replace=(not self.distinct_groups),
-                p=self.group_prob)
+                len(self._unique_groups),
+                size=self._n_groups_per_batch,
+                replace=(not self._distinct_groups),
+                p=self._group_prob)
             sampled_ids = [
                 np.random.choice(
-                    self.group_indices[group],
-                    size=self.n_points_per_group,
-                    replace=len(self.group_indices[group]) <= self.n_points_per_group, # False if the group is larger than the sample size
+                    self._group_indices[group],
+                    size=self._n_points_per_group,
+                    replace=len(self._group_indices[group]) <= self._n_points_per_group, # False if the group is larger than the sample size
                     p=None)
                 for group in groups_for_batch]
 
@@ -154,7 +154,7 @@ class GroupSampler:
             yield sampled_ids
 
     def __len__(self):
-        return self.num_batches
+        return self._num_batches
 
 def split_into_groups(g: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
     """
