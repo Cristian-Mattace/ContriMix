@@ -1,5 +1,5 @@
 """A script to run the benchmark for the Camelyon dataset."""
-import argparse
+
 import logging
 import os
 import torch.cuda

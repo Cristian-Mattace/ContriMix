@@ -1,27 +1,6 @@
 """A module that defines the transformations on patches."""
 import numpy as np
 import torch
-from skimage.transform import rotate
-
-
-class RandomFlip(object):
-    """Flips the images up/down, left/right randomly with probability of 0.5."""
-
-    def __call__(self, sample: np.ndarray) -> np.ndarray:
-        im = sample
-        if np.random.uniform(low=0.0, high=1.0) > 0.5:
-            im = np.fliplr(im)
-        return im
-
-
-class RandomRotate(object):
-    """Randomly rotates the image."""
-
-    def __call__(self, sample: np.ndarray) -> np.ndarray:
-        rotation_angle_degs = float(np.random.randint(4) * 90.0)
-        im = rotate(sample.astype(np.float32), rotation_angle_degs)
-        return im
-
 
 class RGBToTransmittance(object):
     """Converts an RGB image to a transmittance image."""

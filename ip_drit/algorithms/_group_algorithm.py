@@ -1,4 +1,4 @@
-import torch, time
+import torch
 import numpy as np
 from typing import Union
 from ._algorithm import Algorithm
@@ -161,7 +161,7 @@ class GroupAlgorithm(Algorithm):
             - scheduler: scheduler to update
             - is_epoch (bool): epoch-wise update if set to True, batch-wise update otherwise
             - metric_name (str): name of the metric (key in metrics or log dictionary) to use for updates
-            - metrics (dict): a dictionary of metrics that can beused for scheduler updates
+            - metrics (dict): a dictionary of metrics that can be used for scheduler updates
             - log_access (bool): whether metrics from self.get_log() can be used to update schedulers
         """
         if not scheduler.use_metric or metric_name is None:
@@ -237,14 +237,14 @@ class GroupAlgorithm(Algorithm):
         return results_str
 
 def _update_average(prev_avg: float, prev_counts: Union[int, torch.Tensor], curr_avg: float, curr_counts: Union[int, torch.Tensor]) -> float:
-    denom = prev_counts + curr_counts
+    denominator = prev_counts + curr_counts
     if isinstance(curr_counts, torch.Tensor):
-        denom += (denom==0).float()
+        denominator += (denominator==0).float()
     elif isinstance(curr_counts, int) or isinstance(curr_counts, float):
-        if denom==0:
+        if denominator==0:
             return 0.
     else:
         raise ValueError('Type of curr_counts not recognized')
-    prev_weight = prev_counts/denom
-    curr_weight = curr_counts/denom
+    prev_weight = prev_counts/denominator
+    curr_weight = curr_counts/denominator
     return prev_weight*prev_avg + curr_weight*curr_avg

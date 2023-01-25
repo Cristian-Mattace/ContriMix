@@ -1,4 +1,3 @@
-import numpy as np
 from ._utils import avg_over_groups, get_counts, numel
 import torch
 

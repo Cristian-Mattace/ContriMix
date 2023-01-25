@@ -1,10 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.nn.utils import spectral_norm
 
 from ._initializer import Initializer
-from ._initializer import InitilizationType
+from ._initializer import InitializationType
 
 
 class LeakyReLUConv2d(nn.Module):
@@ -55,7 +54,7 @@ class LeakyReLUConv2d(nn.Module):
         layers.append(nn.LeakyReLU(inplace=True))
 
         self._model = nn.Sequential(*layers)
-        self._model = Initializer(init_type=InitilizationType.NORMAL)(self._model)
+        self._model = Initializer(init_type=InitializationType.NORMAL)(self._model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self._model(x)
@@ -89,20 +88,20 @@ class ReLUInstNorm2dConv2d(nn.Module):
             nn.InstanceNorm2d(num_features=out_channels, affine=False),
             nn.LeakyReLU(inplace=True),
         )
-        self._model = Initializer(init_type=InitilizationType.NORMAL)(self._model)
+        self._model = Initializer(init_type=InitializationType.NORMAL)(self._model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self._model(x)
 
 
 class ResInstNorm2dConv2d(nn.Module):
-    """A class that defines the residulal condition block that has the following architecture.
+    """A class that defines the residual condition block that has the following architecture.
 
        - -> [Conv2d(3x3) -> [InstanceNorm2d] -> [ReLU()] -> [Conv2d(3x3)] -> [InstanceNorm2d] -> + ->
         |                                                                                        ^
         |----------------------------------------------------------------------------------------|
 
-    The numberd of input and output channels are the same.
+    The numbered of input and output channels are the same.
 
     Args;
        in_channels: The number of input channels.
@@ -133,7 +132,7 @@ class ResInstNorm2dConv2d(nn.Module):
             ),
             nn.InstanceNorm2d(in_channels),
         )
-        self._model = Initializer(init_type=InitilizationType.NORMAL)(self._model)
+        self._model = Initializer(init_type=InitializationType.NORMAL)(self._model)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x + self._model(x)

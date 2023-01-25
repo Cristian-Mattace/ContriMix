@@ -62,7 +62,7 @@ class CombinatorialGrouper(AbstractGrouper):
 
     Args:
         dataset: A dataset that contains the all data points.
-        groupby_fields (optional): A list of string that specifies what fiels to group. Defaults to None, in which case,
+        groupby_fields (optional): A list of string that specifies what fields to group. Defaults to None, in which case,
             all data points are assigned to group 0.
     """
     def __init__(self, dataset: AbstractPublicDataset, groupby_fields: Optional[List[str]] = None) -> None:
@@ -87,7 +87,7 @@ class CombinatorialGrouper(AbstractGrouper):
                 if min_value < 0:
                     raise ValueError(f"Metadata for CombinatorialGrouper cannot have values less than 0: {field}, {min_value}")
                 if min_value > 0:
-                    logging.warn(f"Minimum metadata value for CombinatorialGrouper is not 0 ({field}, {min_value}). This will result in empty groups")
+                    logging.warning(f"Minimum metadata value for CombinatorialGrouper is not 0 ({field}, {min_value}). This will result in empty groups")
 
             # We assume that the metadata fields are integers,
             # so we can measure the cardinality of each field by taking its max + 1, where 1 is for the first group of 0

@@ -6,10 +6,9 @@ import torch
 import torch.nn.functional as F
 from torchvision.ops.boxes import box_iou
 from torchvision.models.detection._utils import Matcher
-from torchvision.ops import nms, box_convert
 from ._metric import Metric, ElementwiseMetric, MultiTaskMetric
 from ._loss import ElementwiseLoss
-from ._utils import avg_over_groups, minimum, maximum, get_counts
+from ._utils import minimum, get_counts
 import sklearn.metrics
 from scipy.stats import pearsonr
 
@@ -83,7 +82,7 @@ def pseudolabel_multiclass_logits(logits, confidence_threshold):
     pseudolabels_kept_frac = mask.sum() / mask.numel() # mask is bool, so no .mean()
     return unlabeled_y_pred, unlabeled_y_pseudo, pseudolabels_kept_frac, mask
 
-def pseudolabel_identity(logits, confidence_threshold):
+def pseudolabel_identity(logits):
     return logits, logits, 1, None
 
 def pseudolabel_detection(preds, confidence_threshold):
@@ -386,7 +385,6 @@ class DetectionAccuracy(ElementwiseMetric):
                 (len(matched_elements) - len(matched_elements.unique()))
             )
             false_negative = total_gt - true_positive
-            acc = true_positive / ( true_positive + false_positive + false_negative )
             return true_positive / ( true_positive + false_positive + false_negative )
         elif total_gt == 0:
             if total_pred > 0:

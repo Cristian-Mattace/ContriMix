@@ -20,7 +20,7 @@ class ImageConsistencyLossType(Enum):
 class AbstractImageConsistencyLoss(nn.Module):
     """A class that implement the image consistency loss."""
 
-    def __init__(self, transforms: Optional[List[nn.Module]] = None):
+    def __init__(self):
         super().__init__()
 
     @abstractmethod

@@ -1,4 +1,3 @@
-import torch
 from typing import Any
 from typing import Dict
 from .single_model_algorithm import SingleModelAlgorithm

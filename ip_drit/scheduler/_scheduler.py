@@ -4,7 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 
-from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau, StepLR, CosineAnnealingLR, MultiStepLR
+from torch.optim.lr_scheduler import LambdaLR, ReduceLROnPlateau, StepLR, MultiStepLR
 from transformers import get_linear_schedule_with_warmup
 from transformers import get_cosine_schedule_with_warmup
 

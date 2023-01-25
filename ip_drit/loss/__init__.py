@@ -2,4 +2,3 @@ from ._consistency_loss import AbstractImageConsistencyLoss
 from ._consistency_loss import ImageConsistencyLossType
 from ._consistency_loss import L1ImageConsistencyLoss
 from ._consistency_loss import LPipsImageConsistencyLoss
-from ._loss import Loss

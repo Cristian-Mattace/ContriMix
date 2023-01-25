@@ -21,7 +21,7 @@ class AttributeEncoder(nn.Module):
     """A class that estimate the stain matrix i.e. attribute encoder.
 
     The networks takes an input image returns a stain vector matrix of size N x (3k^2) x num_stain_vectors.
-    To generate an output absorbance image, we need to resphae the stain vector into size
+    To generate an output absorbance image, we need to reshape the stain vector into size
     (3k^2) * num_stain_vectors and multiply it to a content matrix of num_stain_vectors x H x W to obtain
     an output image of size 3k^2 * H x W. Then, using the pixel shuffling, we can reduce it to 3 x (kW) x (kH)
 
@@ -29,13 +29,13 @@ class AttributeEncoder(nn.Module):
         in_channels: The number of input channels.
         out_channels: The number of output channels.
         num_stain_vectors (optional): The number of stain vectors. Defaults to 32.
-        downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 4.
+        down-sampling_factor (optional): A factor that describe how much of the image is down-sampled. Defaults to 4.
     Reference:
         https://github.com/HsinYingLee/MDMM/blob/master/networks.py#L64
     """
 
     def __init__(
-        self, in_channels: int, out_channels: int, num_stain_vectors: int = 32, downsampling_factor: int = 4
+        self, in_channels: int, out_channels: int, num_stain_vectors: int = 32,
     ) -> None:
         super().__init__()
         self._num_stain_vectors = num_stain_vectors
@@ -83,11 +83,10 @@ class ContentEncoder(nn.Module):
 
     Args:
         in_channels: The number of input channels.
-        out_channels (optional): The number of output channels. Defaults to 32.
 
     Returns:
         For each minibatch with N samples, it returns a tensor of size N x out_channels x H x W in which
-        H and W is a downsampled version of the input image.
+        H and W is a down-sampled version of the input image.
     """
 
     def __init__(self, in_channels: int, num_stain_vectors: int = 32) -> None:
@@ -200,14 +199,11 @@ class AbstractImGenerator(nn.Module):
     """A abstract class that computes the product between the content and the attribute.
 
     This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
-
-    Args:
-        downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 2.
     """
 
     _NUM_FEATURES_PER_FRACTION = 256
 
-    def __init__(self, downsampling_factor: int = 4) -> None:
+    def __init__(self) -> None:
         super().__init__()
 
     def forward(self, z_c: torch.Tensor, z_a: torch.Tensor) -> torch.Tensor:

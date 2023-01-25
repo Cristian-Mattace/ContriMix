@@ -1,11 +1,11 @@
-"""A module that defines the intializer for training models."""
+"""A module that defines the initializer for training models."""
 from enum import auto
 from enum import Enum
 
 import torch.nn as nn
 
 
-class InitilizationType(Enum):
+class InitializationType(Enum):
     """Initialization types."""
 
     KAIMING = auto()
@@ -17,12 +17,12 @@ class Initializer:
     """A class that initializes the model weights.
 
     Args:
-        init_type (optional): The type of the initialization. Defaults to InitilizationType.NORMAL.
+        init_type (optional): The type of the initialization. Defaults to InitializationType.NORMAL.
         init_gain (optional): The gain that we use for initialization. Defaults to 0.02.
 
     """
 
-    def __init__(self, init_type: InitilizationType = InitilizationType.NORMAL, init_gain: float = 0.02) -> None:
+    def __init__(self, init_type: InitializationType = InitializationType.NORMAL, init_gain: float = 0.02) -> None:
         self._init_type = init_type
         self._init_gain = init_gain
 
@@ -34,11 +34,11 @@ class Initializer:
         class_name = m.__class__.__name__
         if self._has_weights(m):
             if self._is_conv_layer(class_name) or self._is_linear_layer(m):
-                if self._init_type == InitilizationType.KAIMING:
+                if self._init_type == InitializationType.KAIMING:
                     nn.init.kaiming_normal_(m.weight.data, a=0, mode="fan_in")
-                elif self._init_type == InitilizationType.XAVIER:
+                elif self._init_type == InitializationType.XAVIER:
                     nn.init.xavier_normal_(m.weight.data, gain=self._init_gain)
-                elif self._init_type == InitilizationType.NORMAL:
+                elif self._init_type == InitializationType.NORMAL:
                     nn.init.normal_(m.weight.data, mean=0, std=self._init_gain)
                 else:
                     raise ValueError(f"Unknown initialization type!")

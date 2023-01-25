@@ -242,6 +242,7 @@ def _run_eval_epoch(
     batches = split_dict['loader']
     batches = tqdm(batches)
 
+    effective_batch_idx = 0
     # so we manually increment batch_idx
     for batch_idx, labeled_batch in enumerate(batches):
         batch_results = algorithm.evaluate(labeled_batch)

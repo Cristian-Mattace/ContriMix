@@ -5,7 +5,6 @@ from typing import Callable
 from typing import Optional
 from typing import Any
 from pathlib import Path
-import urllib
 import hashlib
 import tarfile
 import zipfile
