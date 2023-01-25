@@ -52,9 +52,16 @@ class CamelyonDataset(AbstractPublicDataset):
             dtype={'patient': 'str'})
 
         # Hack to reduce the number of samples
-        self._metadata_df = self._metadata_df.loc[:200, :]
-
+        num_of_samples = 2048
+        data_centers_values = np.unique(self._metadata_df['center'].values)
+        num_centers = len(data_centers_values)
+        num_value_per_center = num_of_samples // num_centers
+        keep_idxes = []
+        for center_idx in data_centers_values:
+            keep_idxes.extend(np.where(self._metadata_df['center'].values == center_idx)[0][:num_value_per_center])
+        self._metadata_df = self._metadata_df.iloc[keep_idxes]
         self._y_array = torch.LongTensor(self._metadata_df['tumor'].values)
+        # End of hacking.
 
         self._n_classes = 2
 

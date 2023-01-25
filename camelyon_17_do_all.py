@@ -16,6 +16,7 @@ from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.common.data_loaders import get_train_loader
+from ip_drit.common.data_loaders import get_eval_loader
 from ip_drit.datasets import SubsetPublicDataset
 from ip_drit.logger import Logger
 from ip_drit.logger import BatchLogger
@@ -47,11 +48,11 @@ def main(argv):
         'loss_function': 'multitask_bce',
         'algo_log_metric': 'accuracy',
         'log_dir': str(log_dir),
-        'gradient_accumulation_steps': 1,
+        'gradient_accumulation_steps': 2,
         'n_epochs': 20,
         'log_every': 2,
         'train_loader': 'group',
-        'batch_size': 32,
+        'batch_size': 64,
         'uniform_over_groups': True,  # If True, sample examples such that batches are uniform over groups.
         'distinct_groups': False, # If True, enforce groups sampled per batch are distinct.
         'n_groups_per_batch': 1,  #4
@@ -77,6 +78,16 @@ def main(argv):
 
         'use_unlabeled_y': False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
         'verbose': True,
+
+        'val_metric': 'acc_avg',
+        'val_metric_decreasing': False,
+
+        # Saving parameters
+        'save_step': 5,
+        'seed': 0,
+        'save_last': True,
+        'save_best': True,
+        'save_pred': True,
     }
 
     logger = Logger(fpath=str(log_dir / 'log.txt'))
@@ -164,6 +175,12 @@ def _get_data_loader_by_split_name(
             grouper = grouper,
             distinct_groups = config_dict['distinct_groups'],
             n_groups_per_batch = config_dict['n_groups_per_batch'],
+        )
+    elif split_name == 'ood_val':
+        return get_eval_loader(
+            loader_type='standard',
+            dataset=sub_dataset,
+            batch_size=config_dict['batch_size']
         )
 
 def _use_data_parallel() -> bool:

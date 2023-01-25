@@ -92,6 +92,30 @@ def get_train_loader(
               **loader_kwargs)
 
 
+def get_eval_loader(
+        loader_type: str,
+        dataset: Union[AbstractPublicDataset, SubsetPublicDataset],
+        batch_size: int,
+        **loader_kwargs) -> DataLoader:
+    """
+    Constructs and returns the data loader for evaluation.
+    Args:
+        loader_type: The dataloader type 'standard' for standard loaders.
+        dataset: Data
+        batch_size: Batch size
+        loader_kwargs: kwargs passed into torch DataLoader initialization.
+    Output:
+        A data loader for evaluation
+    """
+    if loader_type == 'standard':
+        return DataLoader(
+            dataset,
+            shuffle=False, # Do not shuffle eval datasets
+            sampler=None,
+            collate_fn=dataset.collate,
+            batch_size=batch_size,
+            **loader_kwargs)
+
 class GroupSampler:
     """
     Constructs batches by first sampling groups, then sampling data from those groups.

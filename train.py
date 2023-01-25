@@ -1,8 +1,11 @@
 import math
+import os
+import pandas as pd
 from typing import Any
 from typing import Dict
 from typing import Hashable
 from typing import List
+from typing import Tuple
 from typing import Union
 import torch
 from tqdm import tqdm
@@ -34,6 +37,7 @@ def train(
         config_dict: The configuration dictionary.
         epoch_offset: The initial epoch offset.
     """
+    best_val_metric = None
     for epoch in range(epoch_offset, config_dict['n_epochs']):
         general_logger.write(f"Epoch {epoch}: \n")
 
@@ -46,13 +50,33 @@ def train(
             config_dict=config_dict,
         )
 
-        _run_eval_epoch(
+        val_results, y_pred = _run_eval_epoch(
             algorithm=algorithm,
             split_dict=split_dict_by_name['ood_val'],
             general_logger=general_logger,
             epoch=epoch,
             config_dict=config_dict,
         )
+
+        curr_val_metric = val_results[config_dict['val_metric']]
+        general_logger.write(f"Validation {config_dict['val_metric']}: {curr_val_metric:.3f}\n")
+
+        if best_val_metric is None:
+            is_best = True
+        else:
+            if config_dict['val_metric_decreasing']:
+                is_best = curr_val_metric < best_val_metric
+                best_val_metric = curr_val_metric
+            else:
+                is_best = curr_val_metric > best_val_metric
+                best_val_metric = curr_val_metric
+
+        if is_best:
+            general_logger.write(f'Epoch {epoch} has the best validation performance so far.\n')
+
+        _save_model_if_needed(algorithm, split_dict_by_name['ood_val'], epoch, config_dict, is_best, best_val_metric)
+        _save_pred_if_needed(y_pred, split_dict_by_name['ood_val'], epoch, config_dict, is_best)
+        general_logger.write('\n')
 
 
 def _run_train_epoch(
@@ -61,7 +85,7 @@ def _run_train_epoch(
         general_logger: Logger,
         config_dict: Dict[str, Any],
         epoch: int,
-    ) -> None:
+    ) -> Tuple[Dict, str]:
     """Run 1 training epoch.
 
     Args:
@@ -70,6 +94,10 @@ def _run_train_epoch(
         general_logger: The logger that is used to write the training logs.
         config_dict: The configuration dictionary.
         epoch: The index of the current epoch.
+
+    Returns:
+        A dictionary of results
+        A pretty print version of the results
     """
     algorithm.train()
     torch.set_grad_enabled(True)
@@ -184,7 +212,7 @@ def _run_eval_epoch(
         general_logger: Logger,
         config_dict: Dict[str, Any],
         epoch: int,
-    ) -> None:
+    ) -> Tuple[Dict, str]:
     """Run 1 evaluation epoch.
 
     Args:
@@ -193,6 +221,10 @@ def _run_eval_epoch(
         general_logger: The logger that is used to write the training logs.
         config_dict: The configuration dictionary.
         epoch: The index of the current epoch.
+
+    Returns:
+        A dictionary of results.
+        A pretty print version of the results
     """
     algorithm.eval()
     torch.set_grad_enabled(False)
@@ -212,12 +244,11 @@ def _run_eval_epoch(
 
     # so we manually increment batch_idx
     for batch_idx, labeled_batch in enumerate(batches):
-        batch_results = algorithm.eval(labeled_batch)
+        batch_results = algorithm.evaluate(labeled_batch)
 
         epoch_y_true.append(_detach_and_clone(batch_results['y_true']))
         epoch_y_pred.append(_detach_and_clone(batch_results['y_pred']))
         epoch_metadata.append(_detach_and_clone(batch_results['metadata']))
-
 
         effective_batch_idx = batch_idx + 1
         if effective_batch_idx % config_dict['log_every'] == 0:
@@ -248,3 +279,77 @@ def _run_eval_epoch(
 
     # log after updating the scheduler in case it needs to access the internal logs
     _log_results(algorithm, split_dict, general_logger, epoch, math.ceil(effective_batch_idx))
+
+    results['epoch'] = epoch
+    split_dict['eval_logger'].log(results)
+    if split_dict['verbose']:
+        general_logger.write('Epoch eval:\n')
+        general_logger.write(results_str)
+
+    return results, epoch_y_pred
+
+def _save_model_if_needed(
+        algorithm: SingleModelAlgorithm,
+        split_dict: Dict[str, Any],
+        epoch: int,
+        config_dict: Dict[str, Any],
+        is_best: bool,
+        best_val_metric: float,
+    ) -> None:
+    prefix = _get_model_prefix(split_dict['dataset'].dataset_name, config_dict)
+    if config_dict['save_step'] is not None and (epoch + 1) % config_dict['save_step'] == 0:
+        _save_model(algorithm, epoch, best_val_metric, prefix + f'epoch:{epoch}_model.pth')
+    if config_dict['save_last']:
+        _save_model(algorithm, epoch, best_val_metric, prefix + 'epoch:last_model.pth')
+    if config_dict['save_best'] and is_best:
+        _save_model(algorithm, epoch, best_val_metric, prefix + 'epoch:best_model.pth')
+
+def _get_model_prefix(dataset_name: str, config_dict: Dict[str, Any]):
+    return os.path.join(
+        config_dict['log_dir'],
+        f"{dataset_name}_seed:{config_dict['seed']}_")
+
+def _save_model(algorithm: SingleModelAlgorithm, epoch: int, best_val_metric: float, path: str) -> None:
+    """Save the model checkpoint.
+
+    Args:
+        algorithm: The algorithm used to train the model.
+        epoch: The epoch number.
+        best_val_metric: The best validation metric.
+        path: The path to the saving folder.
+    """
+    state = {}
+    state['algorithm'] = algorithm.state_dict()
+    state['epoch'] = epoch
+    state['best_val_metric'] = best_val_metric
+    torch.save(state, path)
+
+def _save_pred_if_needed(y_pred, dataset, epoch: int, config_dict: Dict[str, Any], is_best, force_save=False) -> None:
+    if config_dict['save_pred']:
+        prefix: str = _get_pred_prefix(dataset, config_dict)
+        if force_save or (config_dict['save_step'] is not None and (epoch + 1) % config_dict['save_step'] == 0):
+            _save_pred(y_pred, prefix + f'epoch:{epoch}_pred')
+        if (not force_save) and config_dict['save_last']:
+            _save_pred(y_pred, prefix + f'epoch:last_pred')
+        if config_dict['save_best'] and is_best:
+            _save_pred(y_pred, prefix + f'epoch:best_pred')
+
+def _get_pred_prefix(split_dict: Dict[str, Any], config_dict: Dict[str, Any]):
+    dataset_name = split_dict['dataset'].dataset_name
+    split = split_dict['split']
+    replicate_str = f"seed:{config_dict['seed']}"
+    prefix = os.path.join(
+        config_dict['log_dir'],
+        f"{dataset_name}_split:{split}_{replicate_str}_")
+    return prefix
+
+def _save_pred(y_pred: torch.Tensor, path_prefix: str):
+    # Single tensor
+    if torch.is_tensor(y_pred):
+        df = pd.DataFrame(y_pred.numpy())
+        df.to_csv(path_prefix + '.csv', index=False, header=False)
+    # Dictionary
+    elif isinstance(y_pred, dict) or isinstance(y_pred, list):
+        torch.save(y_pred, path_prefix + '.pth')
+    else:
+        raise TypeError("Invalid type for save_pred")
