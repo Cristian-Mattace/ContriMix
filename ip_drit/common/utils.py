@@ -1,7 +1,10 @@
-import torch
+"""A utilities for the common package."""
 from typing import Any
 from typing import List
 from typing import Union
+
+import torch
+
 
 def numel(obj: Union[torch.Tensor, List[Any]]) -> int:
     """Gets the length of an object.

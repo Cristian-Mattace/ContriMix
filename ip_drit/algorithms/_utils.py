@@ -1,19 +1,13 @@
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
+
 import torch
 
-def update_average(prev_avg, prev_counts, curr_avg, curr_counts):
-    denom = prev_counts + curr_counts
-    if isinstance(curr_counts, torch.Tensor):
-        denom += (denom==0).float()
-    elif isinstance(curr_counts, int) or isinstance(curr_counts, float):
-        if denom==0:
-            return 0.
-    else:
-        raise ValueError('Type of curr_counts not recognized')
-    prev_weight = prev_counts/denom
-    curr_weight = curr_counts/denom
-    return prev_weight*prev_avg + curr_weight*curr_avg
 
-def move_to(obj, device):
+def move_to(obj: Union[Dict, List, float, int], device: str) -> Union[Union[dict, List[None], int], Any]:
+    """Moves an object named `obj` to a device specified by a `device` string."""
     if isinstance(obj, dict):
         return {k: move_to(v, device) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -25,7 +19,9 @@ def move_to(obj, device):
         # (like Batch, for MolPCBA) that supports .to(device)
         return obj.to(device)
 
-def detach_and_clone(obj):
+
+def detach_and_clone(obj: Union[torch.Tensor, Dict, List, float, int]) -> Union[torch.Tensor, Dict, List, float, int]:
+    """Detaches an object from the computing graph, clones, and returns it."""
     if torch.is_tensor(obj):
         return obj.detach().clone()
     elif isinstance(obj, dict):

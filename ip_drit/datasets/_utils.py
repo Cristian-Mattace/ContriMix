@@ -1,23 +1,25 @@
+import gzip
+import hashlib
 import logging
 import os
-from tqdm import tqdm
-from typing import Callable
-from typing import Optional
-from typing import Any
-from pathlib import Path
-import hashlib
 import tarfile
 import zipfile
-import gzip
+from pathlib import Path
+from typing import Any
+from typing import Callable
+from typing import Optional
+
+from tqdm import tqdm
+
 
 def download_and_extract_archive(
-        url: str,
-        download_root: Path,
-        extract_root: Optional[Path] = None,
-        filename: Optional[str] = None,
-        md5: Optional[str] = None,
-        remove_finished: bool = False,
-        size: Optional[int] = None
+    url: str,
+    download_root: Path,
+    extract_root: Optional[Path] = None,
+    filename: Optional[str] = None,
+    md5: Optional[str] = None,
+    remove_finished: bool = False,
+    size: Optional[int] = None,
 ) -> None:
     """Download and extract a compressed file of the dataset.
 
@@ -45,11 +47,8 @@ def download_and_extract_archive(
 
 
 def _download_url(
-        url: str,
-        root: str,
-        filename: Optional[str] = None,
-        md5: Optional[str] = None,
-        size: Optional[int] = None) -> None:
+    url: str, root: str, filename: Optional[str] = None, md5: Optional[str] = None, size: Optional[int] = None
+) -> None:
     """Download a file from a url and place it in root.
 
     Args:
@@ -70,28 +69,24 @@ def _download_url(
 
     # check if file is already present locally
     if _check_integrity(file_path, md5):
-        logging.debug('Using downloaded and verified file: ' + file_path)
-    else:   # download the file
+        logging.debug("Using downloaded and verified file: " + file_path)
+    else:  # download the file
         try:
-            logging.info('Downloading ' + url + ' to ' + file_path)
-            urllib.request.urlretrieve(
-                url, file_path,
-                reporthook=_gen_bar_updater(size)
-            )
-        except (urllib.error.URLError, IOError) as e:  # type: ignore[attr-defined]
-            if url[:5] == 'https':
-                url = url.replace('https:', 'http:')
-                logging.error('Failed download. Trying https -> http instead.'
-                      ' Downloading ' + url + ' to ' + file_path)
-                urllib.request.urlretrieve(
-                    url, file_path,
-                    reporthook=_gen_bar_updater(size)
+            logging.info("Downloading " + url + " to " + file_path)
+            urllib.request.urlretrieve(url, file_path, reporthook=_gen_bar_updater(size))
+        except (urllib.error.URLError, IOError) as e:
+            if url[:5] == "https":
+                url = url.replace("https:", "http:")
+                logging.error(
+                    "Failed download. Trying https -> http instead." " Downloading " + url + " to " + file_path
                 )
+                urllib.request.urlretrieve(url, file_path, reporthook=_gen_bar_updater(size))
             else:
                 raise e
         # check integrity of downloaded file
         if not _check_integrity(file_path, md5):
             raise RuntimeError("File not found or corrupted.")
+
 
 def _check_integrity(file_path: str, md5: Optional[str] = None) -> bool:
     if not os.path.isfile(file_path):
@@ -100,18 +95,21 @@ def _check_integrity(file_path: str, md5: Optional[str] = None) -> bool:
         return True
     return _check_md5(file_path, md5)
 
+
 def _check_md5(file_path: str, md5: str, **kwargs: Any) -> bool:
     return md5 == _calculate_md5(file_path, **kwargs)
 
+
 def _calculate_md5(fpath: str, chunk_size: int = 1024 * 1024) -> str:
     md5 = hashlib.md5()
-    with open(fpath, 'rb') as f:
-        for chunk in iter(lambda: f.read(chunk_size), b''):
+    with open(fpath, "rb") as f:
+        for chunk in iter(lambda: f.read(chunk_size), b""):
             md5.update(chunk)
     return md5.hexdigest()
 
+
 def _gen_bar_updater(total) -> Callable[[int, int, int], None]:
-    pbar = tqdm(total=total, unit='Byte')
+    pbar = tqdm(total=total, unit="Byte")
 
     def bar_update(count, block_size, total_size):
         if pbar.total is None and total_size:
@@ -121,30 +119,32 @@ def _gen_bar_updater(total) -> Callable[[int, int, int], None]:
 
     return bar_update
 
+
 def _extract_archive(from_path: str, to_path: Optional[str] = None, remove_finished: bool = False) -> None:
     if to_path is None:
         to_path = os.path.dirname(from_path)
     if _is_tar(from_path):
-        with tarfile.open(from_path, 'r') as tar:
+        with tarfile.open(from_path, "r") as tar:
             tar.extractall(path=to_path)
     elif _is_targz(from_path) or _is_tgz(from_path):
-        with tarfile.open(from_path, 'r:gz') as tar:
+        with tarfile.open(from_path, "r:gz") as tar:
             tar.extractall(path=to_path)
     elif _is_tarxz(from_path):
-        with tarfile.open(from_path, 'r:xz') as tar:
+        with tarfile.open(from_path, "r:xz") as tar:
             tar.extractall(path=to_path)
     elif _is_gzip(from_path):
         to_path = os.path.join(to_path, os.path.splitext(os.path.basename(from_path))[0])
         with open(to_path, "wb") as out_f, gzip.GzipFile(from_path) as zip_f:
             out_f.write(zip_f.read())
     elif _is_zip(from_path):
-        with zipfile.ZipFile(from_path, 'r') as z:
+        with zipfile.ZipFile(from_path, "r") as z:
             z.extractall(to_path)
     else:
         raise ValueError("Extraction of {} not supported".format(from_path))
 
     if remove_finished:
         os.remove(from_path)
+
 
 def _is_tarxz(filename: str) -> bool:
     return filename.endswith(".tar.xz")

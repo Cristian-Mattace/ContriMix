@@ -2,11 +2,12 @@
 from abc import abstractmethod
 from enum import auto
 from enum import Enum
+from typing import List
+from typing import Optional
 
 import torch
 import torch.nn as nn
-from typing import Optional
-from typing import List
+
 from ._perceptual_loss import PerceptualLoss
 
 
@@ -32,7 +33,7 @@ class AbstractImageConsistencyLoss(nn.Module):
 class L1ImageConsistencyLoss(AbstractImageConsistencyLoss):
     """An image consistency loss based on the L1 loss."""
 
-    def __init__(self, transforms: Optional[List[nn.Module]]=None):
+    def __init__(self, transforms: Optional[List[nn.Module]] = None):
         super().__init__(transforms)
         self._loss = nn.L1Loss(reduction="sum")
 
@@ -43,7 +44,7 @@ class L1ImageConsistencyLoss(AbstractImageConsistencyLoss):
 class LPipsImageConsistencyLoss(AbstractImageConsistencyLoss):
     """An image consistency loss based on the Perceptual loss."""
 
-    def __init__(self, transforms: Optional[List[nn.Module]]=None):
+    def __init__(self, transforms: Optional[List[nn.Module]] = None):
         super().__init__(transforms)
         self._loss = PerceptualLoss()
 

@@ -34,9 +34,7 @@ class AttributeEncoder(nn.Module):
         https://github.com/HsinYingLee/MDMM/blob/master/networks.py#L64
     """
 
-    def __init__(
-        self, in_channels: int, out_channels: int, num_stain_vectors: int = 32,
-    ) -> None:
+    def __init__(self, in_channels: int, out_channels: int, num_stain_vectors: int = 32) -> None:
         super().__init__()
         self._num_stain_vectors = num_stain_vectors
         self._out_channels = out_channels

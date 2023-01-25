@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from torch.nn.utils import spectral_norm
 
-from ._initializer import Initializer
 from ._initializer import InitializationType
+from ._initializer import Initializer
 
 
 class LeakyReLUConv2d(nn.Module):

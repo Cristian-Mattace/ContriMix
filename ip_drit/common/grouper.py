@@ -1,16 +1,19 @@
+"""A module that defines the grouper."""
+import copy
+import logging
 from abc import ABC
 from abc import abstractmethod
-import copy
-import numpy as np
-import torch
-import logging
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
+
+import numpy as np
+import torch
+
 from ip_drit.datasets import AbstractPublicDataset
-from ip_drit.datasets import SubsetPublicDataset
+
 
 class AbstractGrouper(ABC):
     """A class that group data points together based on their metadata.
@@ -18,6 +21,7 @@ class AbstractGrouper(ABC):
     This group is used in training and evaluation to measure the accuracies of different group
     of data.
     """
+
     def __init__(self) -> None:
         self._n_groups = 0
 
@@ -26,13 +30,16 @@ class AbstractGrouper(ABC):
         return self._n_groups
 
     @abstractmethod
-    def metadata_to_group(self, metadata: torch.Tensor, return_counts: bool=False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        """
+    def metadata_to_group(
+        self, metadata: torch.Tensor, return_counts: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Converts the metadata tensor to the group index.
 
         Args:
             metadata: An n x d matrix containing d metadata fields for n different points.
             return_counts: If True, return group counts as well.
-        Output:
+
+        Returns:
             If return_counts == True:
                 An n-length vector of groups.
                 An n_group-length vector of integers containing the numbers of data points in each group.
@@ -43,8 +50,7 @@ class AbstractGrouper(ABC):
 
 
 class CombinatorialGrouper(AbstractGrouper):
-    """
-    A grouper that form groups by taking all possible combinations of the groupby_fields in lexicographical order.
+    """A grouper that form groups by taking all possible combinations of the groupby_fields in lexicographical order.
 
     For example, if:
         dataset.metadata_fields = ['country', 'time', 'y']
@@ -62,13 +68,14 @@ class CombinatorialGrouper(AbstractGrouper):
 
     Args:
         dataset: A dataset that contains the all data points.
-        groupby_fields (optional): A list of string that specifies what fields to group. Defaults to None, in which case,
+        groupby_fields (optional): A list of string that specifies what fields to group. Defaults to None, in which case
             all data points are assigned to group 0.
     """
+
     def __init__(self, dataset: AbstractPublicDataset, groupby_fields: Optional[List[str]] = None) -> None:
         super().__init__()
 
-        datasets: List[AbstractPublicDataset] = [dataset,]
+        datasets: List[AbstractPublicDataset] = [dataset]
         metadata_fields: List[str] = datasets[0].metadata_fields
         self._groupby_fields = groupby_fields
 
@@ -85,9 +92,14 @@ class CombinatorialGrouper(AbstractGrouper):
             for idx, field in enumerate(self._groupby_fields):
                 min_value = grouped_metadata[:, idx].min()
                 if min_value < 0:
-                    raise ValueError(f"Metadata for CombinatorialGrouper cannot have values less than 0: {field}, {min_value}")
+                    raise ValueError(
+                        f"Metadata for CombinatorialGrouper cannot have values less than 0: {field}, {min_value}"
+                    )
                 if min_value > 0:
-                    logging.warning(f"Minimum metadata value for CombinatorialGrouper is not 0 ({field}, {min_value}). This will result in empty groups")
+                    logging.warning(
+                        f"Minimum metadata value for CombinatorialGrouper is not 0 ({field}, {min_value}). "
+                        + f"This will result in empty groups"
+                    )
 
             # We assume that the metadata fields are integers,
             # so we can measure the cardinality of each field by taking its max + 1, where 1 is for the first group of 0
@@ -130,8 +142,9 @@ class CombinatorialGrouper(AbstractGrouper):
 
         return largest_metadata_map
 
-    def metadata_to_group(self, metadata: torch.Tensor, return_counts: bool = False) -> Union[
-        torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    def metadata_to_group(
+        self, metadata: torch.Tensor, return_counts: bool = False
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if self._groupby_fields is None:
             groups = torch.zeros(metadata.shape[0], dtype=torch.long)
         else:
@@ -143,29 +156,32 @@ class CombinatorialGrouper(AbstractGrouper):
             return groups
 
     def group_field_str(self, group: int):
-        return self.group_str(group).replace('=', ':').replace(',','_').replace(' ','')
+        return self.group_str(group).replace("=", ":").replace(",", "_").replace(" ", "")
 
     def group_str(self, group: int):
         if self._groupby_fields is None:
-            return 'all'
+            return "all"
 
         # group is just an integer, not a Tensor
         n = len(self._factors_np)
         metadata = np.zeros(n)
-        for i in range(n-1):
-            metadata[i] = (group % self._factors_np[i+1]) // self._factors_np[i]
-        metadata[n-1] = group // self._factors_np[n-1]
-        group_name = ''
+        for i in range(n - 1):
+            metadata[i] = (group % self._factors_np[i + 1]) // self._factors_np[i]
+        metadata[n - 1] = group // self._factors_np[n - 1]
+        group_name = ""
         for i in reversed(range(n)):
             meta_val = int(metadata[i])
             if self._metadata_map is not None:
                 if self._groupby_fields[i] in self._metadata_map:
                     meta_val = self._metadata_map[self._groupby_fields[i]][meta_val]
-            group_name += f'{self._groupby_fields[i]} = {meta_val}, '
+            group_name += f"{self._groupby_fields[i]} = {meta_val}, "
         group_name = group_name[:-2]
         return group_name
+
+
 def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
-    """
+    """Gets the number of counts in each group.
+
     This differs from split_into_groups in how it handles missing groups.
     get_counts always returns a count Tensor of length n_groups,
     whereas split_into_groups returns a unique_counts Tensor
@@ -173,6 +189,7 @@ def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
 
     Args:
         g: Vector of groups
+
     Returns:
         A list of length n_groups, denoting the count of each group.
     """
@@ -180,7 +197,3 @@ def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
     counts = torch.zeros(n_groups, device=g.device)
     counts[unique_groups] = unique_counts.float()
     return counts
-
-
-
-

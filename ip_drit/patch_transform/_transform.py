@@ -2,6 +2,7 @@
 import numpy as np
 import torch
 
+
 class RGBToTransmittance(object):
     """Converts an RGB image to a transmittance image."""
 
