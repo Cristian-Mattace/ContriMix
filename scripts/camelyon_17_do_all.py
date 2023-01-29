@@ -1,4 +1,4 @@
-"""A script to run the benchmark for the Camelyon dataset."""
+"""A scripts to run the benchmark for the Camelyon dataset."""
 import logging
 from pathlib import Path
 from typing import Any
@@ -7,6 +7,9 @@ from typing import List
 
 import torch.cuda
 from absl import app
+from train import train
+from utils import configure_split_dict_by_names
+from utils import use_data_parallel
 
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
@@ -16,13 +19,10 @@ from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
-from train import train
-from utils import configure_split_dict_by_names
-from utils import use_data_parallel
 
 
 def main(argv):
-    """Demo script for training, evaluation with Camelyon."""
+    """Demo scripts for training, evaluation with Camelyon."""
     del argv
     logging.info("Running the Camelyon 17 dataset benchmark.")
     all_dataset_dir = Path("/Users/tan.nguyen/datasets")
