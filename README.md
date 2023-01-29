@@ -20,6 +20,22 @@ This is required to be compatible with the `torch` and `torchvision` packages.
 press `Command + Shift + P`  ->  `Developer: Reload Window` so that VS Code can see the `ip_drit` folder for correct import.
 
 
+## How to run the code.
+### Run it locally on your computer
+1. Checkout the branch `breast_cancer_2` from `origin`.
+2. (If you haven't done so) Build a local docker image with `docker-compose build local`.
+3. Configure your Pycharm to use the local docker image following the guide [here](https://confluence.services.pathai.com/display/MLPLATFORM/Tutorial%3A+Local+Development).
+4. Create a folder name `datasets` on your computer. Update the path to this folder to `camelyon_17_do_all.py`.
+5. Run `camelyon_17_do_all.py`.
+
+### Run it from the cluster
+1. Configure your virtual environment to use a Jabba image of the `breast_cancer_2` branch. This image has all Python packages that you need. You can do this with `mle use-image [env-name] breast_cancer_2`.
+2. Clone the code repo to the virtual environment, suggesting your folder in `/jupyter-users-home/[your-name]`. This is because it can be maintained across
+different environments.
+3. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets`, update the path to `camelyon_17_do_all.py`.
+4. Run `camelyon_17_do_all.py`.
+
+
 
 
 

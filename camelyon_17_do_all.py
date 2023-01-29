@@ -1,4 +1,5 @@
 """A scripts to run the benchmark for the Camelyon dataset."""
+import argparse
 import logging
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,8 @@ def main(argv):
     """Demo scripts for training, evaluation with Camelyon."""
     del argv
     logging.info("Running the Camelyon 17 dataset benchmark.")
-    all_dataset_dir = Path("/Users/tan.nguyen/datasets")
+    # all_dataset_dir = Path("/Users/tan.nguyen/datasets")
+    all_dataset_dir = Path("/jupyter-users-home/tan-2enguyen/datasets")
     all_dataset_dir.mkdir(exist_ok=True)
     camelyon_dataset = CamelyonDataset(dataset_dir=all_dataset_dir / "camelyon17/")
 
