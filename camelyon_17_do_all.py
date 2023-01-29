@@ -14,9 +14,9 @@ from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
-from scripts.train_utils import train
-from scripts.utils import configure_split_dict_by_names
-from scripts.utils import use_data_parallel
+from script_utils import configure_split_dict_by_names
+from script_utils import use_data_parallel
+from train_utils import train
 
 
 def main(argv):
