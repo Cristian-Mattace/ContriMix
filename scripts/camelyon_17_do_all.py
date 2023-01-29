@@ -3,18 +3,16 @@ import logging
 from pathlib import Path
 from typing import Any
 from typing import Dict
-from typing import List
 
 import torch.cuda
 from absl import app
-from train import train
-from utils import configure_split_dict_by_names
-from utils import use_data_parallel
 
+from .train import train
+from .utils import configure_split_dict_by_names
+from .utils import use_data_parallel
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.grouper import CombinatorialGrouper
-from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
