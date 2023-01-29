@@ -7,9 +7,6 @@ from typing import Dict
 import torch.cuda
 from absl import app
 
-from .train import train
-from .utils import configure_split_dict_by_names
-from .utils import use_data_parallel
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.grouper import CombinatorialGrouper
@@ -17,6 +14,9 @@ from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
+from scripts.train_utils import train
+from scripts.utils import configure_split_dict_by_names
+from scripts.utils import use_data_parallel
 
 
 def main(argv):
