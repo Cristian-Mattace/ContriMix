@@ -31,14 +31,13 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
     Args:
         config: A configuration dictionary.
-        model: The underlying model used for the algorithm.
+        model: The underlying backbone model used for the algorithm.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
     """
 
     def __init__(
         self, config: Dict[str, Any], model: torch.nn.Module, grouper: AbstractGrouper, loss, metric, n_train_steps
     ):
-        # get metrics
         self._loss = loss
         logged_metrics = [self._loss]
         if metric is not None:
@@ -54,10 +53,10 @@ class SingleModelAlgorithm(GroupAlgorithm):
         scheduler = initialize_scheduler(config, self._optimizer, n_train_steps)
 
         if config["use_data_parallel"]:
-            model = DataParallel(model)
+            parallelized_model = DataParallel(model)
 
         logging.info(f"Using device {config['device']} for training.")
-        model.to(config["device"])
+        parallelized_model.to(config["device"])
         self._batch_idx = 0
         self._gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
@@ -71,10 +70,13 @@ class SingleModelAlgorithm(GroupAlgorithm):
             scheduler_metric_names=[config["scheduler_metric_name"]],
             no_group_logging=config["no_group_logging"],
         )
-        self._model = model
+        self._model = parallelized_model
+
+        # The parallelized_model does not contains the needs_y. We need to copy here before it gets cleaned up.
+        self._needs_y = model.needs_y
 
     def get_model_output(self, x, y_true):
-        if self._model.needs_y:
+        if self._needs_y:
             if self.training:
                 outputs = self._model(x, y_true)
             else:
