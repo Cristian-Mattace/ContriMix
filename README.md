@@ -1,4 +1,4 @@
-# Intraminibatch_permutation_DRIT
+# Content Attribute Mixing (ConTriMix) Augmentation.
 This is the code repo for intrabatch permutation for disentangling the content with the attribute.
 
 

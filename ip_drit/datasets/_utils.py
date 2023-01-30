@@ -38,7 +38,7 @@ def download_and_extract_archive(
 
     if not filename:
         filename = os.path.basename(url)
-
+    logging.info(f"Downloading the zipped data file from {download_root}.")
     _download_url(url, download_root, filename, md5, size)
 
     archive = os.path.join(download_root, filename)

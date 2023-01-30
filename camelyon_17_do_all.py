@@ -29,7 +29,10 @@ def main(argv):
     all_dataset_dir.mkdir(exist_ok=True)
     camelyon_dataset = CamelyonDataset(dataset_dir=all_dataset_dir / "camelyon17/")
 
-    log_dir = Path("/Users/tan.nguyen/erm_camelyon")
+    # all_log_dir = Path("/Users/tan.nguyen/")
+    all_log_dir = Path("/jupyter-users-home/tan-2enguyen/all_log_dir")
+    all_log_dir.mkdir(exist_ok=True)
+    log_dir = all_log_dir / "erm_camelyon"
     log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
