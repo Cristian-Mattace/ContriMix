@@ -45,11 +45,11 @@ def main(argv):
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 5,
         "n_epochs": 20,
-        "log_every_n_batches": 2,
+        "log_every_n_batches": 40,
         "train_loader": "group",
-        "batch_size": 64,
+        "batch_size": 256,
         "uniform_over_groups": True,  # If True, sample examples such that batches are uniform over groups.
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 1,  # 4
