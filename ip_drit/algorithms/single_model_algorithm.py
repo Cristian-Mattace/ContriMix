@@ -70,13 +70,14 @@ class SingleModelAlgorithm(GroupAlgorithm):
             scheduler_metric_names=[config["scheduler_metric_name"]],
             no_group_logging=config["no_group_logging"],
         )
+
+        # The parallelized_model does not contains the needs_y_input. We need to copy here before it gets cleaned up.
+        parallelized_model.needs_y_input = model.needs_y_input
+
         self._model = parallelized_model
 
-        # The parallelized_model does not contains the needs_y. We need to copy here before it gets cleaned up.
-        self._needs_y = model.needs_y
-
     def get_model_output(self, x, y_true):
-        if self._needs_y:
+        if self._model.needs_y_input:
             if self.training:
                 outputs = self._model(x, y_true)
             else:

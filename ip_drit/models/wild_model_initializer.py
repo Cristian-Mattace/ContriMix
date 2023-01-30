@@ -56,8 +56,8 @@ def initialize_model_from_configuration(
         # If False, Algorithm.process_batch will call model(x).
         # If True, Algorithm.process_batch() will call model(x, y) during training,
         # and model(x, None) during eval.
-        if not hasattr(out, "needs_y"):
-            out.needs_y = False
+        if not hasattr(out, "needs_y_input"):
+            out.needs_y_input = False
         return out
 
 
