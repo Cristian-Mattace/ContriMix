@@ -1,4 +1,5 @@
 """A utility module for training."""
+import argparse
 import logging
 import os
 from collections import defaultdict
@@ -17,6 +18,11 @@ from ip_drit.datasets import SubsetPublicDataset
 from ip_drit.logger import BatchLogger
 from ip_drit.logger import Logger
 from ip_drit.patch_transform import initialize_transform
+
+
+def parse_bool(v: str) -> bool:
+    """Converts a string to true boolean value."""
+    return bool(v.lower())
 
 
 def configure_split_dict_by_names(

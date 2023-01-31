@@ -29,10 +29,11 @@ press `Command + Shift + P`  ->  `Developer: Reload Window` so that VS Code can 
 5. Run `camelyon_17_do_all.py`.
 
 ### Run it from the cluster
-1. Configure your virtual environment to use a Jabba image of the `breast_cancer_2` branch. This image has all Python packages that you need. You can do this with `mle use-image [env-name] breast_cancer_2`.
-2. Clone the code repo to the virtual environment, suggesting your folder in `/jupyter-users-home/[your-name]`. This is because it can be maintained across
+1. Configure your virtual environment to use a Jabba image of the `breast_cancer_2` branch. This image has all Python packages that you need. You can do this with `mle use-image [env-name] breast_cancer_2`. Also, change your node to 2 at least (4 is better if you can get it).
+2. Connect with your environment with `mle connect [env-name]`.
+3. Clone the code repo to the virtual environment, suggesting your folder in `/jupyter-users-home/[your-name]`. This is because it can be maintained across
 different environments.
-3. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets`, update the path to `camelyon_17_do_all.py`.
+4. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets`, update the path to `camelyon_17_do_all.py`.
 4. Run `camelyon_17_do_all.py`.
 
 

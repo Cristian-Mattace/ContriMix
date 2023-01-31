@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import Tuple
 
 import torch.cuda
 from absl import app
@@ -16,22 +17,23 @@ from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
 from script_utils import configure_split_dict_by_names
+from script_utils import parse_bool
 from script_utils import use_data_parallel
 from train_utils import train
 
 
-def main(argv):
+def main():
     """Demo scripts for training, evaluation with Camelyon."""
-    del argv
     logging.info("Running the Camelyon 17 dataset benchmark.")
-    # all_dataset_dir = Path("/Users/tan.nguyen/datasets")
-    all_dataset_dir = Path("/jupyter-users-home/tan-2enguyen/datasets")
+    parser = _configure_parser()
+    script_config = parser.parse_args()
+    all_dataset_dir, all_log_dir = _dataset_and_log_location(script_config.run_on_cluster)
+
     all_dataset_dir.mkdir(exist_ok=True)
+    all_log_dir.mkdir(exist_ok=True)
+
     camelyon_dataset = CamelyonDataset(dataset_dir=all_dataset_dir / "camelyon17/")
 
-    # all_log_dir = Path("/Users/tan.nguyen/")
-    all_log_dir = Path("/jupyter-users-home/tan-2enguyen/all_log_dir")
-    all_log_dir.mkdir(exist_ok=True)
     log_dir = all_log_dir / "erm_camelyon"
     log_dir.mkdir(exist_ok=True)
 
@@ -45,11 +47,11 @@ def main(argv):
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
-        "gradient_accumulation_steps": 5,
+        "gradient_accumulation_steps": 2,
         "n_epochs": 20,
-        "log_every_n_batches": 40,
+        "log_every_n_batches": 2,
         "train_loader": "group",
-        "batch_size": 256,
+        "batch_size": 600,
         "uniform_over_groups": True,  # If True, sample examples such that batches are uniform over groups.
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 1,  # 4
@@ -101,5 +103,25 @@ def main(argv):
         logging.info("Evaluation mode!")
 
 
+def _configure_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--run_on_cluster",
+        type=parse_bool,
+        default=True,
+        const=True,
+        help="A string to help where to run the the code. "
+        + "Defaults to True, in which case the code will be run on the cluster.",
+    )
+    return parser
+
+
+def _dataset_and_log_location(run_on_cluster: bool) -> Tuple[Path, Path]:
+    if run_on_cluster:
+        return Path("/jupyter-users-home/tan-2enguyen/datasets"), Path("/jupyter-users-home/tan-2enguyen/all_log_dir")
+    else:
+        return Path("/Users/tan.nguyen/datasets"), Path("/Users/tan.nguyen/")
+
+
 if __name__ == "__main__":
-    app.run(main)
+    main()
