@@ -16,18 +16,21 @@ from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
+from script_utils import calculate_batch_size
 from script_utils import configure_split_dict_by_names
 from script_utils import parse_bool
 from script_utils import use_data_parallel
 from train_utils import train
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def main():
     """Demo scripts for training, evaluation with Camelyon."""
     logging.info("Running the Camelyon 17 dataset benchmark.")
     parser = _configure_parser()
-    script_config = parser.parse_args()
-    all_dataset_dir, all_log_dir = _dataset_and_log_location(script_config.run_on_cluster)
+    FLAGS = parser.parse_args()
+    all_dataset_dir, all_log_dir = _dataset_and_log_location(FLAGS.run_on_cluster)
 
     all_dataset_dir.mkdir(exist_ok=True)
     all_log_dir.mkdir(exist_ok=True)
@@ -51,7 +54,7 @@ def main():
         "n_epochs": 20,
         "log_every_n_batches": 2,
         "train_loader": "group",
-        "batch_size": 600,
+        "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": True,  # If True, sample examples such that batches are uniform over groups.
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 1,  # 4
@@ -110,6 +113,7 @@ def _configure_parser() -> argparse.ArgumentParser:
         type=parse_bool,
         default=True,
         const=True,
+        nargs="?",
         help="A string to help where to run the the code. "
         + "Defaults to True, in which case the code will be run on the cluster.",
     )

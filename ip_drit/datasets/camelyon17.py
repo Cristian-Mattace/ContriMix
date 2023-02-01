@@ -50,7 +50,7 @@ class CamelyonDataset(AbstractPublicDataset):
         )
 
         # Hack to reduce the number of samples
-        num_of_samples = 10000
+        num_of_samples = 30000
         data_centers_values = np.unique(self._metadata_df["center"].values)
         num_centers = len(data_centers_values)
         num_value_per_center = num_of_samples // num_centers

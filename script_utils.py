@@ -1,5 +1,4 @@
 """A utility module for training."""
-import argparse
 import logging
 import os
 from collections import defaultdict
@@ -22,7 +21,12 @@ from ip_drit.patch_transform import initialize_transform
 
 def parse_bool(v: str) -> bool:
     """Converts a string to true boolean value."""
-    return bool(v.lower())
+    if v.lower() == "false":
+        return False
+    elif v.lower() == "true":
+        return True
+    else:
+        raise ValueError("Unknown string to convert to boolean!")
 
 
 def configure_split_dict_by_names(
@@ -41,13 +45,15 @@ def configure_split_dict_by_names(
     split_dict = defaultdict(dict)
     for split_name in full_dataset.split_dict:
         logging.info(f"Generating split dict for split {split_name}")
-        split_dict[split_name]["dataset"] = full_dataset.get_subset(
+        subdataset = full_dataset.get_subset(
             split=split_name,
             frac=1.0,
             transform=initialize_transform(
                 transform_name=config_dict["transform"], config_dict=config_dict, full_dataset=full_dataset
             ),
         )
+        split_dict[split_name]["dataset"] = subdataset
+        logging.info(f"Dataset size = {len(subdataset)}")
 
         split_dict[split_name]["loader"] = _get_data_loader_by_split_name(
             sub_dataset=split_dict[split_name]["dataset"],
@@ -88,12 +94,14 @@ def _get_data_loader_by_split_name(
 
 
 def use_data_parallel() -> bool:
-    """Returns True of GPU training is available, otherwise, False."""
+    """Returns True if more than 1 training device is available, otherwise, False."""
+    return _num_of_available_devices() > 1
+
+
+def _num_of_available_devices() -> int:
     if torch.cuda.is_available():
-        device_count = torch.cuda.device_count()
-        logging.info(f"Only {device_count} GPU(s) detected")
-        return device_count > 1
-    return False
+        return torch.cuda.device_count()
+    return 1
 
 
 def detach_and_clone(obj: torch.Tensor) -> torch.Tensor:
@@ -124,3 +132,16 @@ def log_results(
         if split_dict["verbose"]:
             general_logger.write(algorithm.get_pretty_log_str())
         algorithm.reset_log()
+
+
+def calculate_batch_size(run_on_cluster: bool) -> int:
+    """Returns the minibatchsize per GPU."""
+    num_devices = _num_of_available_devices()
+    logging.info(f"Number of training devices = {num_devices}.")
+    if run_on_cluster:
+        batch_size_per_gpu = 1600
+    else:
+        batch_size_per_gpu = 128
+    batch_size = batch_size_per_gpu * num_devices
+    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device")
+    return batch_size
