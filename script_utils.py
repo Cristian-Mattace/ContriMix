@@ -84,7 +84,7 @@ def _get_data_loader_by_split_name(
             uniform_over_groups=config_dict["uniform_over_groups"],
             grouper=grouper,
             distinct_groups=config_dict["distinct_groups"],
-            n_groups_per_batch=config_dict["n_groups_per_batch"],
+            train_n_groups_per_batch=config_dict["n_groups_per_batch"],
         )
     elif split_name == "ood_val":
         return get_eval_loader(loader_type="standard", dataset=sub_dataset, batch_size=config_dict["batch_size"])

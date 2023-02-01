@@ -46,7 +46,7 @@ def main():
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": ["hospital", "slide"],
+        "train_group_by_fields": ["hospital"],
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
@@ -55,7 +55,7 @@ def main():
         "log_every_n_batches": 2,
         "train_loader": "group",
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
-        "uniform_over_groups": True,  # If True, sample examples such that batches are uniform over groups.
+        "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 1,  # 4
         "scheduler": "linear_schedule_with_warmup",
@@ -114,8 +114,17 @@ def _configure_parser() -> argparse.ArgumentParser:
         default=True,
         const=True,
         nargs="?",
-        help="A string to help where to run the the code. "
+        help="A string to specify where to run the the code. "
         + "Defaults to True, in which case the code will be run on the cluster.",
+    )
+    parser.add_argument(
+        "--sample_uniform_over_groups",
+        type=parse_bool,
+        default=True,
+        const=True,
+        nargs="?",
+        help="A string to specify how the sampling should be done. If True, sample examples such that batches are "
+        + "uniform over groups. If False, sample using the group probabilities that is proportional to group size.",
     )
     return parser
 

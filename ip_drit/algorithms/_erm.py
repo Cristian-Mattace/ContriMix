@@ -48,7 +48,7 @@ class ERM(SingleModelAlgorithm):
         x, y_true, metadata = batch
         x = move_to(x, self._device)
         y_true = move_to(y_true, self._device)
-        g = move_to(self._grouper.metadata_to_group(metadata), self._device)
+        g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
         outputs = self.get_model_output(x, y_true)
 

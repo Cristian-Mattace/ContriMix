@@ -1,4 +1,6 @@
 """A module that defines the dataloader."""
+import logging
+from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -16,12 +18,12 @@ from ip_drit.datasets import SubsetPublicDataset
 
 def get_train_loader(
     loader_type: str,
-    dataset: Union[AbstractPublicDataset, SubsetPublicDataset],
+    dataset: SubsetPublicDataset,
     batch_size: int,
     uniform_over_groups: Optional[bool] = None,
     grouper: Optional[AbstractGrouper] = None,
     distinct_groups: bool = True,
-    n_groups_per_batch: int = None,
+    train_n_groups_per_batch: int = None,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for training.
@@ -29,14 +31,14 @@ def get_train_loader(
     Args:
         loader_type: Loader type. This can be 'standard' for standard loaders and 'group' for group loaders. The later
             first samples groups and then samples a fixed number of examples belonging to each group.
-        dataset: The dataset that we want to load the data from.
+        dataset: The dataset that we want to load the data from. This is normally a subset of the full dataset.
         batch_size: Batch size.
         uniform_over_groups (optional): Whether to sample the groups uniformly or according to the natural data
             distribution. Setting to None applies the defaults for each type of loaders. For standard loaders, the
             default is False. For group loaders, the default is True.
         grouper (optional): Grouper used for group loaders or for uniform_over_groups=True
         distinct_groups (optional): Whether to sample distinct_groups within each minibatch for group loaders.
-        n_groups_per_batch (optional): Number of groups to sample in each minibatch for group loaders.
+        train_n_groups_per_batch (optional): Number of groups to sample in each minibatch for group loaders.
         loader_kwargs: kwargs passed into torch DataLoader initialization.
 
     Output:
@@ -54,7 +56,7 @@ def get_train_loader(
             )
         else:
             _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
-            groups, group_counts = grouper.metadata_to_group(dataset.metadata_array, return_counts=True)
+            groups, group_counts = grouper.metadata_to_group_indices(dataset.metadata_array, return_counts=True)
             group_weights = 1 / group_counts
             weights = group_weights[groups]
             return DataLoader(
@@ -72,11 +74,15 @@ def get_train_loader(
             uniform_over_groups = True
 
         _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
-        assert n_groups_per_batch is not None
-        if n_groups_per_batch > grouper.n_groups:
+
+        group_indices_all_datapoints = grouper.metadata_to_group_indices(dataset.metadata_array)
+        num_groups_available = len(np.unique(group_indices_all_datapoints.numpy()))
+
+        logging.info(f"Train data loader has {num_groups_available} groups.")
+        if train_n_groups_per_batch > num_groups_available:
             raise ValueError(
-                f"n_groups_per_batch was set to {n_groups_per_batch} "
-                + f"but there are maximum {grouper.n_groups} specified."
+                f"train_n_groups_per_batch was set to {train_n_groups_per_batch} for the training dataloader but"
+                + f"but there are at most {num_groups_available} groups available."
             )
 
         return DataLoader(
@@ -85,9 +91,9 @@ def get_train_loader(
             sampler=None,
             collate_fn=dataset.collate,
             batch_sampler=GroupSampler(
-                group_idxs=grouper.metadata_to_group(dataset.metadata_array),
+                group_idxs=group_indices_all_datapoints,
                 batch_size=batch_size,
-                n_groups_per_batch=n_groups_per_batch,
+                n_groups_per_batch=train_n_groups_per_batch,
                 uniform_over_groups=uniform_over_groups,
                 distinct_groups=distinct_groups,
             ),
@@ -135,8 +141,8 @@ class GroupSampler:
         group_idxs: A tensor that specifies the indices of different data points.
         batch_size: The size of the loading batch.
         n_groups_per_batch: The number of group per batch.
-        uniform_over_groups: Whether to sample the groups uniformly or according to the natural data
-            distribution. Setting to None applies the defaults for each type of loaders. For standard loaders, the
+        uniform_over_groups: Whether to sample the groups uniformly or according to the natural data distribution.
+            Setting to None applies the defaults for each type of loaders. For standard loaders, the
             default is False. For group loaders, the default is True.
         distinct_groups (optional): Whether to sample distinct_groups within each minibatch for group loaders.
     """
@@ -160,63 +166,76 @@ class GroupSampler:
                 + "There must be enough examples to form at least one complete batch."
             )
 
-        self._group_idxs = group_idxs
-        self._unique_groups, self._group_indices, unique_counts = split_into_groups(group_idxs)
+        self._unique_groups, self._unique_group_element_indices, unique_group_counts = _split_into_groups(group_idxs)
 
-        self._distinct_groups = distinct_groups
-        self._n_groups_per_batch = n_groups_per_batch
-        self._n_points_per_group = batch_size // n_groups_per_batch
+        self._distinct_groups: bool = distinct_groups
+        self._n_groups_per_batch: int = n_groups_per_batch
+        self._n_points_per_group: int = batch_size // n_groups_per_batch
 
-        self._dataset_size = len(group_idxs)
-        self._num_batches = self._dataset_size // batch_size
+        if n_groups_per_batch > len(group_idxs):
+            raise ValueError(
+                f"Can't generate a group sampler with n_groups_per_batch ({n_groups_per_batch}) larger "
+                + f" than the number of available group {len(group_idxs)}"
+            )
 
-        if uniform_over_groups:  # Sample uniformly over groups
+        self._num_batches = len(group_idxs) // batch_size
+
+        logging.info(
+            f"GroupSampler initialized with uniform_over_group = {uniform_over_groups}, "
+            + f"batch size = {batch_size}, num batches = {self._num_batches}, number of points per groups = "
+            + f"{self._n_points_per_group}, number of group per batch = {n_groups_per_batch}."
+        )
+
+        if uniform_over_groups:
             self._group_prob = None
-        else:  # Sample a group proportionately to its size
-            self._group_prob = unique_counts.numpy() / unique_counts.numpy().sum()
+        else:
+            self._group_prob = self._group_propability_from_group_counts(unique_group_counts.numpy())
 
-    def __iter__(self):
-        for batch_id in range(self._num_batches):
+    def __iter__(self) -> Generator:
+        for _ in range(self._num_batches):
             # Note that we are selecting group indices rather than groups
-            groups_for_batch = np.random.choice(
+            unique_group_idxes_for_batch = np.random.choice(
                 len(self._unique_groups),
                 size=self._n_groups_per_batch,
                 replace=(not self._distinct_groups),
                 p=self._group_prob,
             )
+
             sampled_ids = [
                 np.random.choice(
-                    self._group_indices[group],
+                    self._unique_group_element_indices[group_idx],
                     size=self._n_points_per_group,
-                    replace=len(self._group_indices[group])
-                    <= self._n_points_per_group,  # False if the group is larger than the sample size
+                    # If the size of the group is not larger than the number points per group reguired, do replacement.
+                    replace=len(self._unique_group_element_indices[group_idx]) <= self._n_points_per_group,
                     p=None,
                 )
-                for group in groups_for_batch
+                for group_idx in unique_group_idxes_for_batch
             ]
 
-            # Flatten
-            sampled_ids = np.concatenate(sampled_ids)
-            yield sampled_ids
+            yield np.concatenate(sampled_ids)
 
     def __len__(self):
         return self._num_batches
 
+    @staticmethod
+    def _group_propability_from_group_counts(group_count: np.ndarray) -> np.ndarray:
+        return group_count / group_count.sum()
 
-def split_into_groups(g: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
+
+def _split_into_groups(group_idxs: torch.Tensor) -> Tuple[torch.Tensor, List[torch.Tensor], torch.Tensor]:
     """Splits a tensor into multiple groups.
 
     Args:
-        g: A tensor of groups
+        group_idxs: A tensor of length n of group indices where n is the number of data points.
 
     Returns:
-        A tensor of unique groups present in g/
-        A list of Tensors, where the i-th tensor is the indices of the elements of g that equal groups[i].
-            Has the same length as len(groups).
-       A tensor of element counts in each group.
+        A tensor of unique indices present in group_idxs.
+        A list of Tensors, where the i-th tensor is the indices of the elements of group_idxs that equal the unique
+            group index i-th. It has the same length as len(groups).
+        A tensor of element counts in each group.
     """
-    unique_groups, unique_counts = torch.unique(g, sorted=False, return_counts=True)
-    group_indices = []
-    for group in unique_groups:
-        group_indices.append(torch.nonzero(g == group, as_tuple=True)[0])
-    return unique_groups, group_indices, unique_counts
+    unique_group_idxs, unique_group_counts = torch.unique(group_idxs, sorted=False, return_counts=True)
+    unique_group_element_indices = []
+    for group_idx in unique_group_idxs:
+        unique_group_element_indices.append(torch.nonzero(group_idxs == group_idx, as_tuple=True)[0])
+    return unique_group_idxs, unique_group_element_indices, unique_group_counts

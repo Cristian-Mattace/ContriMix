@@ -30,7 +30,7 @@ class AbstractGrouper(ABC):
         return self._n_groups
 
     @abstractmethod
-    def metadata_to_group(
+    def metadata_to_group_indices(
         self, metadata: torch.Tensor, return_counts: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Converts the metadata tensor to the group index.
@@ -100,7 +100,7 @@ class CombinatorialGrouper(AbstractGrouper):
             self._meta_to_group_index_adjustment_factor = np.concatenate(([1], cumprod[:-1]))
             self._metadata_map = copy.deepcopy(dataset.metadata_map)
 
-    def metadata_to_group(
+    def metadata_to_group_indices(
         self, metadata: torch.Tensor, return_counts: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if self._groupby_fields is None:
@@ -122,7 +122,6 @@ class CombinatorialGrouper(AbstractGrouper):
         if self._groupby_fields is None:
             return "all"
 
-        # group is just an integer, not a Tensor
         n = len(self._meta_to_group_index_adjustment_factor)
         metadata = np.zeros(n)
         for i in range(n - 1):

@@ -255,7 +255,7 @@ class AbstractPublicDataset(ABC):
             results.update(metric.compute(y_pred, y_true))
             results_str += f"Average {metric.name}: {results[metric.agg_metric_field]:.3f}\n"
 
-        g = grouper.metadata_to_group(metadata)
+        g = grouper.metadata_to_group_indices(metadata)
         group_results = metric.compute_group_wise(y_pred, y_true, g, grouper.n_groups)
         for group_idx in range(grouper.n_groups):
             group_str = grouper.group_field_str(group_idx)
