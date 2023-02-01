@@ -46,7 +46,7 @@ def main():
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": ["hospital"],
+        "train_group_by_fields": ["hospital", "slide"],
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),

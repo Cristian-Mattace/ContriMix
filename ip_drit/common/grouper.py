@@ -36,15 +36,14 @@ class AbstractGrouper(ABC):
         """Converts the metadata tensor to the group index.
 
         Args:
-            metadata: An n x d matrix containing d metadata fields for n different points.
+            metadata: An n x d matrix containing the (integer) values for d metadata fields for n different data points.
             return_counts: If True, return group counts as well.
 
         Returns:
-            If return_counts == True:
-                An n-length vector of groups.
+            An n-length vector of the groups indices for all the datapoints.
+
+            If return_counts == True, further returns
                 An n_group-length vector of integers containing the numbers of data points in each group.
-            else:
-                An n-length vector of groups
         """
         raise NotImplementedError
 
@@ -79,7 +78,7 @@ class CombinatorialGrouper(AbstractGrouper):
         if groupby_fields is None:
             self._n_groups = 1
         else:
-            self._groupby_field_indices = [
+            self._groupby_field_indices: List[int] = [
                 i for (i, field) in enumerate(dataset.metadata_fields) if field in groupby_fields
             ]
             grouped_metadata = dataset.metadata_array[:, self._groupby_field_indices]
@@ -97,8 +96,8 @@ class CombinatorialGrouper(AbstractGrouper):
             self._cardinality = 1 + torch.max(grouped_metadata, dim=0)[0]
             cumprod = torch.cumprod(self._cardinality, dim=0)
             self._n_groups = cumprod[-1].item()
-            self._factors_np = np.concatenate(([1], cumprod[:-1]))
-            self._factors = torch.from_numpy(self._factors_np)
+
+            self._meta_to_group_index_adjustment_factor = np.concatenate(([1], cumprod[:-1]))
             self._metadata_map = copy.deepcopy(dataset.metadata_map)
 
     def metadata_to_group(
@@ -107,10 +106,12 @@ class CombinatorialGrouper(AbstractGrouper):
         if self._groupby_fields is None:
             groups = torch.zeros(metadata.shape[0], dtype=torch.long)
         else:
-            groups = metadata[:, self._groupby_field_indices].long() @ self._factors
+            groups = metadata[:, self._groupby_field_indices].long() @ torch.from_numpy(
+                self._meta_to_group_index_adjustment_factor
+            )
 
         if return_counts:
-            return groups, get_counts(groups, self._n_groups)
+            return groups, _get_counts(groups, self._n_groups)
         else:
             return groups
 
@@ -122,11 +123,13 @@ class CombinatorialGrouper(AbstractGrouper):
             return "all"
 
         # group is just an integer, not a Tensor
-        n = len(self._factors_np)
+        n = len(self._meta_to_group_index_adjustment_factor)
         metadata = np.zeros(n)
         for i in range(n - 1):
-            metadata[i] = (group % self._factors_np[i + 1]) // self._factors_np[i]
-        metadata[n - 1] = group // self._factors_np[n - 1]
+            metadata[i] = (
+                group % self._meta_to_group_index_adjustment_factor[i + 1]
+            ) // self._meta_to_group_index_adjustment_factor[i]
+        metadata[n - 1] = group // self._meta_to_group_index_adjustment_factor[n - 1]
         group_name = ""
         for i in reversed(range(n)):
             meta_val = int(metadata[i])
@@ -138,8 +141,8 @@ class CombinatorialGrouper(AbstractGrouper):
         return group_name
 
 
-def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
-    """Gets the number of counts in each group.
+def _get_counts(group_indices: torch.Tensor, n_groups: int) -> torch.Tensor:
+    """Count the number of datapoints for each each group.
 
     This differs from split_into_groups in how it handles missing groups.
     get_counts always returns a count Tensor of length n_groups,
@@ -147,12 +150,12 @@ def get_counts(g: torch.Tensor, n_groups: int) -> List[int]:
     whose length is the number of unique groups present in g.
 
     Args:
-        g: Vector of groups
+        group_indices: A tensor of groups indices.
 
     Returns:
-        A list of length n_groups, denoting the count of each group.
+        A tensor of length n_groups, denoting the count of each group.
     """
-    unique_groups, unique_counts = torch.unique(g, sorted=False, return_counts=True)
-    counts = torch.zeros(n_groups, device=g.device)
+    unique_groups, unique_counts = torch.unique(group_indices, sorted=False, return_counts=True)
+    counts = torch.zeros(n_groups, device=group_indices.device)
     counts[unique_groups] = unique_counts.float()
     return counts

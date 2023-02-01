@@ -85,7 +85,7 @@ def get_train_loader(
             sampler=None,
             collate_fn=dataset.collate,
             batch_sampler=GroupSampler(
-                group_ids=grouper.metadata_to_group(dataset.metadata_array),
+                group_idxs=grouper.metadata_to_group(dataset.metadata_array),
                 batch_size=batch_size,
                 n_groups_per_batch=n_groups_per_batch,
                 uniform_over_groups=uniform_over_groups,
@@ -132,7 +132,7 @@ class GroupSampler:
     It drops the last batch if it's incomplete.
 
     Args:
-        group_ids: A tensor that specifies the id of different data points
+        group_idxs: A tensor that specifies the indices of different data points.
         batch_size: The size of the loading batch.
         n_groups_per_batch: The number of group per batch.
         uniform_over_groups: Whether to sample the groups uniformly or according to the natural data
@@ -143,7 +143,7 @@ class GroupSampler:
 
     def __init__(
         self,
-        group_ids: torch.Tensor,
+        group_idxs: torch.Tensor,
         batch_size: int,
         n_groups_per_batch: int,
         uniform_over_groups: bool = True,
@@ -154,20 +154,20 @@ class GroupSampler:
             raise ValueError(
                 f"batch_size ({batch_size}) must be evenly divisible by n_groups_per_batch ({n_groups_per_batch})."
             )
-        if len(group_ids) < batch_size:
+        if len(group_idxs) < batch_size:
             raise ValueError(
-                f"The dataset has only {len(group_ids)} examples but the batch size is {batch_size}. "
+                f"The dataset has only {len(group_idxs)} examples but the batch size is {batch_size}. "
                 + "There must be enough examples to form at least one complete batch."
             )
 
-        self._group_ids = group_ids
-        self._unique_groups, self._group_indices, unique_counts = split_into_groups(group_ids)
+        self._group_idxs = group_idxs
+        self._unique_groups, self._group_indices, unique_counts = split_into_groups(group_idxs)
 
         self._distinct_groups = distinct_groups
         self._n_groups_per_batch = n_groups_per_batch
         self._n_points_per_group = batch_size // n_groups_per_batch
 
-        self._dataset_size = len(group_ids)
+        self._dataset_size = len(group_idxs)
         self._num_batches = self._dataset_size // batch_size
 
         if uniform_over_groups:  # Sample uniformly over groups
