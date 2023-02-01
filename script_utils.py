@@ -56,10 +56,7 @@ def configure_split_dict_by_names(
         logging.info(f"Dataset size = {len(subdataset)}")
 
         split_dict[split_name]["loader"] = _get_data_loader_by_split_name(
-            sub_dataset=split_dict[split_name]["dataset"],
-            grouper=grouper,
-            split_name=split_name,
-            config_dict=config_dict,
+            sub_dataset=subdataset, grouper=grouper, split_name=split_name, config_dict=config_dict
         )
 
         split_dict[split_name]["eval_logger"] = BatchLogger(
@@ -139,9 +136,9 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     num_devices = _num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     if run_on_cluster:
-        batch_size_per_gpu = 1600
+        batch_size_per_gpu = 1024
     else:
         batch_size_per_gpu = 128
     batch_size = batch_size_per_gpu * num_devices
-    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device")
+    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
     return batch_size

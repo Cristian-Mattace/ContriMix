@@ -46,7 +46,7 @@ def main():
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "group_by_fields": ["hospital"],
+        "train_group_by_fields": ["hospital"],
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
@@ -84,7 +84,7 @@ def main():
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
 
-    train_grouper = CombinatorialGrouper(dataset=camelyon_dataset, groupby_fields=config_dict["group_by_fields"])
+    train_grouper = CombinatorialGrouper(dataset=camelyon_dataset, groupby_fields=config_dict["train_group_by_fields"])
 
     split_dict_by_names = configure_split_dict_by_names(
         full_dataset=camelyon_dataset, grouper=train_grouper, config_dict=config_dict

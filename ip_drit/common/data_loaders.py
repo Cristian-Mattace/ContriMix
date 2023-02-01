@@ -27,7 +27,7 @@ def get_train_loader(
     """Constructs and returns the data loader for training.
 
     Args:
-        loader_type: Loader type. This can be 'standard' for standard loaders and 'group' for group loaders, which
+        loader_type: Loader type. This can be 'standard' for standard loaders and 'group' for group loaders. The later
             first samples groups and then samples a fixed number of examples belonging to each group.
         dataset: The dataset that we want to load the data from.
         batch_size: Batch size.
@@ -53,19 +53,15 @@ def get_train_loader(
                 **loader_kwargs,
             )
         else:
-            if grouper is None:
-                raise ("Grouper can't be None when uniform_over_groups is True")
-
+            _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
             groups, group_counts = grouper.metadata_to_group(dataset.metadata_array, return_counts=True)
             group_weights = 1 / group_counts
             weights = group_weights[groups]
-
-            # Replacement needs to be set to True, otherwise we'll run out of minority samples
-            sampler = WeightedRandomSampler(weights, len(dataset), replacement=True)
             return DataLoader(
                 dataset,
                 shuffle=False,  # The WeightedRandomSampler already shuffles
-                sampler=sampler,
+                # Replacement needs to be set to True, otherwise we'll run out of minority samples
+                sampler=WeightedRandomSampler(weights, len(dataset), replacement=True),
                 collate_fn=dataset.collate,
                 batch_size=batch_size,
                 **loader_kwargs,
@@ -74,32 +70,35 @@ def get_train_loader(
     elif loader_type == "group":
         if uniform_over_groups is None:
             uniform_over_groups = True
-        assert grouper is not None
+
+        _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
         assert n_groups_per_batch is not None
         if n_groups_per_batch > grouper.n_groups:
             raise ValueError(
                 f"n_groups_per_batch was set to {n_groups_per_batch} "
-                + f"but there are only {grouper.n_groups} groups specified."
+                + f"but there are maximum {grouper.n_groups} specified."
             )
-
-        group_ids = grouper.metadata_to_group(dataset.metadata_array)
-        batch_sampler = GroupSampler(
-            group_ids=group_ids,
-            batch_size=batch_size,
-            n_groups_per_batch=n_groups_per_batch,
-            uniform_over_groups=uniform_over_groups,
-            distinct_groups=distinct_groups,
-        )
 
         return DataLoader(
             dataset,
             shuffle=None,
             sampler=None,
             collate_fn=dataset.collate,
-            batch_sampler=batch_sampler,
+            batch_sampler=GroupSampler(
+                group_ids=grouper.metadata_to_group(dataset.metadata_array),
+                batch_size=batch_size,
+                n_groups_per_batch=n_groups_per_batch,
+                uniform_over_groups=uniform_over_groups,
+                distinct_groups=distinct_groups,
+            ),
             drop_last=False,
             **loader_kwargs,
         )
+
+
+def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[AbstractGrouper]) -> None:
+    if uniform_over_groups and grouper is None:
+        raise ValueError("Grouper can't be None when uniform_over_groups is True")
 
 
 def get_eval_loader(

@@ -1,4 +1,5 @@
 """A module that defines a the Camelyon 17 dataset."""
+import logging
 import os
 from enum import auto
 from enum import Enum
@@ -15,6 +16,7 @@ import torch
 from PIL import Image
 
 from ._dataset import AbstractPublicDataset
+from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.common.metrics import Accuracy
 
@@ -85,7 +87,8 @@ class CamelyonDataset(AbstractPublicDataset):
             dim=1,
         )
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
-        self._eval_grouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
+        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
+        logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
     def _update_split_field_of_metadata(self) -> None:
         centers = self._metadata_df["center"]
