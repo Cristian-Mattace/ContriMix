@@ -86,8 +86,10 @@ def _get_data_loader_by_split_name(
             distinct_groups=config_dict["distinct_groups"],
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
         )
-    elif split_name == "ood_val":
+    elif split_name in ("id_val", "test", "ood_val"):
         return get_eval_loader(loader_type="standard", dataset=sub_dataset, batch_size=config_dict["batch_size"])
+    else:
+        raise ValueError(f"Unknown split name {split_name}")
 
 
 def use_data_parallel() -> bool:
@@ -119,7 +121,11 @@ def log_results(
     """Logs the results of the algorithm.
 
     Args:
-        algorithm: the
+        algorithm: the algorithm that was run on.
+        split_dict: The dictionary for the current split.
+        general_logger: The general logger that is used to write the log output.
+        epoch: The current epoch index.
+        effective_batch_idx: The effective batch index.
     """
     if algorithm.has_log:
         log = algorithm.get_log()
@@ -136,7 +142,7 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     num_devices = _num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     if run_on_cluster:
-        batch_size_per_gpu = 1024
+        batch_size_per_gpu = 1026
     else:
         batch_size_per_gpu = 128
     batch_size = batch_size_per_gpu * num_devices

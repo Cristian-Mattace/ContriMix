@@ -54,7 +54,7 @@ def train(
 
         val_results, y_pred = _run_eval_epoch(
             algorithm=algorithm,
-            split_dict=split_dict_by_name["ood_val"],
+            split_dict=split_dict_by_name["id_val"],
             general_logger=general_logger,
             epoch=epoch,
             config_dict=config_dict,
@@ -112,7 +112,6 @@ def _run_train_epoch(
     batches = tqdm(batches)
     last_batch_idx = len(batches) - 1
 
-    # so we manually increment batch_idx
     for batch_idx, labeled_batch in enumerate(batches):
         batch_results = algorithm.update(labeled_batch, is_epoch_end=(batch_idx == last_batch_idx))
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))

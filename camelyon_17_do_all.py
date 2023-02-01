@@ -50,18 +50,17 @@ def main():
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
-        "gradient_accumulation_steps": 2,
+        "gradient_accumulation_steps": 1,
         "n_epochs": 20,
-        "log_every_n_batches": 2,
+        "log_every_n_batches": FLAGS.log_every_n_batches,
         "train_loader": "group",
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
-        "n_groups_per_batch": 1,  # 4
+        "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "no_group_logging": True,
         "optimizer": "SGD",
         "lr": 1e-3,
         "weight_decay": 1e-2,
@@ -126,6 +125,11 @@ def _configure_parser() -> argparse.ArgumentParser:
         help="A string to specify how the sampling should be done. If True, sample examples such that batches are "
         + "uniform over groups. If False, sample using the group probabilities that is proportional to group size.",
     )
+    parser.add_argument(
+        "--num_groups_per_training_batch", type=int, default=3, help="The number of groups per training batch."
+    )
+
+    parser.add_argument("--log_every_n_batches", type=int, default=2, help="The number of batches to log once.")
     return parser
 
 

@@ -68,7 +68,6 @@ class SingleModelAlgorithm(GroupAlgorithm):
             logged_fields=["objective"],
             schedulers=[scheduler],
             scheduler_metric_names=[config["scheduler_metric_name"]],
-            no_group_logging=config["no_group_logging"],
         )
 
         # The parallelized_model does not contains the needs_y_input. We need to copy here before it gets cleaned up.
@@ -145,7 +144,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         results = self.process_batch(batch)
         results["objective"] = self.objective(results).item()
         self.update_log(results)
-        return self.sanitize_dict(results)
+        return self._sanitize_dict(results)
 
     def update(
         self,
@@ -188,7 +187,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
             self._batch_idx += 1
 
         # return only this batch's results
-        return self.sanitize_dict(results)
+        return self._sanitize_dict(results)
 
     def _update(self, results: Dict[str, Any], should_step: bool = False) -> None:
         """Computes the objective and updates the model.

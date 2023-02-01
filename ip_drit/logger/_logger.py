@@ -51,12 +51,12 @@ class Logger:
 
 
 class BatchLogger:
-    """A batch logger.
+    """A logger that record the batch performance.
 
     Args:
         csv_path: The path to the CSV file to save.
-        mode: The type of the mode for the log.
-        use_wandb (optional): If True, WanDB will be used.
+        mode (optional): The type of the mode for the log. Defalts to "w" for write.
+        use_wandb (optional): If True, WanDB (Weight and Bias) will be used for logging.
     """
 
     def __init__(self, csv_path: str, mode: str = "w", use_wandb: bool = False) -> None:
@@ -65,12 +65,11 @@ class BatchLogger:
         self._file = open(csv_path, mode)
         self._is_initialized = False
 
-        # Use Weights and Biases for logging
         self._use_wandb = use_wandb
         if use_wandb:
             self._split = Path(csv_path).stem
 
-    def setup(self, log_dict: Dict[str, Any]) -> None:
+    def _setup(self, log_dict: Dict[str, Any]) -> None:
         columns = log_dict.keys()
         # Move epoch and batch to the front if in the log_dict
         for key in ["batch", "epoch"]:
@@ -84,7 +83,7 @@ class BatchLogger:
 
     def log(self, log_dict: Dict[str, Any]) -> None:
         if self._is_initialized is False:
-            self.setup(log_dict)
+            self._setup(log_dict)
         self._writer.writerow(log_dict)
         self.flush()
 

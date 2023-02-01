@@ -81,7 +81,7 @@ def get_train_loader(
         logging.info(f"Train data loader has {num_groups_available} groups.")
         if train_n_groups_per_batch > num_groups_available:
             raise ValueError(
-                f"train_n_groups_per_batch was set to {train_n_groups_per_batch} for the training dataloader but"
+                f"'train_n_groups_per_batch' was set to {train_n_groups_per_batch} for the training dataloader "
                 + f"but there are at most {num_groups_available} groups available."
             )
 
@@ -107,14 +107,12 @@ def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[
         raise ValueError("Grouper can't be None when uniform_over_groups is True")
 
 
-def get_eval_loader(
-    loader_type: str, dataset: Union[AbstractPublicDataset, SubsetPublicDataset], batch_size: int, **loader_kwargs
-) -> DataLoader:
+def get_eval_loader(loader_type: str, dataset: SubsetPublicDataset, batch_size: int, **loader_kwargs) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
 
     Args:
         loader_type: The dataloader type 'standard' for standard loaders.
-        dataset: Data
+        dataset: A subddataset
         batch_size: Batch size
         loader_kwargs: kwargs passed into torch DataLoader initialization.
 
@@ -130,6 +128,8 @@ def get_eval_loader(
             batch_size=batch_size,
             **loader_kwargs,
         )
+    else:
+        raise ValueError("The type of evaluation loader {loader_type} is not supported!")
 
 
 class GroupSampler:
@@ -183,7 +183,7 @@ class GroupSampler:
         logging.info(
             f"GroupSampler initialized with uniform_over_group = {uniform_over_groups}, "
             + f"batch size = {batch_size}, num batches = {self._num_batches}, number of points per groups = "
-            + f"{self._n_points_per_group}, number of group per batch = {n_groups_per_batch}."
+            + f"{self._n_points_per_group}, number of groups per batch = {n_groups_per_batch}."
         )
 
         if uniform_over_groups:

@@ -95,7 +95,7 @@ class Algorithm(nn.Module):
         """
         raise NotImplementedError
 
-    def sanitize_dict(self, in_dict: Dict[str, Any], to_out_device: bool = True) -> Dict[str, Any]:
+    def _sanitize_dict(self, in_dict: Dict[str, Any], to_out_device: bool = True) -> Dict[str, Any]:
         """A helper function to sanitize an put dictionary.
 
         The sanitization happens by:
