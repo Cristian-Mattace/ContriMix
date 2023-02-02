@@ -51,7 +51,7 @@ class Logger:
 
 
 class BatchLogger:
-    """A logger that record the batch performance.
+    """A logger that records the batch performance.
 
     Args:
         csv_path: The path to the CSV file to save.
@@ -82,6 +82,7 @@ class BatchLogger:
         self._is_initialized = True
 
     def log(self, log_dict: Dict[str, Any]) -> None:
+        """Writes the log from the log_dict to a file."""
         if self._is_initialized is False:
             self._setup(log_dict)
         self._writer.writerow(log_dict)

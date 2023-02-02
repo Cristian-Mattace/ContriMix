@@ -70,6 +70,7 @@ def main():
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
         "verbose": True,
+        "report_batch_metric": True,
         "val_metric": "acc_avg",
         "val_metric_decreasing": False,
         # Saving parameters
@@ -129,7 +130,9 @@ def _configure_parser() -> argparse.ArgumentParser:
         "--num_groups_per_training_batch", type=int, default=3, help="The number of groups per training batch."
     )
 
-    parser.add_argument("--log_every_n_batches", type=int, default=2, help="The number of batches to log once.")
+    parser.add_argument(
+        "--log_every_n_batches", type=int, default=3, help="The number of batches to log once. Defaults to 3."
+    )
     return parser
 
 

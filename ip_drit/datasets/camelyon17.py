@@ -52,7 +52,7 @@ class CamelyonDataset(AbstractPublicDataset):
         )
 
         # Hack to reduce the number of samples
-        num_of_samples = 200000
+        num_of_samples = 40000
         data_centers_values = np.unique(self._metadata_df["center"].values)
         num_centers = len(data_centers_values)
         num_value_per_center = num_of_samples // num_centers
@@ -87,6 +87,8 @@ class CamelyonDataset(AbstractPublicDataset):
             dim=1,
         )
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
+
+        # The evaluation grouper operates ovfer all the slides.
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
@@ -130,5 +132,11 @@ class CamelyonDataset(AbstractPublicDataset):
             A dictionary of evaluation metrics, keyed by the name of the metrics.
             A string summarizing the evaluation metrics
         """
-        metric = Accuracy(prediction_fn=prediction_fn)
-        return self._standard_group_eval(metric, self._eval_grouper, y_pred, y_true, metadata)
+        return self._standard_group_eval(
+            metric=Accuracy(prediction_fn=prediction_fn),
+            grouper=self._eval_grouper,
+            y_true=y_true,
+            y_pred=y_pred,
+            metadata=metadata,
+            aggregate=True,
+        )

@@ -162,11 +162,11 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
-                g: Groups for batch
-                y_true: Ground truth labels for batch
-                metadata: Metadata for batch
-                y_pred: model output for batch
-                outputs: A tensor for the output
+                g: Groups indices for samples in the for batch.
+                y_true: Ground truth labels for batch.
+                metadata: Metadata for batch.
+                y_pred: model output for batch.
+                outputs: A tensor for the output.
                 objective: The value of the objective.
         """
         assert self._is_training

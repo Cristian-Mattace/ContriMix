@@ -1,4 +1,5 @@
 """A module for training the model."""
+import logging
 import math
 from typing import Any
 from typing import Dict
@@ -61,7 +62,7 @@ def train(
         )
 
         curr_val_metric = val_results[config_dict["val_metric"]]
-        general_logger.write(f"Validation {config_dict['val_metric']}: {curr_val_metric:.3f}\n")
+        general_logger.write(f" =>Validation {config_dict['val_metric']}: {curr_val_metric:.3f}\n")
 
         if best_val_metric is None:
             is_best = True
@@ -120,12 +121,15 @@ def _run_train_epoch(
 
         effective_batch_idx = (batch_idx + 1) / config_dict["gradient_accumulation_steps"]
         if effective_batch_idx % config_dict["log_every_n_batches"] == 0:
+            if config_dict["verbose"]:
+                general_logger.write(f"  Batch {batch_idx} \n")
             log_results(algorithm, split_dict, general_logger, epoch, math.ceil(effective_batch_idx))
 
     epoch_y_true = torch.cat(epoch_y_true, dim=0)
     epoch_y_pred = torch.cat(epoch_y_pred, dim=0)
     epoch_metadata = torch.cat(epoch_metadata, dim=0)
 
+    # Running the evaluation on all the training slides.
     results, results_str = split_dict["dataset"].eval(
         epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=binary_logits_to_pred
     )
@@ -139,8 +143,7 @@ def _run_train_epoch(
     results["epoch"] = epoch
     split_dict["eval_logger"].log(results)
     if split_dict["verbose"]:
-        general_logger.write("Epoch eval:\n")
-        general_logger.write(results_str)
+        general_logger.write("  -> Epoch evaluation on all traning slides:\n" + results_str)
 
     return results, epoch_y_pred
 
@@ -199,7 +202,6 @@ def _run_eval_epoch(
     results["epoch"] = epoch
     split_dict["eval_logger"].log(results)
     if split_dict["verbose"]:
-        general_logger.write("Epoch eval:\n")
-        general_logger.write(results_str)
+        general_logger.write("  -> Epoch evaluation on all validation slides:\n" + results_str)
 
     return results, epoch_y_pred

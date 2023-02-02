@@ -68,6 +68,7 @@ def configure_split_dict_by_names(
         )
 
         split_dict[split_name]["verbose"] = config_dict["verbose"]
+        split_dict[split_name]["report_batch_metric"] = config_dict["report_batch_metric"]
         split_dict[split_name]["split"] = split_name
 
     return split_dict
@@ -132,7 +133,7 @@ def log_results(
         log["epoch"] = epoch
         log["batch"] = effective_batch_idx
         split_dict["algo_logger"].log(log)
-        if split_dict["verbose"]:
+        if split_dict["verbose"] and split_dict["report_batch_metric"]:
             general_logger.write(algorithm.get_pretty_log_str())
         algorithm.reset_log()
 
