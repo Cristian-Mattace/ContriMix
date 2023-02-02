@@ -71,7 +71,7 @@ def main():
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
         "verbose": True,
         "report_batch_metric": True,
-        "val_metric": "acc_avg",
+        "metric": "acc_avg",
         "val_metric_decreasing": False,
         # Saving parameters
         "save_step": 5,
