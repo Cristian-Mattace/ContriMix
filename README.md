@@ -26,7 +26,7 @@ press `Command + Shift + P`  ->  `Developer: Reload Window` so that VS Code can 
 2. (If you haven't done so) Build a local docker image with `docker-compose build local`.
 3. Configure your Pycharm to use the local docker image following the guide [here](https://confluence.services.pathai.com/display/MLPLATFORM/Tutorial%3A+Local+Development).
 4. Create a folder name `datasets` on your computer. Update the path to this folder to `camelyon_17_do_all.py`.
-5. Run `camelyon_17_do_all.py`.
+5. Run `camelyon_17_do_all.py` with `--run_on_cluster False`.
 
 ### Run it from the cluster
 1. Configure your virtual environment to use a Jabba image of the `breast_cancer_2` branch. This image has all Python packages that you need. You can do this with `mle use-image [env-name] breast_cancer_2`. Also, change your node to 2 at least (4 is better if you can get it).
@@ -34,7 +34,7 @@ press `Command + Shift + P`  ->  `Developer: Reload Window` so that VS Code can 
 3. Clone the code repo to the virtual environment, suggesting your folder in `/jupyter-users-home/[your-name]`. This is because it can be maintained across
 different environments.
 4. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets`, update the path to `camelyon_17_do_all.py`.
-4. Run `camelyon_17_do_all.py`.
+4. Run `camelyon_17_do_all.py` with `--run_on_cluster True`.
 
 
 

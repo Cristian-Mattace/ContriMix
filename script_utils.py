@@ -145,7 +145,7 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     if run_on_cluster:
         batch_size_per_gpu = 1500
     else:
-        batch_size_per_gpu = 128
+        batch_size_per_gpu = 153
     batch_size = batch_size_per_gpu * num_devices
     logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
     return batch_size

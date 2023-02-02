@@ -54,6 +54,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         if config["use_data_parallel"]:
             parallelized_model = DataParallel(model)
+        else:
+            parallelized_model = model
 
         logging.info(f"Using device {config['device']} for training.")
         parallelized_model.to(config["device"])
