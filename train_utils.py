@@ -79,7 +79,7 @@ def train(
 
         save_model_if_needed(algorithm, split_dict_by_name["ood_val"], epoch, config_dict, is_best, best_val_metric)
         save_pred_if_needed(y_pred, split_dict_by_name["ood_val"], epoch, config_dict, is_best)
-        general_logger.write("\n")
+        general_logger.write("======================================================= \n\n")
 
 
 def _run_train_epoch(

@@ -182,7 +182,7 @@ class Accuracy(ElementwiseMetric):
     def _compute_element_wise(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         if self.prediction_fn is not None:
             y_pred = self.prediction_fn(y_pred)
-        return (y_pred == y_true).float()
+        return torch.squeeze(y_pred) == y_true
 
     def worst(self, metrics):
         return minimum(metrics)
