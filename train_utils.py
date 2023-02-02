@@ -53,6 +53,7 @@ def train(
             config_dict=config_dict,
         )
 
+        metrics_to_evaluate = config_dict["metric"]
         test_results, y_pred = _run_eval_epoch(
             algorithm=algorithm,
             split_dict=split_dict_by_name["test"],
@@ -60,9 +61,7 @@ def train(
             epoch=epoch,
             config_dict=config_dict,
         )
-
-        metrics_to_evaluate = config_dict["metric"]
-        general_logger.write(f" => Test {metrics_to_evaluate}: {test_results[metrics_to_evaluate]:.3f}\n")
+        general_logger.write(f" => Test {metrics_to_evaluate}: {test_results[metrics_to_evaluate]:.3f}\n\n")
 
         val_results, y_pred = _run_eval_epoch(
             algorithm=algorithm,
@@ -71,9 +70,8 @@ def train(
             epoch=epoch,
             config_dict=config_dict,
         )
-
         curr_val_metric = val_results[metrics_to_evaluate]
-        general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n")
+        general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n\n")
 
         if best_val_metric is None:
             is_best = True
@@ -213,6 +211,6 @@ def _run_eval_epoch(
     results["epoch"] = epoch
     split_dict["eval_logger"].log(results)
     if split_dict["verbose"]:
-        general_logger.write("  -> Epoch evaluation on all validation slides:\n" + results_str)
+        general_logger.write(results_str)
 
     return results, epoch_y_pred

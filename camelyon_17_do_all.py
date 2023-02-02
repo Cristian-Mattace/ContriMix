@@ -35,7 +35,9 @@ def main():
     all_dataset_dir.mkdir(exist_ok=True)
     all_log_dir.mkdir(exist_ok=True)
 
-    camelyon_dataset = CamelyonDataset(dataset_dir=all_dataset_dir / "camelyon17/")
+    camelyon_dataset = CamelyonDataset(
+        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+    )
 
     log_dir = all_log_dir / "erm_camelyon"
     log_dir.mkdir(exist_ok=True)
@@ -51,7 +53,7 @@ def main():
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
-        "n_epochs": 20,
+        "n_epochs": 30,
         "log_every_n_batches": FLAGS.log_every_n_batches,
         "train_loader": "group",
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
@@ -132,6 +134,13 @@ def _configure_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--log_every_n_batches", type=int, default=3, help="The number of batches to log once. Defaults to 3."
+    )
+
+    parser.add_argument(
+        "--use_full_dataset",
+        type=parse_bool,
+        default=False,
+        help="If True, full dataset will be used. Defaults to False.",
     )
     return parser
 

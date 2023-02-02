@@ -29,7 +29,14 @@ class SplitSchemeType(Enum):
 
 
 class CamelyonDataset(AbstractPublicDataset):
-    """A class that defines the Camelyon dataset."""
+    """A class that defines the Camelyon dataset.
+
+    Args:
+        dataset_dir: The location of the dataset.
+        split_scheme: The splitting scheme.
+        use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
+            40000, which is faster for code development. Defaults to True.
+    """
 
     _dataset_name: Optional[str] = "Camelyon17_WILDS"
     _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {
@@ -38,10 +45,12 @@ class CamelyonDataset(AbstractPublicDataset):
     _OOD_VAL_CENTER = 1
     _TEST_CENTER = 2
     _SPLIT_INDEX_BY_SPLIT_STRING: Dict[str, int] = {"train": 0, "id_val": 1, "test": 2, "ood_val": 3}
-
     _SPLIT_NAME_BY_SPLIT_STRING: Dict[str, str] = {}
+    _SMALL_DATASET_LIMIT = 40000
 
-    def __init__(self, dataset_dir: Path, split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL) -> None:
+    def __init__(
+        self, dataset_dir: Path, split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL, use_full_size: bool = True
+    ) -> None:
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir)
         self._original_resolution = (96, 96)
@@ -51,16 +60,8 @@ class CamelyonDataset(AbstractPublicDataset):
             os.path.join(self._data_dir, "metadata.csv"), index_col=0, dtype={"patient": "str"}
         )
 
-        # Hack to reduce the number of samples
-        num_of_samples = 40000
-        data_centers_values = np.unique(self._metadata_df["center"].values)
-        num_centers = len(data_centers_values)
-        num_value_per_center = num_of_samples // num_centers
-        keep_idxes = []
-        for center_idx in data_centers_values:
-            keep_idxes.extend(np.where(self._metadata_df["center"].values == center_idx)[0][:num_value_per_center])
-        self._metadata_df = self._metadata_df.iloc[keep_idxes]
-        # End of hacking.
+        if not use_full_size:
+            self._metadata_df = self._limit_metadata_df(self._metadata_df)
 
         self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
 
@@ -91,6 +92,20 @@ class CamelyonDataset(AbstractPublicDataset):
         # The evaluation grouper operates ovfer all the slides.
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
+
+    @staticmethod
+    def _limit_metadata_df(metadata_df: pd.DataFrame) -> pd.DataFrame:
+        """Limits the metadata dataframes uniformly over the centers so that we samples from all of them.
+
+        This is needed to keep the dataset small because of the metadata is used to select samples.
+        """
+        data_centers_values = np.unique(metadata_df["center"].values)
+        num_centers = len(data_centers_values)
+        num_values_per_center = CamelyonDataset._SMALL_DATASET_LIMIT // num_centers
+        keep_idxes = []
+        for center_idx in data_centers_values:
+            keep_idxes.extend(np.where(metadata_df["center"].values == center_idx)[0][:num_values_per_center])
+        return metadata_df.iloc[keep_idxes]
 
     def _update_split_field_of_metadata(self) -> None:
         centers = self._metadata_df["center"]
