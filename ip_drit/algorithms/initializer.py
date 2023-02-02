@@ -4,6 +4,7 @@ import math
 from typing import Any
 from typing import Dict
 
+from ._contrimix import ContriMix
 from ._erm import ERM
 from .single_model_algorithm import ModelAlgorithm
 from .single_model_algorithm import SingleModelAlgorithm
@@ -51,6 +52,15 @@ def initialize_algorithm(
         return ERM(
             config=config,
             d_out=1,  # Classification problem for now
+            grouper=train_grouper,
+            loss=initialize_loss(loss_type=config["loss_function"]),
+            metric=algo_log_metrics[config["algo_log_metric"]],
+            n_train_steps=math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"],
+        )
+    elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
+        return ContriMix(
+            config=config,
+            d_out=1,
             grouper=train_grouper,
             loss=initialize_loss(loss_type=config["loss_function"]),
             metric=algo_log_metrics[config["algo_log_metric"]],

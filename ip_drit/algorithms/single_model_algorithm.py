@@ -24,6 +24,7 @@ class ModelAlgorithm(Enum):
     """A class that defines the algorithm for the model."""
 
     ERM = auto()
+    CONTRIMIX = auto()
 
 
 class SingleModelAlgorithm(GroupAlgorithm):
@@ -77,7 +78,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         self._model = parallelized_model
 
-    def get_model_output(self, x, y_true):
+    def get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         if self._model.needs_y_input:
             if self.training:
                 outputs = self._model(x, y_true)
@@ -87,7 +88,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
             outputs = self._model(x)
         return outputs
 
-    def process_batch(self, batch, unlabeled_batch=None):
+    def process_batch(self, batch: Tuple[torch.Tensor], unlabeled_batch=None):
         """Process a single batch of data.
 
         ERM defines its own process_batch to handle if self.use_unlabeled_y is true.

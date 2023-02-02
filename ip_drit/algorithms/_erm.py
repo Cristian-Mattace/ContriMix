@@ -35,7 +35,7 @@ class ERM(SingleModelAlgorithm):
         loss: ElementwiseLoss,
         metric: Metric,
         n_train_steps: int,
-    ):
+    ) -> None:
         model = initialize_model_from_configuration(config, d_out, output_classifier=True)
         super().__init__(
             config=config, model=model, grouper=grouper, loss=loss, metric=metric, n_train_steps=n_train_steps
