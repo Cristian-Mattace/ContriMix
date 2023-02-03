@@ -10,6 +10,7 @@ from torch.nn import DataParallel
 from ._group_algorithm import GroupAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
+from ip_drit.optimizer import initialize_optimizer
 from ip_drit.scheduler import initialize_scheduler
 
 
@@ -46,6 +47,10 @@ class MultimodelAlgorithm(GroupAlgorithm):
             parallelized_models = [DataParallel(m) for m in models]
         else:
             parallelized_models = models
+
+        if not hasattr(self, "optimizer") or self.optimizer is None:
+            self._optimizer = initialize_optimizer(config, models=models)
+        self._max_grad_norm = config["max_grad_norm"]
 
         logging.info(f"Using device {config['device']} for training.")
         for m in parallelized_models:

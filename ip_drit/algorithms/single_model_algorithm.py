@@ -59,7 +59,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         # initialize models, optimizers, and schedulers
         if not hasattr(self, "optimizer") or self.optimizer is None:
-            self._optimizer = initialize_optimizer(config, model)
+            self._optimizer = initialize_optimizer(config, models=[model])
         self._max_grad_norm = config["max_grad_norm"]
 
         if config["use_data_parallel"]:

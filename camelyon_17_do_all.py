@@ -55,7 +55,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
-        "algorithm": ModelAlgorithm.CONTRIMIX,
+        "algorithm": ModelAlgorithm.ERM,
         "model": WildModel.DENSENET121,
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
@@ -75,7 +75,7 @@ def main():
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": "SGD",
+        "optimizer": "Adam",
         "lr": 1e-3,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"momentum": 0.9},
