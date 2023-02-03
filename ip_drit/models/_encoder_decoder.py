@@ -104,87 +104,6 @@ class ContentEncoder(nn.Module):
         return self._model(x)
 
 
-class RealFakeDiscriminator(nn.Module):
-    """A discriminator that aims to classify if an image is real or generated image.
-
-    Args:
-        in_channels: The number of channels for the input image.
-
-    """
-
-    def __init__(self, in_channels: int) -> None:
-        super().__init__()
-        self._downsample = nn.AvgPool2d(kernel_size=3, stride=2, padding=1, count_include_pad=False)
-        self._encoder = self._make_network(in_channels=in_channels)
-        self._real_fake_predictor = Initializer()(
-            nn.Conv2d(in_channels=1024, out_channels=1, kernel_size=1, stride=1, padding=0, bias=False)
-        )
-
-    @staticmethod
-    def _make_network(in_channels: int) -> nn.Module:
-        """Make a single scale discriminator."""
-        return nn.Sequential(
-            LeakyReLUConv2d(
-                in_channels=in_channels,
-                out_channels=64,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-            LeakyReLUConv2d(
-                in_channels=64,
-                out_channels=128,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-            LeakyReLUConv2d(
-                in_channels=128,
-                out_channels=256,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-            LeakyReLUConv2d(
-                in_channels=256,
-                out_channels=512,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-            LeakyReLUConv2d(
-                in_channels=512,
-                out_channels=1024,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-            LeakyReLUConv2d(
-                in_channels=1024,
-                out_channels=1024,
-                kernel_size=3,
-                padding=1,
-                stride=2,
-                enable_spectral_normalization=True,
-                enable_instance_norm=False,
-            ),
-        )
-
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        x = self._encoder(x)
-        return self._real_fake_predictor(x)
-
-
 class GeneratorType(Enum):
     """An Enum class that defines what type of Generators to use."""
 
@@ -198,8 +117,6 @@ class AbstractImGenerator(nn.Module):
 
     This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
     """
-
-    _NUM_FEATURES_PER_FRACTION = 256
 
     def __init__(self) -> None:
         super().__init__()
@@ -229,97 +146,87 @@ class AbstractImGenerator(nn.Module):
         raise NotImplementedError
 
 
-class AbsorbanceImGenerator(AbstractImGenerator):
+class _AbsorbanceImGenerator(nn.Module):
     """A class that computes the product between the content and the attribute.
 
     This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
-    This class uses PixelShuffle for upsampling to generate the output image.
 
     Args:
+        out_channels: The number of output channels for the generator.
         downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 2.
     """
 
     def __init__(self, downsampling_factor: int = 4) -> None:
-        super().__init__(downsampling_factor=downsampling_factor)
+        super().__init__()
         self._shuffle_layer = torch.nn.PixelShuffle(upscale_factor=downsampling_factor)
 
-    def _up_sample_tensor(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, z_c: torch.Tensor, z_a: torch.Tensor) -> torch.Tensor:
+        """Generates an image based by the content and the attribute tensor.
+
+        Args:
+            z_c: The content image tensor, which contains abundance information of the stain. The size should be of size
+                (N, num_stain_vectors, H, W).
+            z_a: The attribute image tensor. The size should be of size (N, (3k^2), num_stain_vectors)
+
+        Returns:
+            The generated image tensor of size (N, 3, k*H, k*W)
+        """
+        if z_c.size(1) != z_a.size(2):
+            raise ValueError(
+                f"The number of elements in first dimension of z_c must match the number of elements in the 2nd "
+                + "dimension of z_a"
+            )
+        num_rows, num_cols = z_c.size(2), z_c.size(3)
+        x = torch.bmm(z_a, z_c.view(z_c.size(0), z_c.size(1), -1))
+        x = x.view(x.size(0), x.size(1), num_rows, num_cols)
         return self._shuffle_layer(x)
 
 
-class AbsorbanceImGeneratorWithInterpolation(AbstractImGenerator):
+class _TransmittanceToAbsorbance(object):
+    """Converts a transmittance image to the absorbance image."""
+
+    def __call__(self, sample: torch.Tensor, min_trans_signal=1e-6) -> torch.Tensor:
+        sample = torch.clip(sample, min_trans_signal, None)
+        return -torch.log10(sample)
+
+
+class _AbsorbanceToTransmittance(object):
+    """Converts an absorbance image to the transmittance image."""
+
+    def __call__(self, im: torch.Tensor) -> torch.Tensor:
+        im = torch.clip(im, 0.0, None)
+        return 10 ** (-im)
+
+
+class ImageGenerator(nn.Module):
     """A class that computes the product between the content and the attribute.
 
     This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
-    Different from AbsorbanceImGenerator that uses PixelShuffle to upsample, this class uses Upsampling followed by
-    1x convolution to reduce the number of channels.
 
     Args:
-        in_channels: The number of input channels for the generator.
+        out_channels: The number of output channels for the generator.
         downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 2.
+        convert_to_absorbance_in_between (optional): If True, the input image will be converted to absorbance before
+            decomposing into content and attribute. Defaults to True.
     """
 
-    def __init__(self, in_channels: int, downsampling_factor: int = 4) -> None:
-        super().__init__(downsampling_factor=downsampling_factor)
-        self._check_downsampling_factor_be_a_power_of_2(downsampling_factor)
-        num_upsampling_blocks = int(np.log2(downsampling_factor))
-        upsampling_blocks: List[nn.Module] = []
-        for block_idx in range(num_upsampling_blocks - 1):
-            upsampling_blocks.append(
-                ReLUUpsample2xWithInterpolation(
-                    in_channels=in_channels // 2**block_idx, out_channels=in_channels // 2 ** (block_idx + 1)
-                )
-            )
+    def __init__(self, downsampling_factor: int = 4, convert_to_absorbance_in_between: bool = True) -> None:
+        super().__init__()
+        if convert_to_absorbance_in_between:
+            self._gen = _AbsorbanceImGenerator(downsampling_factor=downsampling_factor)
+            self._trans_to_abs_transformer = _TransmittanceToAbsorbance()
+            self._abs_to_trans_transformer = _AbsorbanceToTransmittance()
+        else:
+            raise ValueError("convert_to_absorbance_in_between = False is currently not supported!")
 
-        upsampling_blocks.append(
-            ReLUUpsample2xWithInterpolation(in_channels=in_channels // 2 ** (num_upsampling_blocks - 1), out_channels=3)
-        )
-        self._upsample_block = nn.Sequential(*upsampling_blocks)
+    def forward(self, z_c: torch.Tensor, z_a: torch.Tensor) -> torch.Tensor:
+        """Generates an image based by the content and the attribute tensor.
 
-    @staticmethod
-    def _check_downsampling_factor_be_a_power_of_2(fact: int) -> None:
-        log2 = np.log2(fact)
-        if np.abs(log2 - float(int(log2))) > 1e-3:
-            raise ValueError(f"Downsampling factor {fact} is not a power of 2!")
+        Args:
+            z_c: The content image tensor of size (N, num_stain_vectors, H, W).
+            z_a: The attribute image tensor of size (N, (3k^2), num_stain_vectors)
 
-    def _up_sample_tensor(self, x: torch.Tensor) -> torch.Tensor:
-        return self._upsample_block(x)
-
-
-class AbsorbanceImGeneratorWithConvTranspose(AbstractImGenerator):
-    """A class that computes the product between the content and the attribute.
-
-    This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
-    This class uses ConvTranspose2D to do the upsampling.
-
-    Args:
-        in_channels: The number of input channels for the generator.
-        downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 2.
-    """
-
-    def __init__(self, in_channels: int, downsampling_factor: int = 4) -> None:
-        super().__init__(downsampling_factor=downsampling_factor)
-        self._check_downsampling_factor_be_a_power_of_2(downsampling_factor)
-        num_upsampling_blocks = int(np.log2(downsampling_factor))
-        upsampling_blocks: List[nn.Module] = []
-        for block_idx in range(num_upsampling_blocks - 1):
-            upsampling_blocks.append(
-                ReLUUpsample2xWithConvTranspose2d(
-                    in_channels=in_channels // 2**block_idx, out_channels=in_channels // 2 ** (block_idx + 1)
-                )
-            )
-        upsampling_blocks.append(
-            ReLUUpsample2xWithConvTranspose2d(
-                in_channels=in_channels // 2 ** (num_upsampling_blocks - 1), out_channels=3
-            )
-        )
-        self._upsample_block = nn.Sequential(*upsampling_blocks)
-
-    @staticmethod
-    def _check_downsampling_factor_be_a_power_of_2(fact: int) -> None:
-        log2 = np.log2(fact)
-        if np.abs(log2 - float(int(log2))) > 1e-3:
-            raise ValueError(f"Downsampling factor {fact} is not a power of 2!")
-
-    def _up_sample_tensor(self, x: torch.Tensor) -> torch.Tensor:
-        return self._upsample_block(x)
+        Returns:
+            The generated image tensor of size (N, 3, k*H, k*W)
+        """
+        pass

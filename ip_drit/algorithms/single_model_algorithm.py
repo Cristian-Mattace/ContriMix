@@ -49,7 +49,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
         metric: Metric,
         n_train_steps: int,
     ):
-        logged_metrics = [loss]
+        self._loss = loss
+        logged_metrics = [self._loss]
         if metric is not None:
             self._metric = metric
             logged_metrics.append(self._metric)

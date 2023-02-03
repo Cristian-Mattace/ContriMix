@@ -8,16 +8,17 @@ from typing import Tuple
 import torch
 
 from ._utils import move_to
-from .single_model_algorithm import SingleModelAlgorithm
+from .multi_model_algorithm import MultimodelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import Metric
 from ip_drit.models import AttributeEncoder
 from ip_drit.models import ContentEncoder
+from ip_drit.models import ImageGenerator
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
 
 
-class ContriMix(SingleModelAlgorithm):
+class ContriMix(MultimodelAlgorithm):
     """A class that implements the ContriMix algorithm.
 
     Args:
@@ -26,10 +27,13 @@ class ContriMix(SingleModelAlgorithm):
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
         loss: The loss module.
         metric: The metric to use.
-
-    References:
-        https://binhu7.github.io/courses/ECE598/Spring2019/files/Lecture4.pdf
+        n_train_steps: The number of training steps.
+        convert_to_absorbance_in_between (optional): If True (default), the input image will be converted to absorbance
+            before decomposing into content and attribute.
     """
+
+    _NUM_INPUT_CHANNELS = 3
+    _NUM_STAIN_VECTORS = 8
 
     def __init__(
         self,
@@ -39,11 +43,18 @@ class ContriMix(SingleModelAlgorithm):
         loss: ElementwiseLoss,
         metric: Metric,
         n_train_steps: int,
+        convert_to_absorbance_in_between: bool = True,
     ) -> None:
         backbone_network = initialize_model_from_configuration(config, d_out, output_classifier=True)
+        cont_enc = ContentEncoder(in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS)
+        attr_enc = AttributeEncoder(
+            in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS, out_channels=d_out
+        )
+        gen = ImageGenerator(convert_to_absorbance_in_between=convert_to_absorbance_in_between)
+
         super().__init__(
             config=config,
-            model=backbone_network,
+            models=[backbone_network, cont_enc, attr_enc, gen],
             grouper=grouper,
             loss=loss,
             metric=metric,
