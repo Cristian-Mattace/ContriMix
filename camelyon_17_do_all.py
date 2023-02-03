@@ -1,7 +1,10 @@
 """A scripts to run the benchmark for the Camelyon dataset."""
 import argparse
 import logging
+import os
 from pathlib import Path
+import sys
+sys.path.append("/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit")
 from typing import Any
 from typing import Dict
 from typing import Tuple
@@ -30,7 +33,10 @@ def main():
     logging.info("Running the Camelyon 17 dataset benchmark.")
     parser = _configure_parser()
     FLAGS = parser.parse_args()
-    all_dataset_dir, all_log_dir = _dataset_and_log_location(FLAGS.run_on_cluster)
+
+    all_dataset_dir, all_log_dir = _dataset_and_log_location(FLAGS.run_on_cluster, FLAGS.log_dir_cluster,
+                                                             FLAGS.log_dir_local, FLAGS.dataset_dir_cluster,
+                                                             FLAGS.dataset_dir_local)
 
     all_dataset_dir.mkdir(exist_ok=True)
     all_log_dir.mkdir(exist_ok=True)
@@ -116,7 +122,7 @@ def _configure_parser() -> argparse.ArgumentParser:
         default=True,
         const=True,
         nargs="?",
-        help="A string to specify where to run the the code. "
+        help="A string to specify where to run the code. "
         + "Defaults to True, in which case the code will be run on the cluster.",
     )
     parser.add_argument(
@@ -142,14 +148,36 @@ def _configure_parser() -> argparse.ArgumentParser:
         default=False,
         help="If True, full dataset will be used. Defaults to False.",
     )
+
+    parser.add_argument(
+        "--log_dir_cluster", type=str, default="/jupyter-users-home/tan-2enguyen/all_log_dir",
+        help="Directory for logging in cluster"
+    )
+
+    parser.add_argument(
+        "--log_dir_local", type=str, default="/Users/tan.nguyen/",
+        help="Directory for logging in local"
+    )
+
+    parser.add_argument(
+        "--dataset_dir_cluster", type=str, default="/jupyter-users-home/tan-2enguyen/datasets",
+        help="Directory for datasets in cluster"
+    )
+
+    parser.add_argument(
+        "--dataset_dir_local", type=str, default="/Users/tan.nguyen/datasets",
+        help="Directory for datasets in local"
+    )
+
     return parser
 
 
-def _dataset_and_log_location(run_on_cluster: bool) -> Tuple[Path, Path]:
+def _dataset_and_log_location(run_on_cluster: bool, log_dir_cluster: str, log_dir_local: str,
+                              dataset_dir_cluster: str, dataset_dir_local: str) -> Tuple[Path, Path]:
     if run_on_cluster:
-        return Path("/jupyter-users-home/tan-2enguyen/datasets"), Path("/jupyter-users-home/tan-2enguyen/all_log_dir")
+        return Path(dataset_dir_cluster), Path(log_dir_cluster)
     else:
-        return Path("/Users/tan.nguyen/datasets"), Path("/Users/tan.nguyen/")
+        return Path(dataset_dir_local), Path(log_dir_local)
 
 
 if __name__ == "__main__":
