@@ -1,18 +1,18 @@
 """A scripts to run the benchmark for the Camelyon dataset."""
 import argparse
 import logging
-import os
 import sys
 from pathlib import Path
 
-sys.path.append("/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit")
 from typing import Any
 from typing import Dict
 from typing import Tuple
 
-import torch.cuda
-from absl import app
+package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit"
+if package_path not in sys.path:
+    sys.path.append(package_path)
 
+import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.grouper import CombinatorialGrouper
@@ -55,7 +55,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
-        "algorithm": ModelAlgorithm.ERM,
+        "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.DENSENET121,
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
@@ -75,10 +75,10 @@ def main():
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": "Adam",
+        "optimizer": "AdamW",
         "lr": 1e-3,
         "weight_decay": 1e-2,
-        "optimizer_kwargs": {"momentum": 0.9},
+        "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
@@ -214,7 +214,7 @@ def _configure_parser() -> argparse.ArgumentParser:
         help="The prefix to the model path for evaluation mode. "
         "It will be appended by either best_model or a specific epoch number to generate evaluation model path.",
     )
-
+    
     parser.add_argument("--n_epochs", type=int, default=30, help="Number of epochs to train for")
 
     return parser
