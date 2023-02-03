@@ -12,6 +12,8 @@ from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import Metric
+from ip_drit.models import AttributeEncoder
+from ip_drit.models import ContentEncoder
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
 
 

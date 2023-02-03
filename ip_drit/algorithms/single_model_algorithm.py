@@ -16,6 +16,7 @@ from torch.nn.utils import clip_grad_norm_
 from ._group_algorithm import GroupAlgorithm
 from ._utils import move_to
 from ip_drit.common.grouper import AbstractGrouper
+from ip_drit.common.metrics import Metric
 from ip_drit.optimizer import initialize_optimizer
 from ip_drit.scheduler import initialize_scheduler
 
@@ -34,13 +35,21 @@ class SingleModelAlgorithm(GroupAlgorithm):
         config: A configuration dictionary.
         model: The underlying backbone model used for the algorithm.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
+        loss: The loss object.
+        metric: The metric to use.
+        n_train_steps: The number of training steps.
     """
 
     def __init__(
-        self, config: Dict[str, Any], model: torch.nn.Module, grouper: AbstractGrouper, loss, metric, n_train_steps
+        self,
+        config: Dict[str, Any],
+        model: torch.nn.Module,
+        grouper: AbstractGrouper,
+        loss,
+        metric: Metric,
+        n_train_steps: int,
     ):
-        self._loss = loss
-        logged_metrics = [self._loss]
+        logged_metrics = [loss]
         if metric is not None:
             self._metric = metric
             logged_metrics.append(self._metric)
@@ -51,7 +60,6 @@ class SingleModelAlgorithm(GroupAlgorithm):
         if not hasattr(self, "optimizer") or self.optimizer is None:
             self._optimizer = initialize_optimizer(config, model)
         self._max_grad_norm = config["max_grad_norm"]
-        scheduler = initialize_scheduler(config, self._optimizer, n_train_steps)
 
         if config["use_data_parallel"]:
             parallelized_model = DataParallel(model)
@@ -63,13 +71,12 @@ class SingleModelAlgorithm(GroupAlgorithm):
         self._batch_idx = 0
         self._gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
-        # initialize the module
         super().__init__(
             device=config["device"],
             grouper=grouper,
             logged_metrics=logged_metrics,
             logged_fields=["objective"],
-            schedulers=[scheduler],
+            schedulers=[initialize_scheduler(config, self._optimizer, n_train_steps)],
             scheduler_metric_names=[config["scheduler_metric_name"]],
         )
 

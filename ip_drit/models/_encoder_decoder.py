@@ -8,12 +8,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from ._core import Downsampling2xkWithSkipConnection
-from ._core import LeakyReLUConv2d
-from ._core import ReLUInstNorm2dConv2d
-from ._core import ReLUUpsample2xWithConvTranspose2d
-from ._core import ReLUUpsample2xWithInterpolation
-from ._core import ResInstNorm2dConv2d
+from ._contrimix_core import Downsampling2xkWithSkipConnection
+from ._contrimix_core import LeakyReLUConv2d
+from ._contrimix_core import ReLUInstNorm2dConv2d
+from ._contrimix_core import ReLUUpsample2xWithConvTranspose2d
+from ._contrimix_core import ReLUUpsample2xWithInterpolation
+from ._contrimix_core import ResInstNorm2dConv2d
 from ._initializer import Initializer
 
 

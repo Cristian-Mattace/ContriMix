@@ -55,7 +55,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
-        "algorithm": ModelAlgorithm.CONTRIMIX,
+        "algorithm": ModelAlgorithm.ERM,
         "model": WildModel.DENSENET121,
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
