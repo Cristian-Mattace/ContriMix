@@ -14,10 +14,13 @@ This is the code repo for content-attribute mixing (ContriMix) augmentation
 ### Using PathAI's computing cluster
 1. Configure your virtual environment to use a Jabba image of the `breast_cancer_2` branch. This image has all Python packages that you need. You can do this with `mle use-image [env-name] breast_cancer_2`. Also, change your node to 2 at least (4 is better if you can get it).
 2. Connect with your environment with `mle connect [env-name]`.
-3. Clone the code repo in the virtual environment, suggesting to a folder that is maintained across different environment. A good one is `/jupyter-users-home/[your-name]`.
-4. Install pre-commit with `pre-commit install`.
-5. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets` update it to `camelyon_17_do_all.py`.
-6. Run `camelyon_17_do_all.py` with `--run_on_cluster True`.
+3. Clone the code repo to the virtual environment, suggesting your folder in `/jupyter-users-home/[your-name]`. This is because it can be maintained across
+different environments.
+4. Create a location for the dataset, suggesting `/jupyter-users-home/[your-name]/datasets`, update the path to `camelyon_17_do_all.py`.
+5. For using <mle run> command, append the path to the repo in your env in the beginning of camelyon_17_do_all.py
+6. Run `camelyon_17_do_all.py` with `--run_on_cluster True`. Alternatively, use mle run <env name> @<local path to camelyon_17_do_all.py> if you want to run this as a mle job in your env. Make sure to associate appropriate number of GPUs in your env before doing that.
+Example job - https://app.mle.pathai.com/jobs/view/1ee3c5fa-bbeb-4eda-a2b2-5ebb87f7cc44/status
+
 
 ### Using a Ubuntu desktop with GPU (not recommended)
 1. Install Python 3.8.8 (see `pyproject.toml)
