@@ -4,6 +4,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import torch
 import torch.nn as nn
@@ -140,3 +141,24 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
             for m in self._models_by_names.values():
                 m.zero_grad()
+
+    def evaluate(self, batch: Tuple[torch.Tensor, ...]) -> Dict[str, Union[torch.Tensor, float]]:
+        """Process the batch and update the log, without updating the model.
+
+        Args:
+            batch: A batch of data yielded by data loaders.
+
+        Returns:
+            A dictionary of the results, keyed by the field names. There are following fields.
+                g: Groups for batch
+                y_true: Ground truth labels for batch
+                metadata: Metadata for batch
+                y_pred: model output for batch
+                outputs: A tensor for the output
+                objective: The value of the objective.
+        """
+        assert not self._is_training
+        results = self._process_batch(batch)
+        results["objective"] = self.objective(results).item()
+        self.update_log(results)
+        return self._sanitize_dict(results)

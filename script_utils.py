@@ -143,7 +143,7 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     num_devices = _num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     if run_on_cluster:
-        batch_size_per_gpu = 1500
+        batch_size_per_gpu = 1002
     else:
         batch_size_per_gpu = 153
     batch_size = batch_size_per_gpu * num_devices

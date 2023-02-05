@@ -46,7 +46,7 @@ class CamelyonDataset(AbstractPublicDataset):
     _TEST_CENTER = 2
     _SPLIT_INDEX_BY_SPLIT_STRING: Dict[str, int] = {"train": 0, "id_val": 1, "test": 2, "val": 3}
     _SPLIT_NAME_BY_SPLIT_STRING: Dict[str, str] = {}
-    _SMALL_DATASET_LIMIT = 5000
+    _SMALL_DATASET_LIMIT = 40000
 
     def __init__(
         self, dataset_dir: Path, split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL, use_full_size: bool = True
