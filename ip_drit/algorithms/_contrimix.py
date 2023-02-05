@@ -1,9 +1,8 @@
 """This modules implements the ContriMix Augmentation algorithm."""
 import logging
-from enum import auto
-from enum import Enum
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 
@@ -35,6 +34,7 @@ class ContriMix(MultimodelAlgorithm):
         n_train_steps: The number of training steps.
         convert_to_absorbance_in_between (optional): If True (default), the input image will be converted to absorbance
             before decomposing into content and attribute.
+        num_mxing_per_image (optional): The number of mixing images for each original image. Defaults to 5.
     """
 
     _NUM_INPUT_CHANNELS = 3
@@ -50,6 +50,7 @@ class ContriMix(MultimodelAlgorithm):
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
+        num_mxing_per_image: int = 5,
     ) -> None:
         backbone_network = initialize_model_from_configuration(config, d_out, output_classifier=True)
 
@@ -77,6 +78,7 @@ class ContriMix(MultimodelAlgorithm):
             n_train_steps=n_train_steps,
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
+        self._num_mxing_per_image = num_mxing_per_image
         self._convert_to_absorbance_in_between = convert_to_absorbance_in_between
 
     def _process_batch(
@@ -111,6 +113,9 @@ class ContriMix(MultimodelAlgorithm):
         attr_enc = self._models_by_names["attr_enc"]
         im_gen = self._models_by_names["im_gen"]
         backbone = self._models_by_names["backbone"]
+        image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
+        logging.info(f"Indices = {image_indices[0]}")
+
         if self._convert_to_absorbance_in_between:
             x_abs, signal_type = self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))
             zc = cont_enc(x_abs)
@@ -126,6 +131,17 @@ class ContriMix(MultimodelAlgorithm):
         else:
             y_pred = backbone(x)
         return y_pred
+
+    def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:
+        """Returns a list of tensors that contains target image indices to sample from.
+
+        Args:
+            batch_size: The size of the training batch.
+
+        Returns:
+            A list of tensors in which each is the index of the images in the minibatch that we can use for ContriMix.
+        """
+        return [torch.randint(low=0, high=batch_size, size=(self._num_mxing_per_image,)) for _ in range(batch_size)]
 
     def objective(self, results):
         labeled_loss = self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)

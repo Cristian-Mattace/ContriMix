@@ -11,6 +11,7 @@ from torch.utils.data import DataLoader
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.data_loaders import get_eval_loader
 from ip_drit.common.data_loaders import get_train_loader
+from ip_drit.common.data_loaders import LoaderType
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets import SubsetPublicDataset
@@ -88,7 +89,9 @@ def _get_data_loader_by_split_name(
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
         )
     elif split_name in ("id_val", "test", "val"):
-        return get_eval_loader(loader_type="standard", dataset=sub_dataset, batch_size=config_dict["batch_size"])
+        return get_eval_loader(
+            loader_type=LoaderType.STANDARD, dataset=sub_dataset, batch_size=config_dict["batch_size"]
+        )
     else:
         raise ValueError(f"Unknown split name {split_name}")
 

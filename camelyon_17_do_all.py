@@ -19,6 +19,7 @@ from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
+from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
 from script_utils import calculate_batch_size
 from script_utils import configure_split_dict_by_names
@@ -67,7 +68,7 @@ def main():
         "gradient_accumulation_steps": 1,
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "train_loader": "group",
+        "train_loader": LoaderType.GROUP,
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.

@@ -1,10 +1,11 @@
 """A module that defines the dataloader."""
 import logging
+from enum import auto
+from enum import Enum
 from typing import Generator
 from typing import List
 from typing import Optional
 from typing import Tuple
-from typing import Union
 
 import numpy as np
 import torch
@@ -16,8 +17,15 @@ from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets import SubsetPublicDataset
 
 
+class LoaderType(Enum):
+    """An enum class that defines the type of the loader."""
+
+    STANDARD = auto()
+    GROUP = auto()
+
+
 def get_train_loader(
-    loader_type: str,
+    loader_type: LoaderType,
     dataset: SubsetPublicDataset,
     batch_size: int,
     uniform_over_groups: Optional[bool] = None,
@@ -29,8 +37,8 @@ def get_train_loader(
     """Constructs and returns the data loader for training.
 
     Args:
-        loader_type: Loader type. This can be 'standard' for standard loaders and 'group' for group loaders. The later
-            first samples groups and then samples a fixed number of examples belonging to each group.
+        loader_type: Loader type. This can be LoaderType.STANDARD for standard loaders and LoaderType.GROUP for group
+            loaders. The later first samples groups and then samples a fixed number of examples belonging to each group.
         dataset: The dataset that we want to load the data from. This is normally a subset of the full dataset.
         batch_size: Batch size.
         uniform_over_groups (optional): Whether to sample the groups uniformly or according to the natural data
@@ -44,7 +52,7 @@ def get_train_loader(
     Output:
         The generated Data loader object.
     """
-    if loader_type == "standard":
+    if loader_type == LoaderType.STANDARD:
         if uniform_over_groups is None or not uniform_over_groups:
             return DataLoader(
                 dataset,
@@ -69,7 +77,7 @@ def get_train_loader(
                 **loader_kwargs,
             )
 
-    elif loader_type == "group":
+    elif loader_type == LoaderType.GROUP:
         if uniform_over_groups is None:
             uniform_over_groups = True
 
@@ -107,7 +115,9 @@ def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[
         raise ValueError("Grouper can't be None when uniform_over_groups is True")
 
 
-def get_eval_loader(loader_type: str, dataset: SubsetPublicDataset, batch_size: int, **loader_kwargs) -> DataLoader:
+def get_eval_loader(
+    loader_type: LoaderType, dataset: SubsetPublicDataset, batch_size: int, **loader_kwargs
+) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
 
     Args:
@@ -119,7 +129,7 @@ def get_eval_loader(loader_type: str, dataset: SubsetPublicDataset, batch_size: 
     Returns:
         A data loader for evaluation
     """
-    if loader_type == "standard":
+    if loader_type == LoaderType.STANDARD:
         return DataLoader(
             dataset,
             shuffle=False,  # Do not shuffle eval datasets
@@ -129,7 +139,7 @@ def get_eval_loader(loader_type: str, dataset: SubsetPublicDataset, batch_size: 
             **loader_kwargs,
         )
     else:
-        raise ValueError("The type of evaluation loader {loader_type} is not supported!")
+        raise ValueError(f"The type of evaluation loader {loader_type.name} is not supported!")
 
 
 class GroupSampler:

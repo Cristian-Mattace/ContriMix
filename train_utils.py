@@ -9,6 +9,7 @@ from typing import Tuple
 import torch
 from tqdm import tqdm
 
+from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.metrics import binary_logits_to_pred
 from ip_drit.logger import Logger
