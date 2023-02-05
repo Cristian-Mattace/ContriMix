@@ -64,7 +64,7 @@ def configure_split_dict_by_names(
         )
 
         split_dict[split_name]["algo_logger"] = BatchLogger(
-            os.path.join(config_dict["log_dir"], f"{split_name}_train.csv"), mode="w", use_wandb=False
+            os.path.join(config_dict["log_dir"], f"{split_name}_algo.csv"), mode="w", use_wandb=False
         )
 
         split_dict[split_name]["verbose"] = config_dict["verbose"]
