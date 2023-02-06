@@ -34,7 +34,7 @@ def initialize_algorithm(
 
     Args:
         config: A dictionary that is used to configure hwo the model should be initialized.
-        split_dict_by_name: A dictionary whose key are 'train', 'ood_val', 'id_val' corresponding to different splits.
+        split_dict_by_name: A dictionary whose key are 'train', 'val', 'id_val', 'test' corresponding to different splits.
             For each key, the value is a dictionary with further (key, values) that defines the attribute of the split.
             They key can be 'loader' (for the data loader), 'dataset' (for the dataset), 'name' (for the name of the
             split), 'eval_logger', and 'algo_logger'.

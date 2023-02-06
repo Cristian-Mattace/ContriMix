@@ -38,13 +38,13 @@ class CamelyonDataset(AbstractPublicDataset):
             40000, which is faster for code development. Defaults to True.
     """
 
-    _dataset_name: Optional[str] = "Camelyon17_WILDS"
+    _dataset_name: Optional[str] = "camelyon17"
     _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {
         "1.0": "https://worksheets.codalab.org/rest/bundles/0xe45e15f39fb54e9d9e919556af67aabe/contents/blob/"
     }
     _OOD_VAL_CENTER = 1
     _TEST_CENTER = 2
-    _SPLIT_INDEX_BY_SPLIT_STRING: Dict[str, int] = {"train": 0, "id_val": 1, "test": 2, "ood_val": 3}
+    _SPLIT_INDEX_BY_SPLIT_STRING: Dict[str, int] = {"train": 0, "id_val": 1, "test": 2, "val": 3}
     _SPLIT_NAME_BY_SPLIT_STRING: Dict[str, str] = {}
     _SMALL_DATASET_LIMIT = 40000
 
@@ -113,7 +113,8 @@ class CamelyonDataset(AbstractPublicDataset):
         self._metadata_df.loc[test_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["test"]
 
         val_center_mask = centers == self._OOD_VAL_CENTER
-        self._metadata_df.loc[val_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["ood_val"]
+        # 'val' means OOD val center, its different from id_val
+        self._metadata_df.loc[val_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["val"]
 
     def _update_slide_field_for_mix_to_test_split_scheme(self):
         # For the mixed-to-test setting,

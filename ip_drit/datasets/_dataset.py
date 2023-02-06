@@ -163,7 +163,7 @@ class AbstractPublicDataset(ABC):
         """Return a subset of a dataset based on the split definition.
 
         Args:
-            split: A Split identifier, e.g., 'train', 'ood_val', 'test', 'id_val'. Must be a key in in self.split_dict.
+            split: A Split identifier, e.g., 'train', 'val', 'test', 'id_val'. Must be a key in in self.split_dict.
             frac (optional): What fraction of the split to randomly sample. Used for fast development on a small
                 dataset. Defaults to 1.0.
             transform (optional): Any data transformations to be applied to the input x. Defaults to None, in which
