@@ -32,6 +32,7 @@ def get_train_loader(
     grouper: Optional[AbstractGrouper] = None,
     distinct_groups: bool = True,
     train_n_groups_per_batch: int = None,
+    reset_random_generator_after_every_epoch: bool = False,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for training.
@@ -47,36 +48,22 @@ def get_train_loader(
         grouper (optional): Grouper used for group loaders or for uniform_over_groups=True
         distinct_groups (optional): Whether to sample distinct_groups within each minibatch for group loaders.
         train_n_groups_per_batch (optional): Number of groups to sample in each minibatch for group loaders.
+        reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
+            seed that is similar for every epoch. Defaults to False.
         loader_kwargs: kwargs passed into torch DataLoader initialization.
 
     Output:
         The generated Data loader object.
     """
     if loader_type == LoaderType.STANDARD:
-        if uniform_over_groups is None or not uniform_over_groups:
-            return DataLoader(
-                dataset,
-                shuffle=True,  # Shuffle training dataset
-                sampler=None,
-                collate_fn=dataset.collate,
-                batch_size=batch_size,
-                **loader_kwargs,
-            )
-        else:
-            _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
-            groups, group_counts = grouper.metadata_to_group_indices(dataset.metadata_array, return_counts=True)
-            group_weights = 1 / group_counts
-            weights = group_weights[groups]
-            return DataLoader(
-                dataset,
-                shuffle=False,  # The WeightedRandomSampler already shuffles
-                # Replacement needs to be set to True, otherwise we'll run out of minority samples
-                sampler=WeightedRandomSampler(weights, len(dataset), replacement=True),
-                collate_fn=dataset.collate,
-                batch_size=batch_size,
-                **loader_kwargs,
-            )
-
+        return _generate_standard_data_loader(
+            loader_kwargs=loader_kwargs,
+            dataset=dataset,
+            batch_size=batch_size,
+            uniform_over_groups=uniform_over_groups,
+            grouper=grouper,
+            reset_random_generator_after_every_epoch=reset_random_generator_after_every_epoch,
+        )
     elif loader_type == LoaderType.GROUP:
         if uniform_over_groups is None:
             uniform_over_groups = True
@@ -93,6 +80,12 @@ def get_train_loader(
                 + f"but there are at most {num_groups_available} groups available."
             )
 
+        if reset_random_generator_after_every_epoch:
+            g = torch.Generator()
+            g.manual_seed(0)
+        else:
+            g = None
+
         return DataLoader(
             dataset,
             shuffle=None,
@@ -106,8 +99,70 @@ def get_train_loader(
                 distinct_groups=distinct_groups,
             ),
             drop_last=False,
+            worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
+            persistent_workers=False,
+            generator=g,
             **loader_kwargs,
         )
+
+
+def _generate_standard_data_loader(
+    loader_kwargs,
+    dataset: SubsetPublicDataset,
+    batch_size: int,
+    uniform_over_groups: Optional[bool] = None,
+    grouper: Optional[AbstractGrouper] = None,
+    reset_random_generator_after_every_epoch: Optional[bool] = False,
+) -> DataLoader:
+    if reset_random_generator_after_every_epoch:
+        g = torch.Generator()
+        g.manual_seed(0)
+    else:
+        g = None
+
+    if uniform_over_groups is None or not uniform_over_groups:
+        return DataLoader(
+            dataset,
+            shuffle=True,  # Shuffle training dataset
+            sampler=None,
+            collate_fn=dataset.collate,
+            batch_size=batch_size,
+            worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
+            num_workers=8,  # Setting this different than 1 is important for worker_init_fn not
+            generator=g,
+            persistent_workers=False,  # Workers are created after every dataset consumption
+            **loader_kwargs,
+        )
+    else:
+        _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
+        groups, group_counts = grouper.metadata_to_group_indices(dataset.metadata_array, return_counts=True)
+        group_weights = 1 / group_counts
+        weights = group_weights[groups]
+        return DataLoader(
+            dataset,
+            shuffle=False,  # The WeightedRandomSampler already shuffles
+            # Replacement needs to be set to True, otherwise we'll run out of minority samples
+            sampler=WeightedRandomSampler(weights, len(dataset), replacement=True),
+            collate_fn=dataset.collate,
+            batch_size=batch_size,
+            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
+            worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
+            generator=g,
+            persistent_workers=False,  # Workers are created after every dataset consumption
+            **loader_kwargs,
+        )
+
+
+def _worker_init_fn(worker_id: int) -> None:
+    """A helper function for worker initialization.
+
+    This function makes sure that every workers are initialized with a reperated random seed in the begining of each
+    epoch. See https://tanelp.github.io/posts/a-bug-that-plagues-thousands-of-open-source-ml-projects/.
+    """
+    seed = np.random.get_state()[1][0] + worker_id
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    logging.debug(f"WorkerID: {worker_id}, Random seed set as {seed}")
 
 
 def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[AbstractGrouper]) -> None:
@@ -116,7 +171,11 @@ def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[
 
 
 def get_eval_loader(
-    loader_type: LoaderType, dataset: SubsetPublicDataset, batch_size: int, **loader_kwargs
+    loader_type: LoaderType,
+    dataset: SubsetPublicDataset,
+    batch_size: int,
+    reset_random_generator_after_every_epoch: bool = False,
+    **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
 
@@ -125,17 +184,29 @@ def get_eval_loader(
         dataset: A subddataset
         batch_size: Batch size
         loader_kwargs: kwargs passed into torch DataLoader initialization.
+        reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
+            seed that is similar for every epoch. Defaults to False.
+
 
     Returns:
         A data loader for evaluation
     """
     if loader_type == LoaderType.STANDARD:
+        if reset_random_generator_after_every_epoch:
+            g = torch.Generator()
+            g.manual_seed(0)
+        else:
+            g = None
+
         return DataLoader(
             dataset,
             shuffle=False,  # Do not shuffle eval datasets
             sampler=None,
             collate_fn=dataset.collate,
             batch_size=batch_size,
+            persistent_workers=False,
+            worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
+            generator=g,
             **loader_kwargs,
         )
     else:

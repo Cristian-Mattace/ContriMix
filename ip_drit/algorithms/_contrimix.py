@@ -113,8 +113,7 @@ class ContriMix(MultimodelAlgorithm):
         attr_enc = self._models_by_names["attr_enc"]
         im_gen = self._models_by_names["im_gen"]
         backbone = self._models_by_names["backbone"]
-        image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
-        logging.info(f"Indices = {image_indices[0]}")
+        _ = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
 
         if self._convert_to_absorbance_in_between:
             x_abs, signal_type = self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))

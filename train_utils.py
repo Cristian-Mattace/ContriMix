@@ -6,6 +6,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -113,6 +114,9 @@ def _run_train_epoch(
         A dictionary of results
         A pretty print version of the results
     """
+    # This is needed to make sure that each epoch starts with the same base random generator.
+    _reset_random_number_generator()
+
     algorithm.train()
     torch.set_grad_enabled(True)
 
@@ -125,6 +129,7 @@ def _run_train_epoch(
     last_batch_idx = len(batches) - 1
 
     for batch_idx, labeled_batch in enumerate(batches):
+        logging.info(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
         batch_results = algorithm.update(labeled_batch, is_epoch_end=(batch_idx == last_batch_idx))
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
         epoch_y_pred.append(detach_and_clone(batch_results["y_pred"]))
@@ -157,6 +162,16 @@ def _run_train_epoch(
         general_logger.write("  -> Epoch evaluation on all training slides:\n" + results_str)
 
     return results, epoch_y_pred
+
+
+def _reset_random_number_generator() -> None:
+    seed = 0
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    # When running on the CuDNN backend, two further options must be set
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
 
 def _run_eval_epoch(
@@ -192,6 +207,7 @@ def _run_eval_epoch(
     epoch_metadata = []
     effective_batch_idx = 0
     for batch_idx, labeled_batch in enumerate(tqdm(split_dict["loader"])):
+        logging.debug(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
         batch_results = algorithm.evaluate(labeled_batch)
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
         epoch_y_pred.append(detach_and_clone(batch_results["y_pred"]))
