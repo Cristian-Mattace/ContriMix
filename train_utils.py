@@ -3,6 +3,7 @@ import logging
 import math
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 import torch
@@ -28,7 +29,7 @@ def train(
 
     For each epoch:
         - Steps an algorithm on the datasets['train'] split and the unlabeled split.
-        - Evaluates the algorithm on the datasets['ood_val'] split.
+        - Evaluates the algorithm on the datasets['val'] split (OOD val split).
         - Saves models / preds with frequency according to the configs
         - Evaluates on any other specified splits in the configs
     Assumes that the split_dict_by_name dict contains labeled data.
@@ -65,7 +66,7 @@ def train(
 
         val_results, y_pred = _run_eval_epoch(
             algorithm=algorithm,
-            split_dict=split_dict_by_name["ood_val"],
+            split_dict=split_dict_by_name["val"],
             general_logger=general_logger,
             epoch=epoch,
             config_dict=config_dict,
@@ -86,8 +87,8 @@ def train(
         if is_best:
             general_logger.write(f"Epoch {epoch} has the best validation performance so far.\n")
 
-        save_model_if_needed(algorithm, split_dict_by_name["ood_val"], epoch, config_dict, is_best, best_val_metric)
-        save_pred_if_needed(y_pred, split_dict_by_name["ood_val"], epoch, config_dict, is_best)
+        save_model_if_needed(algorithm, split_dict_by_name["val"], epoch, config_dict, is_best, best_val_metric)
+        save_pred_if_needed(y_pred, split_dict_by_name["val"], epoch, config_dict, is_best)
         general_logger.write("======================================================= \n\n")
 
 
@@ -152,7 +153,7 @@ def _run_train_epoch(
     results["epoch"] = epoch
     split_dict["eval_logger"].log(results)
     if split_dict["verbose"]:
-        general_logger.write("  -> Epoch evaluation on all traning slides:\n" + results_str)
+        general_logger.write("  -> Epoch evaluation on all training slides:\n" + results_str)
 
     return results, epoch_y_pred
 
@@ -163,6 +164,9 @@ def _run_eval_epoch(
     general_logger: Logger,
     config_dict: Dict[str, Any],
     epoch: int,
+    save_results: bool = False,
+    is_best: bool = False,
+    split: Optional[str] = "train",
 ) -> Tuple[Dict, str]:
     """Run 1 evaluation epoch.
 
@@ -172,6 +176,8 @@ def _run_eval_epoch(
         general_logger: The logger that is used to write the training logs.
         config_dict: The configuration dictionary.
         epoch: The index of the current epoch.
+        save_results: Save results in a csv. Needed for eval
+        split: The type of the split, which can be one of `train`, `id_val`, `val`, `test`.
 
     Returns:
         A dictionary of results.
@@ -213,4 +219,22 @@ def _run_eval_epoch(
     if split_dict["verbose"]:
         general_logger.write(results_str)
 
+    # Skip saving train preds, since the train loader generally shuffles the data
+    if save_results and split != "train":
+        save_pred_if_needed(epoch_y_pred, split_dict, epoch, config_dict, is_best, force_save=True)
+
     return results, epoch_y_pred
+
+
+def evaluate_over_splits(algorithm, datasets, epoch, general_logger, config_dict, is_best, save_results):
+    for split, dataset in datasets.items():
+        _run_eval_epoch(
+            algorithm=algorithm,
+            split_dict=dataset,
+            epoch=epoch,
+            general_logger=general_logger,
+            config_dict=config_dict,
+            is_best=is_best,
+            split=split,
+            save_results=save_results,
+        )

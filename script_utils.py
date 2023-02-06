@@ -32,7 +32,7 @@ def parse_bool(v: str) -> bool:
 def configure_split_dict_by_names(
     full_dataset: AbstractPublicDataset, grouper: CombinatorialGrouper, config_dict: Dict[str, Any]
 ) -> Dict[str, Dict[str, Any]]:
-    """Configures the split dict for different splits (train, id_val, test, ood_val etc).
+    """Configures the split dict for different splits (`train`, `id_val`, `val`, `test`).
 
     Args:
         full_dataset: A full dataset with different split names defined.
@@ -87,7 +87,7 @@ def _get_data_loader_by_split_name(
             distinct_groups=config_dict["distinct_groups"],
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
         )
-    elif split_name in ("id_val", "test", "ood_val"):
+    elif split_name in ("id_val", "test", "val"):
         return get_eval_loader(loader_type="standard", dataset=sub_dataset, batch_size=config_dict["batch_size"])
     else:
         raise ValueError(f"Unknown split name {split_name}")
