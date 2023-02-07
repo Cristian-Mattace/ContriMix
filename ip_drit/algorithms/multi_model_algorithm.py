@@ -2,6 +2,7 @@
 import logging
 from typing import Any
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -28,6 +29,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
         model:s A list of models used in the algorithm.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
         loss: The loss object.
+        logged_fields: The list of strings that specifies the fields to tract. These strings are the subset of fields
+            returns by the loss.
         metric: The metric to use.
         n_train_steps: The number of training steps.
     """
@@ -38,6 +41,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         models_by_names: Dict[str, torch.nn.Module],
         grouper: AbstractGrouper,
         loss,
+        logged_fields: List[str],
         metric: Metric,
         n_train_steps: int,
     ):
@@ -69,7 +73,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
             device=config["device"],
             grouper=grouper,
             logged_metrics=logged_metrics,
-            logged_fields=["objective"],
+            logged_fields=logged_fields,
             schedulers=[initialize_scheduler(config, self._optimizer, n_train_steps)],
             scheduler_metric_names=[config["scheduler_metric_name"]],
         )
@@ -128,8 +132,11 @@ class MultimodelAlgorithm(GroupAlgorithm):
         Also updates the results dictionary yielded by process_batch().
         Should be overridden to change algorithm update beyond modifying the objective.
         """
-        objective = self.objective(results)
+        objective, non_objective_loss_by_name = self.objective(results)
+
         results["objective"] = objective.item()
+        results.update(non_objective_loss_by_name)
+
         objective.backward()
 
         if should_step:
@@ -159,6 +166,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
         """
         assert not self._is_training
         results = self._process_batch(batch)
-        results["objective"] = self.objective(results).item()
+        objective, non_objective_loss_by_name = self.objective(results)
+        results["objective"] = objective
+        results.update(non_objective_loss_by_name)
         self.update_log(results)
         return self._sanitize_dict(results)

@@ -79,6 +79,7 @@ class ContriMix(MultimodelAlgorithm):
             },
             grouper=grouper,
             loss=loss,
+            logged_fields=["objective", "self_recon_loss", "entropy_loss"],
             metric=metric,
             n_train_steps=n_train_steps,
         )
@@ -156,8 +157,12 @@ class ContriMix(MultimodelAlgorithm):
         """
         return [torch.randint(low=0, high=batch_size, size=(self._num_mixing_per_image,)) for _ in range(batch_size)]
 
-    def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]):
-        labeled_loss = self._loss.compute(in_dict=in_dict, return_dict=False)
+    def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]) -> Tuple[torch.Tensor, Dict[str, float]]:
+        """Returns a tuple of objective that can be backpropagate and a dictionary of all loss term."""
+        loss_dict = self._loss.compute(in_dict=in_dict, return_dict=True)
+        objective_loss_name = self._loss.agg_metric_field
+        labeled_loss = loss_dict[objective_loss_name]
+        non_objective_loss_by_name = {k: v for k, v in loss_dict.items() if k != objective_loss_name}
 
         if self._use_unlabeled_y and "unlabeled_y_true" in in_dict:
             unlabeled_loss = self._loss.compute(
@@ -165,6 +170,8 @@ class ContriMix(MultimodelAlgorithm):
             )
             lab_size = len(in_dict["y_pred"])
             unl_size = len(in_dict["unlabeled_y_pred"])
-            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (lab_size + unl_size)
+            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (
+                lab_size + unl_size
+            ), non_objective_loss_by_name
         else:
-            return labeled_loss
+            return labeled_loss, non_objective_loss_by_name

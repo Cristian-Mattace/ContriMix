@@ -69,7 +69,10 @@ def initialize_algorithm(
             config=config,
             d_out=1,
             grouper=train_grouper,
-            loss=ContriMixLoss(loss_fn=nn.BCEWithLogitsLoss(reduction="none")),
+            loss=ContriMixLoss(
+                loss_fn=nn.BCEWithLogitsLoss(reduction="none"),
+                loss_weights_by_name={"entropy_weight": 0.7, "self_recon_weight": 0.3},
+            ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"],
         )
