@@ -234,7 +234,7 @@ class ElementwiseMetric(Metric):
 
 
 class MultiTaskMetric(Metric):
-    """A class that defines the metrics for multi tasks."""
+    """A class that computes the metrics for multi tasks."""
 
     def _compute_flattened_metrics(self, flattened_y_pred, flattened_y_true):
         raise NotImplementedError

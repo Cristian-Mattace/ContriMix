@@ -23,7 +23,6 @@ def initialize_loss(loss_type: str) -> nn.Module:
 
     elif loss_type == "cross_entropy_logits":
         return ElementwiseLoss(loss_fn=cross_entropy_with_logits_loss)
-
     else:
         raise ValueError(f"loss type {loss_type} is not recognized")
 

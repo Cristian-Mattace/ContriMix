@@ -12,6 +12,7 @@ import torch
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
+from ip_drit.common.metrics import ContriMixLoss
 from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import Metric
 from ip_drit.models import AbsorbanceImGenerator
@@ -47,12 +48,15 @@ class ContriMix(MultimodelAlgorithm):
         config: Dict[str, Any],
         d_out: int,
         grouper: AbstractGrouper,
-        loss: ElementwiseLoss,
+        loss: ContriMixLoss,
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
         num_mixing_per_image: int = 15,
     ) -> None:
+        if not isinstance(loss, ContriMixLoss):
+            raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
+
         backbone_network = initialize_model_from_configuration(config, d_out, output_classifier=True)
 
         if convert_to_absorbance_in_between:
@@ -126,7 +130,7 @@ class ContriMix(MultimodelAlgorithm):
                 # _ = self._abs_to_trans_converter(im_and_sig_type=(x_abs_cross_translation, signal_type))[0]
             za_targets = torch.cat(za_targets, dim=0)
 
-        return {"zc": zc, "za": za, "za_targets": za_targets, "x_org": x, "sig_type": signal_type}
+        return {"zc": zc, "za": za, "za_targets": za_targets, "x_org": x, "sig_type": signal_type, "y_true": y_true}
 
     def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:
         """Returns a list of tensors that contains target image indices to sample from.
@@ -139,25 +143,26 @@ class ContriMix(MultimodelAlgorithm):
         """
         return [torch.randint(low=0, high=batch_size, size=(self._num_mixing_per_image,)) for _ in range(batch_size)]
 
-    def objective(self, results: Dict[str, Union[torch.Tensor, SignalType]]):
+    def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]):
         im_gen = self._models_by_names["im_gen"]
         backbone = self._models_by_names["backbone"]
-        x_abs_self_recon = im_gen(results["zc"], results["za"])
-        x_self_recon = self._abs_to_trans_converter(im_and_sig_type=(x_abs_self_recon, results["sig_type"]))[0]
+        x_abs_self_recon = im_gen(in_dict["zc"], in_dict["za"])
+        x_self_recon = self._abs_to_trans_converter(im_and_sig_type=(x_abs_self_recon, in_dict["sig_type"]))[0]
 
         if backbone.needs_y_input:
             raise ValueError("Backbone network with y-input is not supported")
         else:
             y_pred = backbone(x_self_recon)
-        results["y_pred"] = y_pred
+        in_dict["y_pred"] = y_pred
 
-        labeled_loss = self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)
-        if self._use_unlabeled_y and "unlabeled_y_true" in results:
+        labeled_loss = self._loss.compute(in_dict=in_dict, return_dict=False)
+
+        if self._use_unlabeled_y and "unlabeled_y_true" in in_dict:
             unlabeled_loss = self._loss.compute(
-                results["unlabeled_y_pred"], results["unlabeled_y_true"], return_dict=False
+                in_dict["unlabeled_y_pred"], in_dict["unlabeled_y_true"], return_dict=False
             )
-            lab_size = len(results["y_pred"])
-            unl_size = len(results["unlabeled_y_pred"])
+            lab_size = len(in_dict["y_pred"])
+            unl_size = len(in_dict["unlabeled_y_pred"])
             return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (lab_size + unl_size)
         else:
             return labeled_loss

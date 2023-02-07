@@ -10,6 +10,7 @@ from ._all_metrics import pseudolabel_detection
 from ._all_metrics import pseudolabel_detection_discard_empty
 from ._all_metrics import pseudolabel_identity
 from ._all_metrics import pseudolabel_multiclass_logits
+from ._contrimix_loss import ContriMixLoss
 from ._loss import ElementwiseLoss
 from ._loss import Loss
 from ._loss import MultiTaskLoss
