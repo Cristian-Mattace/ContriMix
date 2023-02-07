@@ -130,7 +130,20 @@ class ContriMix(MultimodelAlgorithm):
                 # _ = self._abs_to_trans_converter(im_and_sig_type=(x_abs_cross_translation, signal_type))[0]
             za_targets = torch.cat(za_targets, dim=0)
 
-        return {"zc": zc, "za": za, "za_targets": za_targets, "x_org": x, "sig_type": signal_type, "y_true": y_true}
+        return {
+            "zc": zc,
+            "za": za,
+            "za_targets": za_targets,
+            "x_org": x,
+            "sig_type": signal_type,
+            "y_true": y_true,
+            "cont_enc": cont_enc,
+            "attr_enc": attr_enc,
+            "im_gen": self._models_by_names["im_gen"],
+            "abs_to_trans_cvt": self._abs_to_trans_converter,
+            "trans_to_abs_cvt": self._trans_to_abs_converter,
+            "backbone": self._models_by_names["backbone"],
+        }
 
     def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:
         """Returns a list of tensors that contains target image indices to sample from.
@@ -144,17 +157,6 @@ class ContriMix(MultimodelAlgorithm):
         return [torch.randint(low=0, high=batch_size, size=(self._num_mixing_per_image,)) for _ in range(batch_size)]
 
     def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]):
-        im_gen = self._models_by_names["im_gen"]
-        backbone = self._models_by_names["backbone"]
-        x_abs_self_recon = im_gen(in_dict["zc"], in_dict["za"])
-        x_self_recon = self._abs_to_trans_converter(im_and_sig_type=(x_abs_self_recon, in_dict["sig_type"]))[0]
-
-        if backbone.needs_y_input:
-            raise ValueError("Backbone network with y-input is not supported")
-        else:
-            y_pred = backbone(x_self_recon)
-        in_dict["y_pred"] = y_pred
-
         labeled_loss = self._loss.compute(in_dict=in_dict, return_dict=False)
 
         if self._use_unlabeled_y and "unlabeled_y_true" in in_dict:

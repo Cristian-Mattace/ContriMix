@@ -8,6 +8,7 @@ import torch
 
 from ._algorithm import Algorithm
 from ip_drit.common.grouper import AbstractGrouper
+from ip_drit.common.metrics import ContriMixLoss
 from ip_drit.common.metrics import Metric
 from ip_drit.common.utils import numel
 from ip_drit.scheduler._scheduler import step_scheduler
@@ -22,7 +23,7 @@ class GroupAlgorithm(Algorithm):
     Args:
         device: The device to run the algorithm on.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
-        logged_metrics: The list of metrics.
+        logged_metrics: The list of metrics. Normally initialized by the a list of loss objects
         logged_fields: The list of fields to log.
     """
 
@@ -51,8 +52,8 @@ class GroupAlgorithm(Algorithm):
         Args:
             results: A dictionary of result.
         """
-        results = self._sanitize_dict(results, to_out_device=False)
-        self._check_log_fields_to_be_in_the_results(results=results)
+        log_results = self._sanitize_dict(results, to_out_device=False)
+        self._check_log_fields_to_be_in_the_results(results=log_results)
         self._update_log_dict_with_results(results=results)
         self._has_log = True
 
@@ -73,9 +74,13 @@ class GroupAlgorithm(Algorithm):
         batch_log: Dict[str, float] = {}
         with torch.no_grad():
             for m in self._logged_metrics:
-                batch_log[m.agg_metric_field] = m.compute(
-                    results["y_pred"], results["y_true"], return_dict=False
-                ).item()
+                if isinstance(m, ContriMixLoss):
+                    # TODO: add a function to generate the log.
+                    batch_log[m.agg_metric_field] = m.compute(in_dict=results, return_dict=False).item()
+                else:
+                    batch_log[m.agg_metric_field] = m.compute(
+                        results["y_pred"], results["y_true"], return_dict=False
+                    ).item()
 
         for field in self._logged_fields:
             v = results[field]

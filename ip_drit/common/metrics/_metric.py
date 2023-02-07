@@ -78,7 +78,7 @@ class Metric:
         """Computes metric. This is a wrapper around _compute.
 
         Args:
-            y_pred: Predicted targets or model output
+            y_pred: Predicted targets or model output.
             y_true: True targets
             return_dict: Whether to return the output as a dictionary or a tensor
 
