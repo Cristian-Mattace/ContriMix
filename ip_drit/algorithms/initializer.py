@@ -13,11 +13,11 @@ from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Accuracy
 from ip_drit.common.metrics import binary_logits_to_pred
-from ip_drit.common.metrics import ContriMixLoss
 from ip_drit.common.metrics import MSE
 from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.common.metrics import MultiTaskAccuracy
 from ip_drit.common.metrics import MultiTaskAveragePrecision
+from ip_drit.loss import ContriMixLoss
 from ip_drit.loss.initializer import initialize_loss
 
 algo_log_metrics = {

@@ -8,9 +8,9 @@ import torch
 
 from ._algorithm import Algorithm
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.metrics import ContriMixLoss
 from ip_drit.common.metrics import Metric
 from ip_drit.common.utils import numel
+from ip_drit.loss import ContriMixLoss
 from ip_drit.scheduler._scheduler import step_scheduler
 
 

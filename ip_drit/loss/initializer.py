@@ -2,9 +2,9 @@
 import torch
 import torch.nn as nn
 
-from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import MSE
-from ip_drit.common.metrics import MultiTaskLoss
+from ip_drit.loss import ElementwiseLoss
+from ip_drit.loss import MultiTaskLoss
 
 
 def initialize_loss(loss_type: str) -> nn.Module:

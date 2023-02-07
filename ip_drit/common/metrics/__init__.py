@@ -1,6 +1,5 @@
 from ._all_metrics import Accuracy
 from ._all_metrics import binary_logits_to_pred
-from ._all_metrics import ElementwiseLoss
 from ._all_metrics import MSE
 from ._all_metrics import multiclass_logits_to_pred
 from ._all_metrics import MultiTaskAccuracy
@@ -10,8 +9,4 @@ from ._all_metrics import pseudolabel_detection
 from ._all_metrics import pseudolabel_detection_discard_empty
 from ._all_metrics import pseudolabel_identity
 from ._all_metrics import pseudolabel_multiclass_logits
-from ._contrimix_loss import ContriMixLoss
-from ._loss import ElementwiseLoss
-from ._loss import Loss
-from ._loss import MultiTaskLoss
-from ._metric import Metric
+from ._base import Metric

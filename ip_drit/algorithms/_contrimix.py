@@ -12,9 +12,9 @@ import torch
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.metrics import ContriMixLoss
-from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import Metric
+from ip_drit.loss import ContriMixLoss
+from ip_drit.loss import ElementwiseLoss
 from ip_drit.models import AbsorbanceImGenerator
 from ip_drit.models import AbsorbanceToTransmittance
 from ip_drit.models import AttributeEncoder

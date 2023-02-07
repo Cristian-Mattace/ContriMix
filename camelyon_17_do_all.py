@@ -1,9 +1,9 @@
 """A scripts to run the benchmark for the Camelyon dataset."""
 import argparse
 import logging
+import os
 import sys
 from pathlib import Path
-
 from typing import Any
 from typing import Dict
 from typing import Tuple
@@ -96,7 +96,7 @@ def main():
         "save_best": True,
         "save_pred": True,
         "eval_only": FLAGS.eval_only,  # If True, only evaluation will be performed, no training.
-        "eval_epoch": FLAGS.eval_epoch,  # If not none, this epoch will be used for eval, else best epoch by val performance used
+        "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -216,7 +216,7 @@ def _configure_parser() -> argparse.ArgumentParser:
         help="The prefix to the model path for evaluation mode. "
         "It will be appended by either best_model or a specific epoch number to generate evaluation model path.",
     )
-    
+
     parser.add_argument("--n_epochs", type=int, default=30, help="Number of epochs to train for")
 
     return parser

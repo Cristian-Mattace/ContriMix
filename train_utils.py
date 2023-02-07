@@ -129,7 +129,7 @@ def _run_train_epoch(
     last_batch_idx = len(batches) - 1
 
     for batch_idx, labeled_batch in enumerate(batches):
-        logging.info(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
+        logging.debug(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
         batch_results = algorithm.update(labeled_batch, is_epoch_end=(batch_idx == last_batch_idx))
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
         epoch_y_pred.append(detach_and_clone(batch_results["y_pred"]))
@@ -243,7 +243,8 @@ def _run_eval_epoch(
     return results, epoch_y_pred
 
 
-def evaluate_over_splits(algorithm, datasets, epoch, general_logger, config_dict, is_best, save_results):
+def evaluate_over_splits(algorithm, datasets, epoch, general_logger, config_dict, is_best, save_results) -> None:
+    """Evaluate the algorithm over multiple data splits."""
     for split, dataset in datasets.items():
         _run_eval_epoch(
             algorithm=algorithm,

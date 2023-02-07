@@ -11,10 +11,10 @@ from scipy.stats import pearsonr
 from torchvision.models.detection._utils import Matcher
 from torchvision.ops.boxes import box_iou
 
-from ._loss import ElementwiseLoss
-from ._metric import ElementwiseMetric
-from ._metric import Metric
-from ._metric import MultiTaskMetric
+from ...loss._loss import ElementwiseLoss
+from ._base import ElementwiseMetric
+from ._base import Metric
+from ._base import MultiTaskMetric
 from ._utils import get_counts
 from ._utils import minimum
 

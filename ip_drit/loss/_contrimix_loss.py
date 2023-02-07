@@ -7,9 +7,9 @@ from typing import Union
 
 import torch
 
-from ._metric import Metric
-from ._metric import MultiTaskMetric
-from ._utils import numel
+from ..common.metrics._base import Metric
+from ..common.metrics._base import MultiTaskMetric
+from ..common.metrics._utils import numel
 from ip_drit.models import SignalType
 
 
