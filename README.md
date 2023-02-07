@@ -20,6 +20,10 @@ different environments.
 5. For using <mle run> command, append the path to the repo in your env in the beginning of camelyon_17_do_all.py
 6. Run `camelyon_17_do_all.py` with `--run_on_cluster True`. Alternatively, use mle run <env name> @<local path to camelyon_17_do_all.py> if you want to run this as a mle job in your env. Make sure to associate appropriate number of GPUs in your env before doing that.
 Example job - https://app.mle.pathai.com/jobs/view/1ee3c5fa-bbeb-4eda-a2b2-5ebb87f7cc44/status
+7. The script above can be run in evaluation mode as well. Example command -  ```python /jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/camelyon_17_do_all.py
+--dataset_dir_cluster /jupyter-users-home/dinkar-2ejuyal/datasets/ --log_dir_cluster /jupyter-users-home/dinkar-2ejuyal/all_log_dir --use_full_dataset True --eval_only True --model_prefix /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon```
+8. Once evaluation has been run on multiple seeds, you can use this script to aggregate the results of these evaluation runs on the seeds and splits of your choice-
+``` python evaluate.py --predictions_dir /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon --output_dir /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon/test_results --root_dir /jupyter-users-home/dinkar-2ejuyal/datasets/camelyon17 --run_on_splits val --run_on_seeds 0```
 
 
 ### Using a Ubuntu desktop with GPU (not recommended)
