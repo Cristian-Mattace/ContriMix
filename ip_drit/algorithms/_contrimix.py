@@ -5,6 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import Union
 
 import torch
 
@@ -50,7 +51,7 @@ class ContriMix(MultimodelAlgorithm):
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
-        num_mxing_per_image: int = 5,
+        num_mixing_per_image: int = 15,
     ) -> None:
         backbone_network = initialize_model_from_configuration(config, d_out, output_classifier=True)
 
@@ -78,7 +79,7 @@ class ContriMix(MultimodelAlgorithm):
             n_train_steps=n_train_steps,
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
-        self._num_mxing_per_image = num_mxing_per_image
+        self._num_mixing_per_image = num_mixing_per_image
         self._convert_to_absorbance_in_between = convert_to_absorbance_in_between
 
     def _process_batch(
@@ -89,47 +90,43 @@ class ContriMix(MultimodelAlgorithm):
         y_true = move_to(y_true, self._device)
         group_indices = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
-        y_pred = self._get_model_output(x, y_true)
+        out_dict = self._get_model_output(x, y_true)
 
-        results = {"g": group_indices, "y_true": y_true, "y_pred": y_pred, "metadata": metadata}
+        results = {"g": group_indices, "y_true": y_true, "metadata": metadata, **out_dict}
 
         if unlabeled_batch is not None:
-            if self.use_unlabeled_y:  # expect loaders to return x,y,m
-                x, y, metadata = unlabeled_batch
-                y = move_to(y, self.device)
-            else:
-                x, metadata = unlabeled_batch
-            x = move_to(x, self.device)
-            results["unlabeled_metadata"] = metadata
-            if self.use_unlabeled_y:
-                results["unlabeled_y_pred"] = self._get_model_output(x, y)
-                results["unlabeled_y_true"] = y
-            results["unlabeled_g"] = self.grouper.metadata_to_group(metadata).to(self.device)
+            raise ValueError("ContriMix does not support unlabeled data yet!")
         return results
 
-    def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        """Computes the model outputs."""
+    def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> Dict[str, Union[torch.Tensor, SignalType]]:
+        """Computes the model outputs.
+
+        Args:
+            x: The tensor of the input image.
+            y_true: The groundtruth label of x.
+
+        Returns:
+            A dictionary of tensors, keyed by the name of the tensor.
+        """
         cont_enc = self._models_by_names["cont_enc"]
         attr_enc = self._models_by_names["attr_enc"]
-        im_gen = self._models_by_names["im_gen"]
-        backbone = self._models_by_names["backbone"]
-        _ = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
-
+        all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
+        all_target_image_indices = torch.stack(all_target_image_indices, dim=0)  # (Minibatch dim x #augmentations)
         if self._convert_to_absorbance_in_between:
             x_abs, signal_type = self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))
             zc = cont_enc(x_abs)
             za = attr_enc(x_abs)
-            x_abs_self_recon = im_gen(zc, za)
-            x_self_recon = self._abs_to_trans_converter(im_and_sig_type=(x_abs_self_recon, signal_type))
 
-        if backbone.needs_y_input:
-            if self.training:
-                y_pred = backbone(x_self_recon, y_true)
-            else:
-                y_pred = backbone(x, None)
-        else:
-            y_pred = backbone(x)
-        return y_pred
+            za_targets: List[torch.Tensor] = []
+            for mix_idx in range(self._num_mixing_per_image):
+                # Extract attributes of the target patches.
+                target_im_idxs = all_target_image_indices[:, mix_idx]
+                za_targets.append(za[target_im_idxs])
+                # x_abs_cross_translation = im_gen(zc, za_target)
+                # _ = self._abs_to_trans_converter(im_and_sig_type=(x_abs_cross_translation, signal_type))[0]
+            za_targets = torch.cat(za_targets, dim=0)
+
+        return {"zc": zc, "za": za, "za_targets": za_targets, "x_org": x, "sig_type": signal_type}
 
     def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:
         """Returns a list of tensors that contains target image indices to sample from.
@@ -140,9 +137,20 @@ class ContriMix(MultimodelAlgorithm):
         Returns:
             A list of tensors in which each is the index of the images in the minibatch that we can use for ContriMix.
         """
-        return [torch.randint(low=0, high=batch_size, size=(self._num_mxing_per_image,)) for _ in range(batch_size)]
+        return [torch.randint(low=0, high=batch_size, size=(self._num_mixing_per_image,)) for _ in range(batch_size)]
 
-    def objective(self, results):
+    def objective(self, results: Dict[str, Union[torch.Tensor, SignalType]]):
+        im_gen = self._models_by_names["im_gen"]
+        backbone = self._models_by_names["backbone"]
+        x_abs_self_recon = im_gen(results["zc"], results["za"])
+        x_self_recon = self._abs_to_trans_converter(im_and_sig_type=(x_abs_self_recon, results["sig_type"]))[0]
+
+        if backbone.needs_y_input:
+            raise ValueError("Backbone network with y-input is not supported")
+        else:
+            y_pred = backbone(x_self_recon)
+        results["y_pred"] = y_pred
+
         labeled_loss = self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)
         if self._use_unlabeled_y and "unlabeled_y_true" in results:
             unlabeled_loss = self._loss.compute(

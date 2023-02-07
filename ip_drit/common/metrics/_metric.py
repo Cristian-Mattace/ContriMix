@@ -224,7 +224,7 @@ class ElementwiseMetric(Metric):
         else:
             return element_wise_metrics
 
-    def compute_flattened(self, y_pred, y_true, return_dict=True):
+    def _compute_flattened(self, y_pred, y_true, return_dict=True):
         flattened_metrics = self.compute_element_wise(y_pred, y_true, return_dict=False)
         index = torch.arange(y_true.numel())
         if return_dict:
@@ -236,29 +236,29 @@ class ElementwiseMetric(Metric):
 class MultiTaskMetric(Metric):
     """A class that defines the metrics for multi tasks."""
 
-    def _compute_flattened(self, flattened_y_pred, flattened_y_true):
+    def _compute_flattened_metrics(self, flattened_y_pred, flattened_y_true):
         raise NotImplementedError
 
     def _compute(self, y_pred, y_true):
-        flattened_metrics, _ = self.compute_flattened(y_pred, y_true, return_dict=False)
+        flattened_metrics, _ = self._compute_flattened(y_pred, y_true, return_dict=False)
         if flattened_metrics.numel() == 0:
             return torch.tensor(0.0, device=y_true.device)
         else:
             return flattened_metrics.mean()
 
     def _compute_group_wise(self, y_pred, y_true, g, n_groups):
-        flattened_metrics, indices = self.compute_flattened(y_pred, y_true, return_dict=False)
+        flattened_metrics, indices = self._compute_flattened(y_pred, y_true, return_dict=False)
         flattened_g = g[indices]
         group_metrics, group_counts = avg_over_groups(flattened_metrics, flattened_g, n_groups)
         worst_group_metric = self.worst(group_metrics[group_counts > 0])
         return group_metrics, group_counts, worst_group_metric
 
-    def compute_flattened(self, y_pred, y_true, return_dict=True):
+    def _compute_flattened(self, y_pred, y_true, return_dict=True):
         is_labeled = ~torch.isnan(y_true)
         batch_idx = torch.where(is_labeled)[0]
         flattened_y_pred = y_pred[is_labeled]
         flattened_y_true = y_true[is_labeled]
-        flattened_metrics = self._compute_flattened(flattened_y_pred, flattened_y_true)
+        flattened_metrics = self._compute_flattened_metrics(flattened_y_pred, flattened_y_true)
         if return_dict:
             return {self.name: flattened_metrics, "index": batch_idx}
         else:
