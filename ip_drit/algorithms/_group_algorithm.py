@@ -76,7 +76,7 @@ class GroupAlgorithm(Algorithm):
             for m in self._logged_metrics:
                 if isinstance(m, ContriMixLoss):
                     # TODO: add a function to generate the log.
-                    batch_log[m.agg_metric_field] = m.compute(in_dict=results, return_dict=False).item()
+                    batch_log.update(m.compute(in_dict=results, return_dict=True))
                 else:
                     batch_log[m.agg_metric_field] = m.compute(
                         results["y_pred"], results["y_true"], return_dict=False

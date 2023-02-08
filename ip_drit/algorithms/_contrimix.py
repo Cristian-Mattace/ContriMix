@@ -42,6 +42,13 @@ class ContriMix(MultimodelAlgorithm):
     _NUM_INPUT_CHANNELS = 3
     _NUM_STAIN_VECTORS = 8
     _DOWNSAMPLING_FACTOR = 4
+    _LOGGED_FIELDS: List[str] = [
+        "objective",
+        "self_recon_loss",
+        "entropy_loss",
+        "attribute_consistency_loss",
+        "content_consistency_loss",
+    ]
 
     def __init__(
         self,
@@ -52,7 +59,7 @@ class ContriMix(MultimodelAlgorithm):
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
-        num_mixing_per_image: int = 15,
+        num_mixing_per_image: int = 5,
     ) -> None:
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
@@ -79,6 +86,7 @@ class ContriMix(MultimodelAlgorithm):
             },
             grouper=grouper,
             loss=loss,
+            logged_fields=ContriMix._LOGGED_FIELDS,
             metric=metric,
             n_train_steps=n_train_steps,
         )
@@ -126,13 +134,12 @@ class ContriMix(MultimodelAlgorithm):
                 # Extract attributes of the target patches.
                 target_im_idxs = all_target_image_indices[:, mix_idx]
                 za_targets.append(za[target_im_idxs])
-                # x_abs_cross_translation = im_gen(zc, za_target)
-                # _ = self._abs_to_trans_converter(im_and_sig_type=(x_abs_cross_translation, signal_type))[0]
-            za_targets = torch.cat(za_targets, dim=0)
+            za_targets = torch.stack(za_targets, dim=0)
 
         return {
             "zc": zc,
             "za": za,
+            "x_abs_org": x_abs,
             "za_targets": za_targets,
             "x_org": x,
             "sig_type": signal_type,
@@ -156,8 +163,12 @@ class ContriMix(MultimodelAlgorithm):
         """
         return [torch.randint(low=0, high=batch_size, size=(self._num_mixing_per_image,)) for _ in range(batch_size)]
 
-    def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]):
-        labeled_loss = self._loss.compute(in_dict=in_dict, return_dict=False)
+    def objective(self, in_dict: Dict[str, Union[torch.Tensor, SignalType]]) -> Tuple[torch.Tensor, Dict[str, float]]:
+        """Returns a tuple of objective that can be backpropagate and a dictionary of all loss term."""
+        loss_dict = self._loss.compute(in_dict=in_dict, return_dict=True)
+        objective_loss_name = self._loss.agg_metric_field
+        labeled_loss = loss_dict[objective_loss_name]
+        non_objective_loss_by_name = {k: v for k, v in loss_dict.items() if k != objective_loss_name}
 
         if self._use_unlabeled_y and "unlabeled_y_true" in in_dict:
             unlabeled_loss = self._loss.compute(
@@ -165,6 +176,8 @@ class ContriMix(MultimodelAlgorithm):
             )
             lab_size = len(in_dict["y_pred"])
             unl_size = len(in_dict["unlabeled_y_pred"])
-            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (lab_size + unl_size)
+            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (
+                lab_size + unl_size
+            ), non_objective_loss_by_name
         else:
-            return labeled_loss
+            return labeled_loss, non_objective_loss_by_name
