@@ -16,7 +16,7 @@ from ip_drit.datasets import AbstractPublicDataset
 class TransformationType(Enum):
     """The type transformation."""
 
-    WEAK_NOT_NORMALIZE = auto()
+    WEAK_NORMALIZE_TO_0_1 = auto()
     WEAK = auto()
     POVERTY = auto()
     RANDAUGMENT = auto()
@@ -57,7 +57,7 @@ def initialize_transform(
         return _add_weak_transform(
             config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization
         )
-    elif transform_name == TransformationType.WEAK_NOT_NORMALIZE:
+    elif transform_name == TransformationType.WEAK_NORMALIZE_TO_0_1:
         return _add_weak_transform(
             config_dict,
             full_dataset,

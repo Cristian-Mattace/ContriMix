@@ -8,6 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
+from script_utils import num_of_available_devices
 package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit"
 if package_path not in sys.path:
     sys.path.append(package_path)
@@ -21,7 +22,6 @@ from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
-from script_utils import calculate_batch_size
 from script_utils import configure_split_dict_by_names
 from script_utils import parse_bool
 from script_utils import use_data_parallel
@@ -55,7 +55,7 @@ def main():
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.DENSENET121,
-        "transform": TransformationType.WEAK,
+        "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],
@@ -234,6 +234,19 @@ def _generate_eval_model_path(eval_epoch: int, model_prefix: str, seed: int) -> 
     else:
         eval_model_path: str = os.path.join(model_prefix, f"camelyon17_seed:{seed}_epoch:{eval_epoch}_model.pth")
     return eval_model_path
+
+
+def calculate_batch_size(run_on_cluster: bool) -> int:
+    """Returns the minibatchsize per GPU."""
+    num_devices = num_of_available_devices()
+    logging.info(f"Number of training devices = {num_devices}.")
+    if run_on_cluster:
+        batch_size_per_gpu = 240
+    else:
+        batch_size_per_gpu = 153
+    batch_size = batch_size_per_gpu * num_devices
+    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
+    return batch_size
 
 
 if __name__ == "__main__":

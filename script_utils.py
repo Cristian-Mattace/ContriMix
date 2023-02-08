@@ -109,10 +109,11 @@ def _get_data_loader_by_split_name(
 
 def use_data_parallel() -> bool:
     """Returns True if more than 1 training device is available, otherwise, False."""
-    return _num_of_available_devices() > 1
+    return num_of_available_devices() > 1
 
 
-def _num_of_available_devices() -> int:
+def num_of_available_devices() -> int:
+    """Gets the number of available training devices."""
     if torch.cuda.is_available():
         return torch.cuda.device_count()
     return 1
@@ -150,16 +151,3 @@ def log_results(
         if split_dict["verbose"] and split_dict["report_batch_metric"]:
             general_logger.write(algorithm.get_pretty_log_str())
         algorithm.reset_log()
-
-
-def calculate_batch_size(run_on_cluster: bool) -> int:
-    """Returns the minibatchsize per GPU."""
-    num_devices = _num_of_available_devices()
-    logging.info(f"Number of training devices = {num_devices}.")
-    if run_on_cluster:
-        batch_size_per_gpu = 210
-    else:
-        batch_size_per_gpu = 153
-    batch_size = batch_size_per_gpu * num_devices
-    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
-    return batch_size

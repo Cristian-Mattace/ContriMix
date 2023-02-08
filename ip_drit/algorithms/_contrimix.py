@@ -99,6 +99,8 @@ class ContriMix(MultimodelAlgorithm):
     ) -> Dict[str, torch.Tensor]:
         x, y_true, metadata = batch
         x = move_to(x, self._device)
+        self._validates_valid_input_signal_range(x)
+
         y_true = move_to(y_true, self._device)
         group_indices = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
@@ -109,6 +111,12 @@ class ContriMix(MultimodelAlgorithm):
         if unlabeled_batch is not None:
             raise ValueError("ContriMix does not support unlabeled data yet!")
         return results
+
+    @staticmethod
+    def _validates_valid_input_signal_range(x: torch.Tensor) -> None:
+        """Makes sure that the input signal has a valid range [0.0, 1.0]."""
+        if x.min().item() < 0.0 or x.max().item() > 1.0:
+            raise ValueError("The input tensor is not in a valid range of [0, 1]!")
 
     def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> Dict[str, Union[torch.Tensor, SignalType]]:
         """Computes the model outputs.
