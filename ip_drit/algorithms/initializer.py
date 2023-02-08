@@ -72,10 +72,10 @@ def initialize_algorithm(
             loss=ContriMixLoss(
                 loss_fn=nn.BCEWithLogitsLoss(reduction="none"),
                 loss_weights_by_name={
-                    "entropy_weight": 0.3,
-                    "self_recon_weight": 0.5,
-                    "attr_cons_weight": 0.1,
-                    "cont_cons_weight": 0.1,
+                    "entropy_weight": 0.1,
+                    "self_recon_weight": 0.8,
+                    "attr_cons_weight": 0.05,
+                    "cont_cons_weight": 0.05,
                 },
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],

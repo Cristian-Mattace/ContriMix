@@ -83,10 +83,11 @@ class ContriMixLoss(MultiTaskMetric):
         y_pred = backbone(x_org)
         in_dict["y_pred"] = y_pred
 
+        # TODO: investigate whether the consistency should be in the absorbance or transmittance space.
         self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)
-        entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
 
         num_mixings = za_targets.shape[0]
+        entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
         attr_cons_losses: List[float] = [
             self._attribute_consistency_loss(
                 x_abs_cross_translation_im=trans_to_abs_cvt(im_and_sig_type=x_self_recon_and_type)[0],

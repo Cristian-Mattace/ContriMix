@@ -88,15 +88,19 @@ class ContentEncoder(nn.Module):
     def __init__(self, in_channels: int, num_stain_vectors: int = 32) -> None:
         super().__init__()
         self.needs_y_input: bool = False
-        self._model = nn.Sequential(
-            LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
-            ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
-            ReLUInstNorm2dConv2d(in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1),
-            ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-            ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-            ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-            ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-            nn.LeakyReLU(inplace=True),
+        self._model = Initializer()(
+            nn.Sequential(
+                LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
+                ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
+                ReLUInstNorm2dConv2d(
+                    in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
+                ),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                nn.LeakyReLU(inplace=True),
+            )
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

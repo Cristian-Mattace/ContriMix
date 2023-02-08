@@ -139,6 +139,7 @@ class ContriMix(MultimodelAlgorithm):
         return {
             "zc": zc,
             "za": za,
+            "x_abs_org": x_abs,
             "za_targets": za_targets,
             "x_org": x,
             "sig_type": signal_type,
