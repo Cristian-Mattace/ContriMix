@@ -18,6 +18,7 @@ from urllib.parse import urlparse
 import numpy as np
 import torch
 
+from ip_drit.common.metrics._all_metrics import binary_logits_to_pred
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 
 
@@ -152,6 +153,8 @@ def get_predictions(path: str) -> torch.Tensor:
         file.close()
 
     predicted_labels = [literal_eval(line.rstrip()) for line in data if line.rstrip()]
+    # this is needed as the output of the model are logits
+    predicted_labels = [int(predicted_label > 0) for predicted_label in predicted_labels]
     return torch.from_numpy(np.array(predicted_labels))
 
 

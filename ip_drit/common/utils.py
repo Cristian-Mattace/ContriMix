@@ -30,7 +30,8 @@ def load(module: nn.Module, path: str, device: Optional[str] = None, tries: int 
     """
     Handles loading weights saved from this repo/model into an algorithm/model.
     Attempts to handle key mismatches between this module's state_dict and the loaded state_dict.
-    
+
+
     Args:
         - module: module to load parameters for
         - path: path to .pth file
