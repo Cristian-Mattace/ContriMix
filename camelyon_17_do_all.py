@@ -4,21 +4,22 @@ import logging
 import os
 import sys
 from pathlib import Path
-
-sys.path.append("/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit")
 from typing import Any
 from typing import Dict
 from typing import Tuple
 
-import torch.cuda
-from absl import app
+package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit"
+if package_path not in sys.path:
+    sys.path.append(package_path)
 
+import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
+from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
 from script_utils import calculate_batch_size
 from script_utils import configure_split_dict_by_names
@@ -55,7 +56,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
-        "algorithm": ModelAlgorithm.ERM,
+        "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.DENSENET121,
         "transform": TransformationType.WEAK,
         "target_resolution": None,  # Keep the original dataset resolution
@@ -67,7 +68,8 @@ def main():
         "gradient_accumulation_steps": 1,
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "train_loader": "group",
+        "train_loader": LoaderType.GROUP,
+        "reset_random_generator_after_every_epoch": True,
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
@@ -75,10 +77,10 @@ def main():
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": "SGD",
+        "optimizer": "AdamW",
         "lr": 1e-3,
         "weight_decay": 1e-2,
-        "optimizer_kwargs": {"momentum": 0.9},
+        "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
@@ -94,7 +96,7 @@ def main():
         "save_best": True,
         "save_pred": True,
         "eval_only": FLAGS.eval_only,  # If True, only evaluation will be performed, no training.
-        "eval_epoch": FLAGS.eval_epoch,  # If not none, this epoch will be used for eval, else best epoch by val performance used
+        "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))

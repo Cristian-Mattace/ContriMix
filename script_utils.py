@@ -8,9 +8,11 @@ from typing import Dict
 import torch.cuda
 from torch.utils.data import DataLoader
 
+from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.data_loaders import get_eval_loader
 from ip_drit.common.data_loaders import get_train_loader
+from ip_drit.common.data_loaders import LoaderType
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets import SubsetPublicDataset
@@ -77,6 +79,12 @@ def configure_split_dict_by_names(
 def _get_data_loader_by_split_name(
     sub_dataset: SubsetPublicDataset, grouper: CombinatorialGrouper, split_name: str, config_dict: Dict[str, Any]
 ) -> DataLoader:
+    if (
+        config_dict["algorithm"] == ModelAlgorithm.CONTRIMIX
+        and not config_dict["reset_random_generator_after_every_epoch"]
+    ):
+        raise ValueError("ContriMix is used and `reset_random_generator_after_every_epoch` is not set to True!")
+
     if split_name == "train":
         return get_train_loader(
             loader_type=config_dict["train_loader"],
@@ -86,9 +94,15 @@ def _get_data_loader_by_split_name(
             grouper=grouper,
             distinct_groups=config_dict["distinct_groups"],
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
+            reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
         )
     elif split_name in ("id_val", "test", "val"):
-        return get_eval_loader(loader_type="standard", dataset=sub_dataset, batch_size=config_dict["batch_size"])
+        return get_eval_loader(
+            loader_type=LoaderType.STANDARD,
+            dataset=sub_dataset,
+            batch_size=config_dict["batch_size"],
+            reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
+        )
     else:
         raise ValueError(f"Unknown split name {split_name}")
 
@@ -143,7 +157,7 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     num_devices = _num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     if run_on_cluster:
-        batch_size_per_gpu = 1500
+        batch_size_per_gpu = 1200
     else:
         batch_size_per_gpu = 153
     batch_size = batch_size_per_gpu * num_devices

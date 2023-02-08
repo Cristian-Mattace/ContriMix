@@ -8,8 +8,8 @@ import torch
 from ._utils import move_to
 from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.metrics import ElementwiseLoss
 from ip_drit.common.metrics import Metric
+from ip_drit.loss import ElementwiseLoss
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
 
 
@@ -35,14 +35,14 @@ class ERM(SingleModelAlgorithm):
         loss: ElementwiseLoss,
         metric: Metric,
         n_train_steps: int,
-    ):
+    ) -> None:
         model = initialize_model_from_configuration(config, d_out, output_classifier=True)
         super().__init__(
             config=config, model=model, grouper=grouper, loss=loss, metric=metric, n_train_steps=n_train_steps
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
 
-    def process_batch(
+    def _process_batch(
         self, batch: Tuple[torch.Tensor, ...], unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None
     ) -> Dict[str, torch.Tensor]:
         x, y_true, metadata = batch
@@ -50,7 +50,7 @@ class ERM(SingleModelAlgorithm):
         y_true = move_to(y_true, self._device)
         g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
-        outputs = self.get_model_output(x, y_true)
+        outputs = self._get_model_output(x, y_true)
 
         results = {"g": g, "y_true": y_true, "y_pred": outputs, "metadata": metadata}
         if unlabeled_batch is not None:
@@ -62,7 +62,7 @@ class ERM(SingleModelAlgorithm):
             x = move_to(x, self.device)
             results["unlabeled_metadata"] = metadata
             if self.use_unlabeled_y:
-                results["unlabeled_y_pred"] = self.get_model_output(x, y)
+                results["unlabeled_y_pred"] = self._get_model_output(x, y)
                 results["unlabeled_y_true"] = y
             results["unlabeled_g"] = self.grouper.metadata_to_group(metadata).to(self.device)
         return results

@@ -16,6 +16,7 @@ from torch.nn.utils import clip_grad_norm_
 from ._group_algorithm import GroupAlgorithm
 from ._utils import move_to
 from ip_drit.common.grouper import AbstractGrouper
+from ip_drit.common.metrics import Metric
 from ip_drit.optimizer import initialize_optimizer
 from ip_drit.scheduler import initialize_scheduler
 
@@ -24,6 +25,7 @@ class ModelAlgorithm(Enum):
     """A class that defines the algorithm for the model."""
 
     ERM = auto()
+    CONTRIMIX = auto()
 
 
 class SingleModelAlgorithm(GroupAlgorithm):
@@ -33,10 +35,19 @@ class SingleModelAlgorithm(GroupAlgorithm):
         config: A configuration dictionary.
         model: The underlying backbone model used for the algorithm.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
+        loss: The loss object.
+        metric: The metric to use.
+        n_train_steps: The number of training steps.
     """
 
     def __init__(
-        self, config: Dict[str, Any], model: torch.nn.Module, grouper: AbstractGrouper, loss, metric, n_train_steps
+        self,
+        config: Dict[str, Any],
+        model: torch.nn.Module,
+        grouper: AbstractGrouper,
+        loss,
+        metric: Metric,
+        n_train_steps: int,
     ):
         self._loss = loss
         logged_metrics = [self._loss]
@@ -48,9 +59,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         # initialize models, optimizers, and schedulers
         if not hasattr(self, "optimizer") or self.optimizer is None:
-            self._optimizer = initialize_optimizer(config, model)
+            self._optimizer = initialize_optimizer(config, models=[model])
         self._max_grad_norm = config["max_grad_norm"]
-        scheduler = initialize_scheduler(config, self._optimizer, n_train_steps)
 
         if config["use_data_parallel"]:
             parallelized_model = DataParallel(model)
@@ -62,13 +72,12 @@ class SingleModelAlgorithm(GroupAlgorithm):
         self._batch_idx = 0
         self._gradient_accumulation_steps = config["gradient_accumulation_steps"]
 
-        # initialize the module
         super().__init__(
             device=config["device"],
             grouper=grouper,
             logged_metrics=logged_metrics,
             logged_fields=["objective"],
-            schedulers=[scheduler],
+            schedulers=[initialize_scheduler(config, self._optimizer, n_train_steps)],
             scheduler_metric_names=[config["scheduler_metric_name"]],
         )
 
@@ -77,7 +86,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         self._model = parallelized_model
 
-    def get_model_output(self, x, y_true):
+    def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         if self._model.needs_y_input:
             if self.training:
                 outputs = self._model(x, y_true)
@@ -87,7 +96,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
             outputs = self._model(x)
         return outputs
 
-    def process_batch(self, batch, unlabeled_batch=None):
+    def _process_batch(self, batch: Tuple[torch.Tensor], unlabeled_batch=None) -> Dict[str, Any]:
         """Process a single batch of data.
 
         ERM defines its own process_batch to handle if self.use_unlabeled_y is true.
@@ -112,7 +121,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         y_true = move_to(y_true, self._device)
         g = move_to(self.grouper.metadata_to_group(metadata), self._device)
 
-        outputs = self.get_model_output(x, y_true)
+        outputs = self._get_model_output(x, y_true)
 
         results = {"g": g, "y_true": y_true, "y_pred": outputs, "metadata": metadata}
         if unlabeled_batch is not None:
@@ -143,7 +152,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 objective: The value of the objective.
         """
         assert not self._is_training
-        results = self.process_batch(batch)
+        results = self._process_batch(batch)
         results["objective"] = self.objective(results).item()
         self.update_log(results)
         return self._sanitize_dict(results)
@@ -174,7 +183,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         assert self._is_training
 
         # process this batch
-        results = self.process_batch(batch, unlabeled_batch)
+        results = self._process_batch(batch, unlabeled_batch)
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(
@@ -182,7 +191,6 @@ class SingleModelAlgorithm(GroupAlgorithm):
         )
         self.update_log(results)
 
-        # iterate batch index
         if is_epoch_end:
             self._batch_idx = 0
         else:

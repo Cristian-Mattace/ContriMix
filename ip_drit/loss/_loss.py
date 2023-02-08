@@ -6,10 +6,10 @@ from typing import Union
 import numpy as np
 import torch
 
-from ._metric import ElementwiseMetric
-from ._metric import Metric
-from ._metric import MultiTaskMetric
-from ._utils import maximum
+from ..common.metrics._base import ElementwiseMetric
+from ..common.metrics._base import Metric
+from ..common.metrics._base import MultiTaskMetric
+from ..common.metrics._utils import maximum
 
 
 class Loss(Metric):
@@ -96,13 +96,15 @@ class MultiTaskLoss(MultiTaskMetric):
         name (optional): The name of the metric. Defaults to None.
     """
 
-    def __init__(self, loss_fn: Optional[Callable], name: Optional[str] = None):
+    def __init__(self, loss_fn: Optional[Callable], name: Optional[str] = None) -> None:
         self.loss_fn = loss_fn  # should be elementwise
         if name is None:
             name = "loss"
         super().__init__(name=name)
 
-    def _compute_flattened(self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor) -> torch.Tensor:
+    def _compute_flattened_metrics(
+        self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor
+    ) -> torch.Tensor:
         if isinstance(self.loss_fn, torch.nn.BCEWithLogitsLoss):
             flattened_y_pred = flattened_y_pred.float()
             flattened_y_true = flattened_y_true.float()

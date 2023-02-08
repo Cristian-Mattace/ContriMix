@@ -4,6 +4,9 @@ import math
 from typing import Any
 from typing import Dict
 
+import torch.nn as nn
+
+from ._contrimix import ContriMix
 from ._erm import ERM
 from .single_model_algorithm import ModelAlgorithm
 from .single_model_algorithm import SingleModelAlgorithm
@@ -14,7 +17,7 @@ from ip_drit.common.metrics import MSE
 from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.common.metrics import MultiTaskAccuracy
 from ip_drit.common.metrics import MultiTaskAveragePrecision
-from ip_drit.datasets import SubsetPublicDataset
+from ip_drit.loss import ContriMixLoss
 from ip_drit.loss.initializer import initialize_loss
 
 algo_log_metrics = {
@@ -34,10 +37,10 @@ def initialize_algorithm(
 
     Args:
         config: A dictionary that is used to configure hwo the model should be initialized.
-        split_dict_by_name: A dictionary whose key are 'train', 'val', 'id_val', 'test' corresponding to different splits.
-            For each key, the value is a dictionary with further (key, values) that defines the attribute of the split.
-            They key can be 'loader' (for the data loader), 'dataset' (for the dataset), 'name' (for the name of the
-            split), 'eval_logger', and 'algo_logger'.
+        split_dict_by_name: A dictionary whose key are 'train', 'val', 'id_val', 'test' corresponding to different
+            splits. For each key, the value is a dictionary with further (key, values) that defines the attribute of the
+            split. They key can be 'loader' (for the data loader), 'dataset' (for the dataset), 'name' (for the name of
+            the split), 'eval_logger', and 'algo_logger'.
         train_grouper: A grouper object that defines the groups for which we compute/log statistics for.
         loss: The loss module to use.
         metrics: The metrics to use.
@@ -53,6 +56,20 @@ def initialize_algorithm(
             d_out=1,  # Classification problem for now
             grouper=train_grouper,
             loss=initialize_loss(loss_type=config["loss_function"]),
+            metric=algo_log_metrics[config["algo_log_metric"]],
+            n_train_steps=math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"],
+        )
+    elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
+        logging.warning(
+            f"Initlializing the ContriMix algorithm, using ContriMixLoss ignoring the specified loss type of"
+            + f"{config['loss_function']}."
+        )
+
+        return ContriMix(
+            config=config,
+            d_out=1,
+            grouper=train_grouper,
+            loss=ContriMixLoss(loss_fn=nn.BCEWithLogitsLoss(reduction="none")),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"],
         )

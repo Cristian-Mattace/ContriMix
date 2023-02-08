@@ -11,10 +11,10 @@ from scipy.stats import pearsonr
 from torchvision.models.detection._utils import Matcher
 from torchvision.ops.boxes import box_iou
 
-from ._loss import ElementwiseLoss
-from ._metric import ElementwiseMetric
-from ._metric import Metric
-from ._metric import MultiTaskMetric
+from ...loss._loss import ElementwiseLoss
+from ._base import ElementwiseMetric
+from ._base import Metric
+from ._base import MultiTaskMetric
 from ._utils import get_counts
 from ._utils import minimum
 
@@ -202,7 +202,9 @@ class MultiTaskAccuracy(MultiTaskMetric):
             name = "acc"
         super().__init__(name=name)
 
-    def _compute_flattened(self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor) -> torch.Tensor:
+    def _compute_flattened_metrics(
+        self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor
+    ) -> torch.Tensor:
         if self.prediction_fn is not None:
             flattened_y_pred = self.prediction_fn(flattened_y_pred)
         return (flattened_y_pred == flattened_y_true).float()
@@ -230,7 +232,9 @@ class MultiTaskAveragePrecision(MultiTaskMetric):
         self.average = average
         super().__init__(name=name)
 
-    def _compute_flattened(self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor) -> torch.Tensor:
+    def _compute_flattened_metrics(
+        self, flattened_y_pred: torch.Tensor, flattened_y_true: torch.Tensor
+    ) -> torch.Tensor:
         if self.prediction_fn is not None:
             flattened_y_pred = self.prediction_fn(flattened_y_pred)
         ytr = np.array(flattened_y_true.squeeze().detach().cpu().numpy() > 0)
@@ -246,7 +250,7 @@ class MultiTaskAveragePrecision(MultiTaskMetric):
             if group_counts[group_idx] == 0:
                 group_metrics.append(torch.tensor(0.0, device=g.device))
             else:
-                flattened_metrics, _ = self.compute_flattened(
+                flattened_metrics, _ = self._compute_flattened(
                     y_pred[g == group_idx], y_true[g == group_idx], return_dict=False
                 )
                 group_metrics.append(flattened_metrics)
