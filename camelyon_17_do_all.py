@@ -8,7 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit"
+package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
@@ -37,7 +37,7 @@ def main():
     parser = _configure_parser()
     FLAGS = parser.parse_args()
 
-    all_dataset_dir, all_log_dir = _dataset_and_log_location(
+    all_dataset_dir, log_dir = _dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
         FLAGS.log_dir_local,
@@ -46,14 +46,11 @@ def main():
     )
 
     all_dataset_dir.mkdir(exist_ok=True)
-    all_log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
     )
-
-    log_dir = all_log_dir / "erm_camelyon"
-    log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.CONTRIMIX,
@@ -174,7 +171,7 @@ def _configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--log_dir_cluster",
         type=str,
-        default="/jupyter-users-home/tan-2enguyen/all_log_dir",
+        default="/jupyter-users-home/tan-2enguyen/all_log_dir/erm_adamw",
         help="Directory for logging in cluster",
     )
 
@@ -212,7 +209,7 @@ def _configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model_prefix",
         type=str,
-        default="/jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon",
+        default="/jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_adamw",
         help="The prefix to the model path for evaluation mode. "
         "It will be appended by either best_model or a specific epoch number to generate evaluation model path.",
     )
