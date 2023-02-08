@@ -16,6 +16,7 @@ from ip_drit.datasets import AbstractPublicDataset
 class TransformationType(Enum):
     """The type transformation."""
 
+    WEAK_NOT_NORMALIZE = auto()
     WEAK = auto()
     POVERTY = auto()
     RANDAUGMENT = auto()
@@ -56,6 +57,14 @@ def initialize_transform(
         return _add_weak_transform(
             config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization
         )
+    elif transform_name == TransformationType.WEAK_NOT_NORMALIZE:
+        return _add_weak_transform(
+            config_dict,
+            full_dataset,
+            base_transform_steps,
+            normalize=False,
+            default_normalization=default_normalization,
+        )
     else:
         raise ValueError(f"Unsupported transformation type!")
 
@@ -84,8 +93,8 @@ def _add_weak_transform(
     target_resolution = _get_target_resolution(config, dataset)
     weak_transform_steps = copy.deepcopy(base_transform_steps)
     weak_transform_steps.extend([transforms.RandomHorizontalFlip(), transforms.RandomCrop(size=target_resolution)])
+    weak_transform_steps.append(transforms.ToTensor())
     if normalize:
-        weak_transform_steps.append(transforms.ToTensor())
         weak_transform_steps.append(default_normalization)
     return transforms.Compose(weak_transform_steps)
 
