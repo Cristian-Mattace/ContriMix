@@ -21,7 +21,7 @@ class AbsorbanceToTransmittance(object):
         if sig_type != SignalType.ABS:
             raise RuntimeError(f"Can't convert a none absorbance signal. The current signal type is {sig_type}!")
         im = torch.clip(im, 0.0, None)
-        return 10 ** (-im), SignalType.ABS
+        return 10 ** (-im), SignalType.TRANS
 
 
 class TransmittanceToAbsorbance(object):

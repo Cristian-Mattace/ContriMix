@@ -1,11 +1,12 @@
 """A module that defines the loss class for the contrimix."""
-import logging
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Union
 
 import torch
+import torch.nn as nn
 
 from ..common.metrics._base import Metric
 from ..common.metrics._base import MultiTaskMetric
@@ -68,27 +69,71 @@ class ContriMixLoss(MultiTaskMetric):
         im_gen = in_dict["im_gen"]
         backbone = in_dict["backbone"]
         abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
-        _ = in_dict["trans_to_abs_cvt"]
+        trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
         sig_type = in_dict["sig_type"]
         zc = in_dict["zc"]
         za = in_dict["za"]
+        za_targets = in_dict["za_targets"]
         x_org = in_dict["x_org"]
 
         x_abs_self_recon = im_gen(zc, za)
-        x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, sig_type))[0]
+        x_self_recon_and_type = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, sig_type))
+        x_self_recon = x_self_recon_and_type[0]
 
-        if backbone.needs_y_input:
-            raise ValueError("Backbone network with y-input is not supported")
-        else:
-            y_pred = backbone(x_self_recon)
-
+        y_pred = backbone(x_org)
         in_dict["y_pred"] = y_pred
 
-        self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_abs_self_recon, expected_ims=x_org)
-        entropy_loss = self._compute_entropy_loss_from_logits(y_pred, y_true)
+        self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)
+        entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
+
+        num_mixings = za_targets.shape[0]
+        attr_cons_losses: List[float] = [
+            self._attribute_consistency_loss(
+                x_abs_cross_translation_im=trans_to_abs_cvt(im_and_sig_type=x_self_recon_and_type)[0],
+                expected_za=za,
+                attr_enc=in_dict["attr_enc"],
+            )
+        ]
+
+        cont_cons_losses: List[float] = [
+            self._content_consistency_loss(
+                x_abs_cross_translation_im=trans_to_abs_cvt(im_and_sig_type=x_self_recon_and_type)[0],
+                expected_zc=zc,
+                cont_enc=in_dict["cont_enc"],
+            )
+        ]
+
+        for mix_idx in range(num_mixings):
+            za_target = za_targets[mix_idx]
+            x_abs_cross_translation = im_gen(zc, za_target)
+            x_cross_translation, out_sig_type = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, sig_type))
+            x_abs_cross_trans = trans_to_abs_cvt(im_and_sig_type=(x_cross_translation, out_sig_type))[0]
+
+            entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation), y_true))
+
+            attr_cons_losses.append(
+                self._attribute_consistency_loss(
+                    x_abs_cross_translation_im=x_abs_cross_trans, expected_za=za_target, attr_enc=in_dict["attr_enc"]
+                )
+            )
+
+            cont_cons_losses.append(
+                self._content_consistency_loss(
+                    x_abs_cross_translation_im=x_abs_cross_trans, expected_zc=zc, cont_enc=in_dict["cont_enc"]
+                )
+            )
+
+        attr_cons_loss = torch.mean(torch.stack(attr_cons_losses, dim=0))
+        cont_cons_loss = torch.mean(torch.stack(cont_cons_losses, dim=0))
+
+        # We want to optimize for the worst case.
+        entropy_loss = torch.max(torch.stack(entropy_losses, dim=0))
+
         total_loss = (
             self._loss_weights_by_name.get("self_recon_weight", 0.0) * self_recon_loss
             + self._loss_weights_by_name["entropy_weight"] * entropy_loss
+            + self._loss_weights_by_name["attr_cons_weight"] * attr_cons_loss
+            + self._loss_weights_by_name["cont_cons_weight"] * cont_cons_loss
         )
         if return_dict:
             # Used for updating logs.
@@ -96,6 +141,8 @@ class ContriMixLoss(MultiTaskMetric):
                 self.agg_metric_field: total_loss,
                 "self_recon_loss": self_recon_loss.item(),
                 "entropy_loss": entropy_loss.item(),
+                "attribute_consistency_loss": attr_cons_loss.item(),
+                "content_consistency_loss": cont_cons_loss.item(),
             }
         else:
             # Used for updating the objective.
@@ -104,6 +151,57 @@ class ContriMixLoss(MultiTaskMetric):
     @staticmethod
     def _self_recon_consistency_loss(self_recon_ims: torch.Tensor, expected_ims: torch.Tensor) -> float:
         return torch.nn.L1Loss(reduction="mean")(self_recon_ims, expected_ims)
+
+    def _compute_entropy_loss_from_logits(self, y_pred_logits: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+        """Returns the cross-entropy loss from logits."""
+        is_labeled = ~torch.isnan(y_true)
+        y_pred_logits = y_pred_logits[is_labeled]
+        y_true = y_true[is_labeled]
+        if isinstance(self._loss_fn, torch.nn.BCEWithLogitsLoss):
+            y_pred_logits = y_pred_logits.float()
+            y_true = y_true.float()
+        elif isinstance(self._loss_fn, torch.nn.CrossEntropyLoss):
+            y_true = y_true.long()
+        y_true = torch.reshape(y_true, y_pred_logits.shape)
+        loss = self._loss_fn(y_pred_logits, y_true)
+
+        if loss.numel() == 0:
+            return torch.tensor(0.0, device=y_true.device)
+        return loss.mean()
+
+    @staticmethod
+    def _attribute_consistency_loss(
+        x_abs_cross_translation_im: torch.Tensor, expected_za: torch.Tensor, attr_enc: nn.Module
+    ) -> float:
+        """Computes the attribute consistency loss.
+
+        Args:
+            x_abs_cross_translation_im: The (absorbance) translated images that we used for augmentations.
+            expected_za: The expected attribute tensor.
+            attr_enc: The attribute encoder.
+
+        Returns:
+            A floating point value for the loss.
+        """
+        za_recon = attr_enc(x_abs_cross_translation_im)
+        return torch.nn.L1Loss(reduction="mean")(za_recon, expected_za)
+
+    @staticmethod
+    def _content_consistency_loss(
+        x_abs_cross_translation_im: torch.Tensor, expected_zc: torch.Tensor, cont_enc: nn.Module
+    ) -> float:
+        """Computes the attribute consistency loss.
+
+        Args:
+            x_abs_cross_translation_im: The (absorbance) translated images that we used for augmentations.
+            expected_zc: The expcted content tensor.
+            cont_enc: The content encoder.
+
+        Returns:
+            A floating point value for the loss.
+        """
+        zc_recon = cont_enc(x_abs_cross_translation_im)
+        return torch.nn.L1Loss(reduction="mean")(zc_recon, expected_zc)
 
     def _compute(self, y_pred, y_true):
         flattened_metrics, _ = self._compute_flattened(y_pred, y_true, return_dict=False)
@@ -122,20 +220,3 @@ class ContriMixLoss(MultiTaskMetric):
             return {self.name: flattened_metrics, "index": batch_idx}
         else:
             return flattened_metrics, batch_idx
-
-    def _compute_entropy_loss_from_logits(self, y_pred_logits: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        """Returns the cross-entropy loss from logits."""
-        is_labeled = ~torch.isnan(y_true)
-        y_pred_logits = y_pred_logits[is_labeled]
-        y_true = y_true[is_labeled]
-        if isinstance(self._loss_fn, torch.nn.BCEWithLogitsLoss):
-            y_pred_logits = y_pred_logits.float()
-            y_true = y_true.float()
-        elif isinstance(self._loss_fn, torch.nn.CrossEntropyLoss):
-            y_true = y_true.long()
-        y_true = torch.reshape(y_true, y_pred_logits.shape)
-        loss = self._loss_fn(y_pred_logits, y_true)
-
-        if loss.numel() == 0:
-            return torch.tensor(0.0, device=y_true.device)
-        return loss.mean()

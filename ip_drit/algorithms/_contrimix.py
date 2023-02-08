@@ -42,6 +42,13 @@ class ContriMix(MultimodelAlgorithm):
     _NUM_INPUT_CHANNELS = 3
     _NUM_STAIN_VECTORS = 8
     _DOWNSAMPLING_FACTOR = 4
+    _LOGGED_FIELDS: List[str] = [
+        "objective",
+        "self_recon_loss",
+        "entropy_loss",
+        "attribute_consistency_loss",
+        "content_consistency_loss",
+    ]
 
     def __init__(
         self,
@@ -52,7 +59,7 @@ class ContriMix(MultimodelAlgorithm):
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
-        num_mixing_per_image: int = 15,
+        num_mixing_per_image: int = 5,
     ) -> None:
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
@@ -79,7 +86,7 @@ class ContriMix(MultimodelAlgorithm):
             },
             grouper=grouper,
             loss=loss,
-            logged_fields=["objective", "self_recon_loss", "entropy_loss"],
+            logged_fields=ContriMix._LOGGED_FIELDS,
             metric=metric,
             n_train_steps=n_train_steps,
         )
@@ -127,9 +134,7 @@ class ContriMix(MultimodelAlgorithm):
                 # Extract attributes of the target patches.
                 target_im_idxs = all_target_image_indices[:, mix_idx]
                 za_targets.append(za[target_im_idxs])
-                # x_abs_cross_translation = im_gen(zc, za_target)
-                # _ = self._abs_to_trans_converter(im_and_sig_type=(x_abs_cross_translation, signal_type))[0]
-            za_targets = torch.cat(za_targets, dim=0)
+            za_targets = torch.stack(za_targets, dim=0)
 
         return {
             "zc": zc,
