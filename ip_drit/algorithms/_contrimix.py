@@ -40,7 +40,7 @@ class ContriMix(MultimodelAlgorithm):
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_STAIN_VECTORS = 5
+    _NUM_STAIN_VECTORS = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
         "self_recon_loss",
