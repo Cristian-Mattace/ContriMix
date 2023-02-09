@@ -26,7 +26,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
     Args:
         config: A configuration dictionary.
-        model:s A list of models used in the algorithm.
+        models_by_names: A dictionary models used in the algorithm, keyed by the name of the model.
         grouper: A grouper object that defines the groups for which we compute/log statistics for.
         loss: The loss object.
         logged_fields: The list of strings that specifies the fields to tract. These strings are the subset of fields

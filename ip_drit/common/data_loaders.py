@@ -99,6 +99,7 @@ def get_train_loader(
                 distinct_groups=distinct_groups,
             ),
             drop_last=False,
+            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             persistent_workers=False,
             generator=g,
@@ -205,6 +206,7 @@ def get_eval_loader(
             collate_fn=dataset.collate,
             batch_size=batch_size,
             persistent_workers=False,
+            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             generator=g,
             **loader_kwargs,

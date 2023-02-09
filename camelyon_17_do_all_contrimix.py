@@ -8,7 +8,9 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit"
+from script_utils import num_of_available_devices
+
+package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
@@ -21,7 +23,6 @@ from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
-from script_utils import calculate_batch_size
 from script_utils import configure_split_dict_by_names
 from script_utils import parse_bool
 from script_utils import use_data_parallel
@@ -37,7 +38,7 @@ def main():
     parser = _configure_parser()
     FLAGS = parser.parse_args()
 
-    all_dataset_dir, log_dir = _dataset_and_log_location(
+    all_dataset_dir, all_log_dir = _dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
         FLAGS.log_dir_local,
@@ -46,16 +47,19 @@ def main():
     )
 
     all_dataset_dir.mkdir(exist_ok=True)
-    log_dir.mkdir(exist_ok=True)
+    all_log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
     )
 
+    log_dir = all_log_dir / "erm_camelyon"
+    log_dir.mkdir(exist_ok=True)
+
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.DENSENET121,
-        "transform": TransformationType.WEAK,
+        "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],
@@ -171,7 +175,7 @@ def _configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--log_dir_cluster",
         type=str,
-        default="/jupyter-users-home/tan-2enguyen/all_log_dir/erm_adamw",
+        default="/jupyter-users-home/tan-2enguyen/all_log_dir",
         help="Directory for logging in cluster",
     )
 
@@ -209,7 +213,7 @@ def _configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--model_prefix",
         type=str,
-        default="/jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_adamw",
+        default="/jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon",
         help="The prefix to the model path for evaluation mode. "
         "It will be appended by either best_model or a specific epoch number to generate evaluation model path.",
     )
@@ -234,6 +238,19 @@ def _generate_eval_model_path(eval_epoch: int, model_prefix: str, seed: int) -> 
     else:
         eval_model_path: str = os.path.join(model_prefix, f"camelyon17_seed:{seed}_epoch:{eval_epoch}_model.pth")
     return eval_model_path
+
+
+def calculate_batch_size(run_on_cluster: bool) -> int:
+    """Returns the minibatchsize per GPU."""
+    num_devices = num_of_available_devices()
+    logging.info(f"Number of training devices = {num_devices}.")
+    if run_on_cluster:
+        batch_size_per_gpu = 210
+    else:
+        batch_size_per_gpu = 153
+    batch_size = batch_size_per_gpu * num_devices
+    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
+    return batch_size
 
 
 if __name__ == "__main__":

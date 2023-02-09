@@ -40,8 +40,7 @@ class ContriMix(MultimodelAlgorithm):
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_STAIN_VECTORS = 8
-    _DOWNSAMPLING_FACTOR = 4
+    _NUM_STAIN_VECTORS = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
         "self_recon_loss",
@@ -72,17 +71,22 @@ class ContriMix(MultimodelAlgorithm):
         else:
             raise ValueError("ContriMix without converting to absorbance in between is not supported yet!")
 
+        downsampling_factor: int = 1
         super().__init__(
             config=config,
             models_by_names={
                 "backbone": backbone_network,
                 "cont_enc": ContentEncoder(
-                    in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS
+                    in_channels=self._NUM_INPUT_CHANNELS,
+                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    k=downsampling_factor,
                 ),
                 "attr_enc": AttributeEncoder(
-                    in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS
+                    in_channels=self._NUM_INPUT_CHANNELS,
+                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    k=downsampling_factor,
                 ),
-                "im_gen": AbsorbanceImGenerator(),
+                "im_gen": AbsorbanceImGenerator(k=downsampling_factor),
             },
             grouper=grouper,
             loss=loss,
@@ -99,6 +103,8 @@ class ContriMix(MultimodelAlgorithm):
     ) -> Dict[str, torch.Tensor]:
         x, y_true, metadata = batch
         x = move_to(x, self._device)
+        self._validates_valid_input_signal_range(x)
+
         y_true = move_to(y_true, self._device)
         group_indices = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
@@ -109,6 +115,12 @@ class ContriMix(MultimodelAlgorithm):
         if unlabeled_batch is not None:
             raise ValueError("ContriMix does not support unlabeled data yet!")
         return results
+
+    @staticmethod
+    def _validates_valid_input_signal_range(x: torch.Tensor) -> None:
+        """Makes sure that the input signal has a valid range [0.0, 1.0]."""
+        if x.min().item() < 0.0 or x.max().item() > 1.0:
+            raise ValueError("The input tensor is not in a valid range of [0, 1]!")
 
     def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> Dict[str, Union[torch.Tensor, SignalType]]:
         """Computes the model outputs.
