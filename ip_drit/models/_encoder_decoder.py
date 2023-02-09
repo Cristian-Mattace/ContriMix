@@ -27,15 +27,16 @@ class AttributeEncoder(nn.Module):
         in_channels: The number of input channels.
         out_channels: The number of output channels for the attribute vector.
         downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 4.
+        k (optional): The downsampling factor. Defaults to 4.
     Reference:
         https://github.com/HsinYingLee/MDMM/blob/master/networks.py#L64
     """
 
-    def __init__(self, in_channels: int, num_stain_vectors: int) -> None:
+    def __init__(self, in_channels: int, num_stain_vectors: int, k: int = 4) -> None:
         super().__init__()
         self.needs_y_input: bool = False
         self._num_stain_vectors = num_stain_vectors
-        self._three_times_k_sqr = 3 * 4**2
+        self._three_times_k_sqr = 3 * k**2
         self._model = Initializer()(
             nn.Sequential(
                 nn.Conv2d(
@@ -51,9 +52,10 @@ class AttributeEncoder(nn.Module):
                 Downsampling2xkWithSkipConnection(in_channels=32, out_channels=64),
                 Downsampling2xkWithSkipConnection(in_channels=64, out_channels=128),
                 Downsampling2xkWithSkipConnection(in_channels=128, out_channels=256),
+                Downsampling2xkWithSkipConnection(in_channels=256, out_channels=512),
                 nn.AdaptiveAvgPool2d(output_size=(1, 1)),  # Condense all the X, Y dimensions to 1 pixels.
                 nn.Conv2d(
-                    in_channels=256,
+                    in_channels=512,
                     out_channels=self._num_stain_vectors * self._three_times_k_sqr,
                     kernel_size=1,
                     stride=1,
@@ -79,29 +81,63 @@ class ContentEncoder(nn.Module):
 
     Args:
         in_channels: The number of input channels.
+        k (optional): The downsampling factor. Defaults to 4.
 
     Returns:
         For each minibatch with N samples, it returns a tensor of size N x out_channels x H x W in which
         H and W is a down-sampled version of the input image.
     """
 
-    def __init__(self, in_channels: int, num_stain_vectors: int = 32) -> None:
+    def __init__(self, in_channels: int, num_stain_vectors: int = 32, k: int = 4) -> None:
         super().__init__()
         self.needs_y_input: bool = False
-        self._model = Initializer()(
-            nn.Sequential(
-                LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
-                ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
-                ReLUInstNorm2dConv2d(
-                    in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
-                ),
-                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                nn.LeakyReLU(inplace=True),
+        if k == 4:
+            self._model = Initializer()(
+                nn.Sequential(
+                    LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
+                    ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
+                    ReLUInstNorm2dConv2d(
+                        in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
+                    ),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    nn.LeakyReLU(inplace=True),
+                )
             )
-        )
+        elif k == 2:
+            self._model = Initializer()(
+                nn.Sequential(
+                    LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
+                    ReLUInstNorm2dConv2d(
+                        in_channels=16, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
+                    ),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    nn.LeakyReLU(inplace=True),
+                )
+            )
+        else:
+            self._model = Initializer()(
+                nn.Sequential(
+                    LeakyReLUConv2d(
+                        in_channels=in_channels, out_channels=num_stain_vectors, kernel_size=3, stride=1, padding=1
+                    ),
+                    ReLUInstNorm2dConv2d(
+                        in_channels=num_stain_vectors,
+                        out_channels=num_stain_vectors,
+                        kernel_size=3,
+                        stride=1,
+                        padding=1,
+                    ),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                    nn.LeakyReLU(inplace=True),
+                )
+            )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self._model(x)
@@ -113,14 +149,19 @@ class AbsorbanceImGenerator(nn.Module):
     This class generates a synthetic image G(z_c, z_a) from the content tensor z_c, attribute tensor z_a.
 
     Args:
-        out_channels: The number of output channels for the generator.
-        downsampling_factor (optional): A factor that describe how much of the image is downsampled. Defaults to 2.
+        k (optional): The downsampling factor. Defaults to 4.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, k: int) -> None:
         super().__init__()
         self.needs_y_input: bool = True
-        self._shuffle_layer = torch.nn.PixelShuffle(upscale_factor=4)
+        self._shuffle_layer = torch.nn.PixelShuffle(upscale_factor=k)
+        if k == 4:
+            self._conv = LeakyReLUConv2d(in_channels=3, out_channels=3, kernel_size=7, stride=1, padding=3)
+        elif k == 2:
+            self._conv = LeakyReLUConv2d(in_channels=3, out_channels=3, kernel_size=3, stride=1, padding=1)
+        else:
+            self._conv = None
 
     def forward(self, z_c: torch.Tensor, z_a: torch.Tensor) -> torch.Tensor:
         """Generates an image based by the content and the attribute tensor.
@@ -141,4 +182,7 @@ class AbsorbanceImGenerator(nn.Module):
         num_rows, num_cols = z_c.size(2), z_c.size(3)
         x = torch.bmm(z_a, z_c.view(z_c.size(0), z_c.size(1), -1))
         x = x.view(x.size(0), x.size(1), num_rows, num_cols)
-        return self._shuffle_layer(x)
+        if self._conv is not None:
+            return self._conv(self._shuffle_layer(x))
+        else:
+            return self._shuffle_layer(x)

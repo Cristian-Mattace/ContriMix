@@ -40,7 +40,7 @@ class ContriMix(MultimodelAlgorithm):
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_STAIN_VECTORS = 8
+    _NUM_STAIN_VECTORS = 4
     _DOWNSAMPLING_FACTOR = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
@@ -72,17 +72,22 @@ class ContriMix(MultimodelAlgorithm):
         else:
             raise ValueError("ContriMix without converting to absorbance in between is not supported yet!")
 
+        downsampling_factor: int = 1
         super().__init__(
             config=config,
             models_by_names={
                 "backbone": backbone_network,
                 "cont_enc": ContentEncoder(
-                    in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS
+                    in_channels=self._NUM_INPUT_CHANNELS,
+                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    k=downsampling_factor,
                 ),
                 "attr_enc": AttributeEncoder(
-                    in_channels=self._NUM_INPUT_CHANNELS, num_stain_vectors=self._NUM_STAIN_VECTORS
+                    in_channels=self._NUM_INPUT_CHANNELS,
+                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    k=downsampling_factor,
                 ),
-                "im_gen": AbsorbanceImGenerator(),
+                "im_gen": AbsorbanceImGenerator(k=downsampling_factor),
             },
             grouper=grouper,
             loss=loss,
