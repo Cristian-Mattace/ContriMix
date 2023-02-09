@@ -70,7 +70,7 @@ def main():
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
         "train_loader": LoaderType.GROUP,
-        "reset_random_generator_after_every_epoch": True,
+        "reset_random_generator_after_every_epoch": False,
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
@@ -245,7 +245,7 @@ def calculate_batch_size(run_on_cluster: bool) -> int:
     num_devices = num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     if run_on_cluster:
-        batch_size_per_gpu = 240
+        batch_size_per_gpu = 210
     else:
         batch_size_per_gpu = 153
     batch_size = batch_size_per_gpu * num_devices

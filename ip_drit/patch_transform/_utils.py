@@ -90,9 +90,8 @@ def _add_weak_transform(
     default_normalization,
 ):
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
-    target_resolution = _get_target_resolution(config, dataset)
     weak_transform_steps = copy.deepcopy(base_transform_steps)
-    weak_transform_steps.extend([transforms.RandomHorizontalFlip(), transforms.RandomCrop(size=target_resolution)])
+    weak_transform_steps.extend([transforms.RandomHorizontalFlip()])
     weak_transform_steps.append(transforms.ToTensor())
     if normalize:
         weak_transform_steps.append(default_normalization)

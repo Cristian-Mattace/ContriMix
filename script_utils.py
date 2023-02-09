@@ -79,12 +79,6 @@ def configure_split_dict_by_names(
 def _get_data_loader_by_split_name(
     sub_dataset: SubsetPublicDataset, grouper: CombinatorialGrouper, split_name: str, config_dict: Dict[str, Any]
 ) -> DataLoader:
-    if (
-        config_dict["algorithm"] == ModelAlgorithm.CONTRIMIX
-        and not config_dict["reset_random_generator_after_every_epoch"]
-    ):
-        raise ValueError("ContriMix is used and `reset_random_generator_after_every_epoch` is not set to True!")
-
     if split_name == "train":
         return get_train_loader(
             loader_type=config_dict["train_loader"],

@@ -73,16 +73,19 @@ class ContriMixLoss(MultiTaskMetric):
         zc = in_dict["zc"]
         za = in_dict["za"]
         za_targets = in_dict["za_targets"]
-        x_org = in_dict["x_org"]
+        # x_org = in_dict["x_org"]
 
         x_abs_self_recon = im_gen(zc, za)
         x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, sig_type))[0]
 
-        y_pred = backbone(x_org)
+        y_pred = backbone(x_self_recon)
         in_dict["y_pred"] = y_pred
 
         # TODO: investigate whether the consistency should be in the absorbance or transmittance space.
-        self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)
+        # self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)
+        self_recon_loss = self._self_recon_consistency_loss(
+            self_recon_ims=x_abs_self_recon, expected_ims=in_dict["x_abs_org"]
+        )
 
         num_mixings = za_targets.shape[0]
         entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
@@ -98,10 +101,14 @@ class ContriMixLoss(MultiTaskMetric):
             )
         ]
 
+        # x1 = x_org[0].clone().detach().cpu().numpy().transpose(1, 2, 0)
+
         for mix_idx in range(num_mixings):
             za_target = za_targets[mix_idx]
             x_abs_cross_translation = im_gen(zc, za_target)
             x_cross_translation = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, sig_type))[0]
+
+            # x2 = x_cross_translation[0].clone().detach().cpu().numpy().transpose(1, 2, 0)
             entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation), y_true))
 
             attr_cons_losses.append(
@@ -121,8 +128,8 @@ class ContriMixLoss(MultiTaskMetric):
         attr_cons_loss = torch.mean(torch.stack(attr_cons_losses, dim=0))
         cont_cons_loss = torch.mean(torch.stack(cont_cons_losses, dim=0))
 
-        # We want to optimize for the worst case.
-        entropy_loss = torch.max(torch.stack(entropy_losses, dim=0))
+        # TODO: test with max here.
+        entropy_loss = torch.mean(torch.stack(entropy_losses, dim=0))
 
         total_loss = (
             self._loss_weights_by_name["self_recon_weight"] * self_recon_loss
