@@ -123,15 +123,9 @@ class ContentEncoder(nn.Module):
         else:
             self._model = Initializer()(
                 nn.Sequential(
-                    LeakyReLUConv2d(
-                        in_channels=in_channels, out_channels=num_stain_vectors, kernel_size=3, stride=1, padding=1
-                    ),
+                    LeakyReLUConv2d(in_channels=in_channels, out_channels=8, kernel_size=3, stride=1, padding=1),
                     ReLUInstNorm2dConv2d(
-                        in_channels=num_stain_vectors,
-                        out_channels=num_stain_vectors,
-                        kernel_size=3,
-                        stride=1,
-                        padding=1,
+                        in_channels=8, out_channels=num_stain_vectors, kernel_size=3, stride=1, padding=1
                     ),
                     ResInstNorm2dConv2d(in_channels=num_stain_vectors),
                     ResInstNorm2dConv2d(in_channels=num_stain_vectors),
