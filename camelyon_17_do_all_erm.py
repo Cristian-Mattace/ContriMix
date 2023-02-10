@@ -8,7 +8,7 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/"
+package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 

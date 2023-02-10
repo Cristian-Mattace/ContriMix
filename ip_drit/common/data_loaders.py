@@ -33,6 +33,7 @@ def get_train_loader(
     distinct_groups: bool = True,
     train_n_groups_per_batch: int = None,
     reset_random_generator_after_every_epoch: bool = False,
+    seed: int = None,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for training.
@@ -50,6 +51,7 @@ def get_train_loader(
         train_n_groups_per_batch (optional): Number of groups to sample in each minibatch for group loaders.
         reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
             seed that is similar for every epoch. Defaults to False.
+        seed: input seed from flags.
         loader_kwargs: kwargs passed into torch DataLoader initialization.
 
     Output:
@@ -63,6 +65,7 @@ def get_train_loader(
             uniform_over_groups=uniform_over_groups,
             grouper=grouper,
             reset_random_generator_after_every_epoch=reset_random_generator_after_every_epoch,
+            seed=seed,
         )
     elif loader_type == LoaderType.GROUP:
         if uniform_over_groups is None:
@@ -82,7 +85,7 @@ def get_train_loader(
 
         if reset_random_generator_after_every_epoch:
             g = torch.Generator()
-            g.manual_seed(0)
+            g.manual_seed(seed)
         else:
             g = None
 
@@ -114,10 +117,11 @@ def _generate_standard_data_loader(
     uniform_over_groups: Optional[bool] = None,
     grouper: Optional[AbstractGrouper] = None,
     reset_random_generator_after_every_epoch: Optional[bool] = False,
+    seed: int = 0,
 ) -> DataLoader:
     if reset_random_generator_after_every_epoch:
         g = torch.Generator()
-        g.manual_seed(0)
+        g.manual_seed(seed)
     else:
         g = None
 
@@ -157,10 +161,10 @@ def _generate_standard_data_loader(
 def _worker_init_fn(worker_id: int) -> None:
     """A helper function for worker initialization.
 
-    This function makes sure that every workers are initialized with a reperated random seed in the begining of each
+    This function makes sure that every workers are initialized with a reperated random seed in the beginning of each
     epoch. See https://tanelp.github.io/posts/a-bug-that-plagues-thousands-of-open-source-ml-projects/.
     """
-    seed = np.random.get_state()[1][0] + worker_id
+    seed = torch.initial_seed() % 2**32 + worker_id
     np.random.seed(seed)
     torch.manual_seed(seed)
     logging.debug(f"WorkerID: {worker_id}, Random seed set as {seed}")
@@ -176,6 +180,7 @@ def get_eval_loader(
     dataset: SubsetPublicDataset,
     batch_size: int,
     reset_random_generator_after_every_epoch: bool = False,
+    seed: int = 0,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
@@ -187,7 +192,7 @@ def get_eval_loader(
         loader_kwargs: kwargs passed into torch DataLoader initialization.
         reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
             seed that is similar for every epoch. Defaults to False.
-
+        seed: input seed
 
     Returns:
         A data loader for evaluation
@@ -195,7 +200,7 @@ def get_eval_loader(
     if loader_type == LoaderType.STANDARD:
         if reset_random_generator_after_every_epoch:
             g = torch.Generator()
-            g.manual_seed(0)
+            g.manual_seed(seed)
         else:
             g = None
 

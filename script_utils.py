@@ -89,6 +89,7 @@ def _get_data_loader_by_split_name(
             distinct_groups=config_dict["distinct_groups"],
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
             reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
+            seed=config_dict["seed"],
         )
     elif split_name in ("id_val", "test", "val"):
         return get_eval_loader(
@@ -96,6 +97,7 @@ def _get_data_loader_by_split_name(
             dataset=sub_dataset,
             batch_size=config_dict["batch_size"],
             reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
+            seed=config_dict["seed"],
         )
     else:
         raise ValueError(f"Unknown split name {split_name}")
