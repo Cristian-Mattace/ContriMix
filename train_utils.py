@@ -73,22 +73,24 @@ def train(
             epoch=epoch,
             config_dict=config_dict,
         )
+
+
         curr_val_metric = val_results[metrics_to_evaluate]
         general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n\n")
-
+        
         if best_val_metric is None:
             is_best = True
+            best_val_metric = curr_val_metric
+
+        if config_dict["val_metric_decreasing"]:
+            is_best = curr_val_metric <= best_val_metric
         else:
-            if config_dict["val_metric_decreasing"]:
-                is_best = curr_val_metric < best_val_metric
-                best_val_metric = curr_val_metric
-            else:
-                is_best = curr_val_metric > best_val_metric
-                best_val_metric = curr_val_metric
+            is_best = curr_val_metric >= best_val_metric
+
 
         if is_best:
+            best_val_metric = curr_val_metric
             general_logger.write(f"Epoch {epoch} has the best validation performance so far.\n")
-
         save_model_if_needed(algorithm, split_dict_by_name["val"], epoch, config_dict, is_best, best_val_metric)
         save_pred_if_needed(y_pred, split_dict_by_name["val"], epoch, config_dict, is_best)
         general_logger.write("======================================================= \n\n")
