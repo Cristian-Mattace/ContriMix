@@ -66,7 +66,7 @@ def main():
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
         "train_loader": LoaderType.GROUP,
-        "reset_random_generator_after_every_epoch": True,
+        "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
         "batch_size": calculate_batch_size(FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
@@ -230,6 +230,13 @@ def _configure_parser() -> argparse.ArgumentParser:
 
     parser.add_argument("--n_epochs", type=int, default=30, help="Number of epochs to train for")
     parser.add_argument("--pretrained_model_path", default=None, type=str, help="The path to a pretrained model.")
+
+    parser.add_argument(
+        "--reset_random_generator_after_every_epoch",
+        type=parse_bool,
+        default=False,
+        help="If True, the random number generator will be restarted using the same seed after every epoches.",
+    )
 
     return parser
 

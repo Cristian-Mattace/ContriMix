@@ -74,10 +74,9 @@ def train(
             config_dict=config_dict,
         )
 
-
         curr_val_metric = val_results[metrics_to_evaluate]
         general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n\n")
-        
+
         if best_val_metric is None:
             is_best = True
             best_val_metric = curr_val_metric
@@ -86,7 +85,6 @@ def train(
             is_best = curr_val_metric <= best_val_metric
         else:
             is_best = curr_val_metric >= best_val_metric
-
 
         if is_best:
             best_val_metric = curr_val_metric
@@ -116,8 +114,9 @@ def _run_train_epoch(
         A dictionary of results
         A pretty print version of the results
     """
-    # This is needed to make sure that each epoch starts with the same base random generator.
-    _reset_random_number_generator()
+    if config_dict["reset_random_generator_after_every_epoch"]:
+        # This is needed to make sure that each epoch starts with the same base random generator.
+        _reset_random_number_generator(seed=config_dict["seed"])
 
     algorithm.train()
     torch.set_grad_enabled(True)
@@ -166,8 +165,7 @@ def _run_train_epoch(
     return results, epoch_y_pred
 
 
-def _reset_random_number_generator() -> None:
-    seed = 0
+def _reset_random_number_generator(seed: int) -> None:
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
