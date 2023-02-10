@@ -8,12 +8,11 @@ from typing import Any
 from typing import Dict
 from typing import Tuple
 
-from script_utils import num_of_available_devices
-
-package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit"
+package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
+from script_utils import num_of_available_devices
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
