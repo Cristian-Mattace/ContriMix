@@ -54,12 +54,12 @@ class MultimodelAlgorithm(GroupAlgorithm):
             self._metric = None
 
         if config["use_data_parallel"]:
-            parallelized_models_by_names = {k: DataParallel(m) for k, m in models_by_names.items()}
+            parallelized_models_by_names = nn.ModuleDict({k: DataParallel(m) for k, m in models_by_names.items()})
         else:
             parallelized_models_by_names = models_by_names
 
         if not hasattr(self, "optimizer") or self.optimizer is None:
-            self._optimizer = initialize_optimizer(config, models=list(parallelized_models_by_names.values()))
+            self._optimizer = initialize_optimizer(config, models=nn.ModuleList(parallelized_models_by_names.values()))
         self._max_grad_norm = config["max_grad_norm"]
 
         logging.info(f"Using device {config['device']} for training.")

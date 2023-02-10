@@ -26,7 +26,7 @@ from script_utils import configure_split_dict_by_names
 from script_utils import parse_bool
 from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits, _run_eval_epoch
-from ip_drit.common.utils import load
+from saving_utils import load
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -82,7 +82,7 @@ def main():
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
-        "verbose": False,
+        "verbose": FLAGS.verbose,
         "report_batch_metric": True,
         "metric": "acc_avg",
         "val_metric_decreasing": False,
@@ -94,6 +94,7 @@ def main():
         "save_pred": True,
         "eval_only": FLAGS.eval_only,  # If True, only evaluation will be performed, no training.
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
+        "pretrained_model_path": FLAGS.pretrained_model_path,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -143,6 +144,14 @@ def _configure_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="A string to specify where to run the code. "
         + "Defaults to True, in which case the code will be run on the cluster.",
+    )
+    parser.add_argument(
+        "--verbose",
+        type=parse_bool,
+        default=False,
+        const=True,
+        nargs="?",
+        help="A string to specify if we want to display several images or not. Defaults to False.",
     )
     parser.add_argument(
         "--sample_uniform_over_groups",
@@ -219,6 +228,7 @@ def _configure_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--n_epochs", type=int, default=30, help="Number of epochs to train for")
+    parser.add_argument("--pretrained_model_path", default=None, type=str, help="The path to a pretrained model.")
 
     return parser
 
