@@ -37,7 +37,7 @@ def main():
     parser = _configure_parser()
     FLAGS = parser.parse_args()
 
-    all_dataset_dir, all_log_dir = _dataset_and_log_location(
+    all_dataset_dir, log_dir = _dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
         FLAGS.log_dir_local,
@@ -46,14 +46,11 @@ def main():
     )
 
     all_dataset_dir.mkdir(exist_ok=True)
-    all_log_dir.mkdir(exist_ok=True)
+    log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
     )
-
-    log_dir = all_log_dir / "erm_camelyon"
-    log_dir.mkdir(exist_ok=True)
 
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.ERM,
@@ -77,7 +74,7 @@ def main():
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": "AdamW",
+        "optimizer": FLAGS.optimizer,
         "lr": 1e-3,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
@@ -85,14 +82,14 @@ def main():
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
-        "verbose": True,
+        "verbose": False,
         "report_batch_metric": True,
         "metric": "acc_avg",
         "val_metric_decreasing": False,
         # Saving parameters
-        "save_step": 5,
+        "save_step": 10,
         "seed": FLAGS.seed,
-        "save_last": True,
+        "save_last": False,
         "save_best": True,
         "save_pred": True,
         "eval_only": FLAGS.eval_only,  # If True, only evaluation will be performed, no training.
@@ -119,7 +116,7 @@ def main():
             config_dict=config_dict,
             epoch_offset=0,
         )
-    else:
+    if config_dict["eval_only"] or FLAGS.run_eval_after_train:
         logging.info("Evaluation mode!")
         eval_model_path = _generate_eval_model_path(FLAGS.eval_epoch, FLAGS.model_prefix, FLAGS.seed)
         best_epoch, best_val_metric = load(algorithm, eval_model_path, device=config_dict["device"])
@@ -194,6 +191,10 @@ def _configure_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--seed", type=int, default=0, help="Random seed, use values from 0 to 9.")
+
+    parser.add_argument("--optimizer", type=str, default="AdamW", help="Optimizer")
+
+    parser.add_argument("--run_eval_after_train", type=parse_bool, default=False, help="Optional: run eval after train")
 
     parser.add_argument(
         "--eval_only",
