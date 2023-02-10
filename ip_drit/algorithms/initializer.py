@@ -19,6 +19,7 @@ from ip_drit.common.metrics import MultiTaskAccuracy
 from ip_drit.common.metrics import MultiTaskAveragePrecision
 from ip_drit.loss import ContriMixLoss
 from ip_drit.loss.initializer import initialize_loss
+from saving_utils import load
 
 algo_log_metrics = {
     "accuracy": Accuracy(prediction_fn=binary_logits_to_pred),
@@ -51,7 +52,7 @@ def initialize_algorithm(
     train_loader = split_dict_by_name["train"]["loader"]
 
     if config["algorithm"] == ModelAlgorithm.ERM:
-        return ERM(
+        model = ERM(
             config=config,
             d_out=1,  # Classification problem for now
             grouper=train_grouper,
@@ -65,7 +66,7 @@ def initialize_algorithm(
             + f"{config['loss_function']}."
         )
 
-        return ContriMix(
+        model = ContriMix(
             config=config,
             d_out=1,
             grouper=train_grouper,
@@ -81,3 +82,14 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"],
         )
+
+    else:
+        raise ValueError(f"The algorithm {config['algorithm']} is not supported!")
+
+    if config["pretrained_model_path"] is not None:
+        pretrain_model_path = config["pretrained_model_path"]
+        logging.info(f"Loading pretrain model from {pretrain_model_path}.")
+        load(module=model, path=pretrain_model_path, device=config["device"])
+        logging.info(f"Loaded model state from {pretrain_model_path}!")
+
+    return model

@@ -1,9 +1,10 @@
-"""
-Evaluate predictions for Camelyon-17 WILDS datasets.
+"""Evaluate predictions for Camelyon-17 WILDS datasets.
+
 Usage:
 python evaluate.py --predictions_dir /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon
---output_dir /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon/test_results
- --root_dir /jupyter-users-home/dinkar-2ejuyal/datasets/camelyon17 --run_on_splits val --run_on_seeds 0"""
+--output_dir /jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon/test_results --root_dir
+/jupyter-users-home/dinkar-2ejuyal/datasets/camelyon17 --run_on_splits val --run_on_seeds 0
+"""
 import argparse
 import json
 import logging
@@ -18,7 +19,6 @@ from urllib.parse import urlparse
 import numpy as np
 import torch
 
-from ip_drit.common.metrics._all_metrics import binary_logits_to_pred
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 
 
@@ -27,11 +27,10 @@ def evaluate_benchmark(
     predictions_dir: str,
     output_dir: str,
     root_dir: str,
-    splits: [List[str]] = [],
-    seeds: [List[int]] = [],
+    splits: List[List[str]],
+    seeds: List[List[int]],
 ) -> Dict[str, Dict[str, float]]:
-    """
-    Evaluate across multiple replicates for a single benchmark.
+    """Evaluates across multiple replicates for a single benchmark.
 
     Args:
         dataset_name: The name of the dataset to evaluate.
@@ -40,34 +39,15 @@ def evaluate_benchmark(
         root_dir: The directory where datasets can be found.
         splits (optional): Only generate results on given splits. Values can be subset of
         ['train', 'id_val', 'test', 'val']. If not specified, results generated on all of them except `train`
-        seeds (optional): A list of seeds to aggregate results over. If not provided, 0 to 9 used
+        seeds (optional): A list of seeds to aggregate results over. If not provided, 0 to 9 used.
+
     Returns:
         Metrics as a dictionary with metrics as the keys and metric values as the values
     """
-
-    def _get_replicates(seeds: List[int]) -> List[str]:
-        if len(seeds) == 0:
-            seeds = range(0, 10)
-        return [f"seed:{seed}" for seed in seeds]
-
-    def _get_prediction_file(predictions_dir: str, dataset_name: str, split: str, replicate: str) -> str:
-        run_id = f"{dataset_name}_split:{split}_{replicate}"
-        for file in os.listdir(predictions_dir):
-            if file.startswith(run_id) and (file.endswith(".csv") or file.endswith(".pth")):
-                return file
-        raise FileNotFoundError(f"Could not find CSV or pth prediction file that starts with {run_id}.")
-
-    def _get_metrics(dataset_name: str) -> List[str]:
-        if "camelyon17" == dataset_name:
-            return ["acc_avg"]
-        else:
-            raise ValueError(f"Invalid dataset: {dataset_name}")
-
     if not os.path.exists(predictions_dir):
         raise FileNotFoundError(f"Predictions directory does not exist.")
 
     # Dataset will only be downloaded if it does not exist
-
     wilds_dataset = CamelyonDataset(dataset_dir=Path(root_dir), use_full_size=True)
     if len(splits) == 0:
         splits: List[str] = list(wilds_dataset.split_dict.keys())
@@ -114,14 +94,34 @@ def evaluate_benchmark(
     return aggregated_results
 
 
-def evaluate_replicate(dataset, split: str, predicted_labels: torch.Tensor) -> Dict[str, float]:
-    """
-    Evaluates the given predictions and returns the appropriate metrics.
+def _get_replicates(seeds: List[int]) -> List[str]:
+    if len(seeds) == 0:
+        seeds = range(0, 10)
+    return [f"seed:{seed}" for seed in seeds]
 
-    Parameters:
-        dataset : A WILDS Dataset
-        split : split we are evaluating on
-        predicted_labels : Predictions
+
+def _get_prediction_file(predictions_dir: str, dataset_name: str, split: str, replicate: str) -> str:
+    run_id = f"{dataset_name}_split:{split}_{replicate}"
+    for file in os.listdir(predictions_dir):
+        if file.startswith(run_id) and (file.endswith(".csv") or file.endswith(".pth")):
+            return file
+    raise FileNotFoundError(f"Could not find CSV or pth prediction file that starts with {run_id}.")
+
+
+def _get_metrics(dataset_name: str) -> List[str]:
+    if "camelyon17" == dataset_name:
+        return ["acc_avg"]
+    else:
+        raise ValueError(f"Invalid dataset: {dataset_name}")
+
+
+def evaluate_replicate(dataset, split: str, predicted_labels: torch.Tensor) -> Dict[str, float]:
+    """Evaluates the given predictions and returns the appropriate metrics.
+
+    Args:
+        dataset: A WILDS Dataset
+        split: split we are evaluating on
+        predicted_labels: Predictions
 
     Returns:
         Metrics as a dictionary with metrics as the keys and metric values as the values
@@ -136,14 +136,13 @@ def evaluate_replicate(dataset, split: str, predicted_labels: torch.Tensor) -> D
 
 
 def get_predictions(path: str) -> torch.Tensor:
-    """
-    Extract out the predictions from the file at path.
+    """Extract out the predictions from the file at path.
 
-    Parameters:
+    Args:
         path: The path to the file that has the predicted labels. It can be an URL.
 
-    Return:
-        Tensor representing predictions
+    Returns:
+        A tensor representing predictions.
     """
     if _is_path_url(path):
         data = urllib.request.urlopen(path)
@@ -159,27 +158,23 @@ def get_predictions(path: str) -> torch.Tensor:
 
 
 def _is_path_url(path: str) -> bool:
-    """
-    Returns True if the path is a URL.
-    """
+    """Returns True if the path is a URL."""
     try:
         result = urlparse(path)
         return all([result.scheme, result.netloc, result.path])
-    except:
-        return False
+    except Exception as e:
+        logging.error(f"{path} is not a URL!")
+        raise e
 
 
 def main():
-    """
-    Aggregate evaluation metrics on given splits and seeds and save them
-    """
+    """Aggregate evaluation metrics on given splits and seeds and save them."""
     evaluate_benchmark(
         args.dataset, args.predictions_dir, args.output_dir, args.root_dir, args.run_on_splits, args.run_on_seeds
     )
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(
         description="An argument parser to evaluate predictions for Camelyon-17 WILDS datasets."
     )
