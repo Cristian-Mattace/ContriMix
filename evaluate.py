@@ -103,7 +103,10 @@ def _get_replicates(seeds: List[int]) -> List[str]:
 def _get_prediction_file(predictions_dir: str, dataset_name: str, split: str, replicate: str) -> str:
     run_id = f"{dataset_name}_split:{split}_{replicate}"
     for file in os.listdir(predictions_dir):
-        if file.startswith(run_id) and (file.endswith(".csv") or file.endswith(".pth")):
+        # if file.startswith(run_id) and (file.endswith(".csv") or file.endswith(".pth")):
+        # changed to include only the predictions file epoch corresponding to best performance for every seed
+        if file.startswith(run_id) and (file.endswith("best_pred.csv")):
+
             return file
     raise FileNotFoundError(f"Could not find CSV or pth prediction file that starts with {run_id}.")
 
