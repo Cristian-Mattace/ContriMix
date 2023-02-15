@@ -87,7 +87,7 @@ def main():
         "metric": "acc_avg",
         "val_metric_decreasing": False,
         # Saving parameters
-        "save_step": 3,
+        "save_step": 5,
         "seed": FLAGS.seed,
         "save_last": False,
         "save_best": True,

@@ -156,7 +156,10 @@ def get_predictions(path: str) -> torch.Tensor:
 
     predicted_labels = [literal_eval(line.rstrip()) for line in data if line.rstrip()]
     # this is needed as the output of the model are logits
-    predicted_labels = [int(predicted_label > 0) for predicted_label in predicted_labels]
+    try:
+        predicted_labels = [int(predicted_label > 0) for predicted_label in predicted_labels]
+    except TypeError:
+        raise TypeError(f"Predictions not in correct format for {path}")
     return torch.from_numpy(np.array(predicted_labels))
 
 
