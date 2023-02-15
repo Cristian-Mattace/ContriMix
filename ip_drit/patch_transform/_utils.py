@@ -11,6 +11,7 @@ from typing import Optional
 import torchvision.transforms as transforms
 
 from ip_drit.datasets import AbstractPublicDataset
+from ip_drit.patch_transform.data_augmentation._randaugment import FIX_MATCH_AUGMENTATION_POOL, RandAugment
 
 
 class TransformationType(Enum):
@@ -18,10 +19,8 @@ class TransformationType(Enum):
 
     WEAK_NORMALIZE_TO_0_1 = auto()
     WEAK = auto()
-    POVERTY = auto()
     RANDAUGMENT = auto()
-    FIXMATCH = auto()
-
+    RANDAUGMENT_TO_0_1 = auto()
 
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_MEAN = [0.485, 0.456, 0.406]
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_STD = [0.229, 0.224, 0.225]
@@ -57,6 +56,7 @@ def initialize_transform(
         return _add_weak_transform(
             config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization
         )
+
     elif transform_name == TransformationType.WEAK_NORMALIZE_TO_0_1:
         return _add_weak_transform(
             config_dict,
@@ -65,6 +65,14 @@ def initialize_transform(
             normalize=False,
             default_normalization=default_normalization,
         )
+    elif transform_name == TransformationType.RANDAUGMENT:
+        return _add_rand_augment_transform(
+            config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization)
+    
+    elif transform_name == TransformationType.RANDAUGMENT_TO_0_1:
+        return _add_rand_augment_transform(
+            config_dict, full_dataset, base_transform_steps, normalize=False, default_normalization=default_normalization)
+
     else:
         raise ValueError(f"Unsupported transformation type!")
 
@@ -81,7 +89,6 @@ def _get_image_base_transform_steps(config, dataset) -> List[Callable]:
 
     return transform_steps
 
-
 def _add_weak_transform(
     config: Dict[str, Any],
     dataset: AbstractPublicDataset,
@@ -97,6 +104,32 @@ def _add_weak_transform(
         weak_transform_steps.append(default_normalization)
     return transforms.Compose(weak_transform_steps)
 
+def _add_rand_augment_transform(    
+    config: Dict[str, Any],
+    dataset: AbstractPublicDataset,
+    base_transform_steps: List[Callable],
+    normalize: bool,
+    default_normalization,
+    ):
+    # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
+    target_resolution = _get_target_resolution(config, dataset)
+    strong_transform_steps = copy.deepcopy(base_transform_steps)
+    strong_transform_steps.extend(
+        [
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomCrop(
+                size=target_resolution
+            ),
+            RandAugment(
+                n = config.randaugment_n,
+                augmentation_pool = FIX_MATCH_AUGMENTATION_POOL,
+            ),
+            transforms.ToTensor(),
+            if normalize:
+                default_normalization,
+        ]
+    )
+    return transforms.Compose(strong_transform_steps)
 
 def _get_target_resolution(config, dataset):
     if config["target_resolution"] is not None:
