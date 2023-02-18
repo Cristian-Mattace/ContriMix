@@ -13,6 +13,9 @@ class SignalType(Enum):
     ABS = auto()
 
 
+_MAX_ABSORBANCE_VALUE = 6.0
+
+
 class AbsorbanceToTransmittance(object):
     """Converts an absorbance image to the transmittance image."""
 
@@ -20,7 +23,7 @@ class AbsorbanceToTransmittance(object):
         im, sig_type = im_and_sig_type
         if sig_type != SignalType.ABS:
             raise RuntimeError(f"Can't convert a none absorbance signal. The current signal type is {sig_type}!")
-        # im = torch.clip(im, 0.0, None)
+        im = torch.clip(im, 0.0, _MAX_ABSORBANCE_VALUE)
         return 10 ** (-im), SignalType.TRANS
 
 
@@ -28,7 +31,7 @@ class TransmittanceToAbsorbance(object):
     """Converts a transmittance image to the absorbance image."""
 
     def __call__(
-        self, im_and_sig_type: Tuple[torch.Tensor, SignalType], min_trans_signal=1e-6
+        self, im_and_sig_type: Tuple[torch.Tensor, SignalType], min_trans_signal=10 ** (-_MAX_ABSORBANCE_VALUE)
     ) -> Tuple[torch.Tensor, SignalType]:
         im, sig_type = im_and_sig_type
         if sig_type != SignalType.TRANS:
