@@ -128,7 +128,7 @@ def _add_rand_augment_transform(
         [
             transforms.RandomHorizontalFlip(),
             transforms.RandomCrop(size=target_resolution),
-            RandAugment(n=config.randaugment_n, augmentation_pool=FIX_MATCH_AUGMENTATION_POOL),
+            RandAugment(n=config["randaugment_n"], augmentation_pool=FIX_MATCH_AUGMENTATION_POOL),
             transforms.ToTensor(),
             default_normalization if normalize else None,
         ]
