@@ -36,45 +36,14 @@ class ERM(SingleModelAlgorithm):
         metric: Metric,
         n_train_steps: int,
     ) -> None:
-        model = initialize_model_from_configuration(config, d_out, output_classifier=True)
+        model = initialize_model_from_configuration(config["model"], d_out, output_classifier=False)
         super().__init__(
             config=config, model=model, grouper=grouper, loss=loss, metric=metric, n_train_steps=n_train_steps
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
 
-    def _process_batch(
-        self, batch: Tuple[torch.Tensor, ...], unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None
-    ) -> Dict[str, torch.Tensor]:
-        x, y_true, metadata = batch
-        x = move_to(x, self._device)
-        y_true = move_to(y_true, self._device)
-        g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
+    def objective(self, results: Dict[str, Any]) -> float:
+        return self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)
 
-        outputs = self._get_model_output(x, y_true)
-
-        results = {"g": g, "y_true": y_true, "y_pred": outputs, "metadata": metadata}
-        if unlabeled_batch is not None:
-            if self.use_unlabeled_y:  # expect loaders to return x,y,m
-                x, y, metadata = unlabeled_batch
-                y = move_to(y, self.device)
-            else:
-                x, metadata = unlabeled_batch
-            x = move_to(x, self.device)
-            results["unlabeled_metadata"] = metadata
-            if self.use_unlabeled_y:
-                results["unlabeled_y_pred"] = self._get_model_output(x, y)
-                results["unlabeled_y_true"] = y
-            results["unlabeled_g"] = self.grouper.metadata_to_group(metadata).to(self.device)
-        return results
-
-    def objective(self, results):
-        labeled_loss = self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)
-        if self._use_unlabeled_y and "unlabeled_y_true" in results:
-            unlabeled_loss = self._loss.compute(
-                results["unlabeled_y_pred"], results["unlabeled_y_true"], return_dict=False
-            )
-            lab_size = len(results["y_pred"])
-            unl_size = len(results["unlabeled_y_pred"])
-            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (lab_size + unl_size)
-        else:
-            return labeled_loss
+    def _process_unlabeled_batch(self, unlabeled_batch: Tuple[torch.Tensor, torch.Tensor]) -> Dict[str, Any]:
+        raise RuntimeError("ERM algorithm does not support the use of unlabeled data.")

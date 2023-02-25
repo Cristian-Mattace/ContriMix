@@ -4,6 +4,8 @@ import logging
 import os
 import tarfile
 import zipfile
+from enum import auto
+from enum import Enum
 from pathlib import Path
 from typing import Any
 from typing import Callable
@@ -168,3 +170,10 @@ def _is_gzip(filename: str) -> bool:
 
 def _is_zip(filename: str) -> bool:
     return filename.endswith(".zip")
+
+
+class SplitSchemeType(Enum):
+    """Split scheme type."""
+
+    OFFICIAL = auto()
+    MIX_TO_TEST = auto()

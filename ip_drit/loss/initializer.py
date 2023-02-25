@@ -2,6 +2,7 @@
 import torch
 import torch.nn as nn
 
+from ip_drit._constants import _UNLABELED_CLASS_INDEX
 from ip_drit.common.metrics import MSE
 from ip_drit.loss import ElementwiseLoss
 from ip_drit.loss import MultiTaskLoss
@@ -10,10 +11,10 @@ from ip_drit.loss import MultiTaskLoss
 def initialize_loss(loss_type: str) -> nn.Module:
     """Initalizes the loss module."""
     if loss_type == "cross_entropy":
-        return ElementwiseLoss(loss_fn=nn.CrossEntropyLoss(reduction="none", ignore_index=-100))
+        return ElementwiseLoss(loss_fn=nn.CrossEntropyLoss(reduction="none", ignore_index=_UNLABELED_CLASS_INDEX))
 
     elif loss_type == "lm_cross_entropy":
-        return MultiTaskLoss(loss_fn=nn.CrossEntropyLoss(reduction="none", ignore_index=-100))
+        return MultiTaskLoss(loss_fn=nn.CrossEntropyLoss(reduction="none", ignore_index=_UNLABELED_CLASS_INDEX))
 
     elif loss_type == "mse":
         return MSE(name="loss")

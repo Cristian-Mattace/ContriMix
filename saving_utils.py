@@ -2,6 +2,7 @@
 import logging
 import os
 import re
+from collections import OrderedDict
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -141,7 +142,7 @@ def load(module: nn.Module, path: str, device: Optional[str] = None, tries: int 
     # If keys match perfectly, load_state_dict() will work
     try:
         module.load_state_dict(state)
-    except Exception as e:
+    except Exception:
         # Otherwise, attempt to reconcile mismatched keys and load with strict=False
         module_keys = module.state_dict().keys()
         for _ in range(tries):
@@ -156,8 +157,22 @@ def load(module: nn.Module, path: str, device: Optional[str] = None, tries: int 
             logging.warning(
                 f"Some module parameters could not be found in the loaded state:" f" {module_keys-state.keys()}"
             )
-        raise e
     return prev_epoch, best_val_metric
+
+
+def load_model_state_dict_from_checkpoint(model_path: str, start_str: str = "_model.module.") -> OrderedDict:
+    """Loads the module from checkpoint.
+
+    Args:
+        network: A module to load the parameter from the checkpoint.
+        path: path to .pth file that contains the trained model.
+        start_str: A first few letters of the network variable to load the checkpoint from. Defaults to  "._model.".
+
+    Returns:
+        A state dict to load the paramater from
+    """
+    state_dict = torch.load(model_path)["algorithm"]
+    return OrderedDict([k[len(start_str) :], v] for k, v in state_dict.items() if k.startswith(start_str))
 
 
 def _match_keys(d, ref):

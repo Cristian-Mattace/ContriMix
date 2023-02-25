@@ -85,14 +85,14 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
     def update(
         self,
-        batch: Tuple[torch.Tensor, ...],
+        labeled_batch: Tuple[torch.Tensor, ...],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
     ):
         """Process the batch, update the log, and update the model.
 
         Args:
-            batch: A batch of data yielded by data loaders.
+            labeled_batch: A batch of data yielded by data loaders.
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
@@ -109,7 +109,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        batch_results = self._process_batch(batch, unlabeled_batch)
+        batch_results = self._process_batch(labeled_batch, unlabeled_batch)
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(
@@ -149,7 +149,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
             for m in self._models_by_names.values():
                 m.zero_grad()
 
-    def evaluate(self, batch: Tuple[torch.Tensor, ...]) -> Dict[str, Union[torch.Tensor, float]]:
+    def evaluate(self, labeld_batch: Tuple[torch.Tensor, ...]) -> Dict[str, Union[torch.Tensor, float]]:
         """Process the batch and update the log, without updating the model.
 
         Args:
@@ -165,7 +165,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
                 objective: The value of the objective.
         """
         assert not self._is_training
-        results = self._process_batch(batch)
+        results = self._process_batch(labeld_batch)
         objective, non_objective_loss_by_name = self.objective(results)
         results["objective"] = objective
         results.update(non_objective_loss_by_name)

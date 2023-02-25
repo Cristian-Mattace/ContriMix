@@ -63,7 +63,7 @@ class ContriMix(MultimodelAlgorithm):
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
 
-        backbone_network = initialize_model_from_configuration(config, d_out, output_classifier=True)
+        backbone_network = initialize_model_from_configuration(config["model"], d_out, output_classifier=False)
 
         if convert_to_absorbance_in_between:
             self._trans_to_abs_converter = TransmittanceToAbsorbance()
@@ -99,9 +99,9 @@ class ContriMix(MultimodelAlgorithm):
         self._convert_to_absorbance_in_between = convert_to_absorbance_in_between
 
     def _process_batch(
-        self, batch: Tuple[torch.Tensor, ...], unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None
+        self, labeled_batch: Tuple[torch.Tensor, ...], unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None
     ) -> Dict[str, torch.Tensor]:
-        x, y_true, metadata = batch
+        x, y_true, metadata = labeled_batch
         x = move_to(x, self._device)
         self._validates_valid_input_signal_range(x)
 
