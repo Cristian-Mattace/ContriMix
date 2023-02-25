@@ -30,6 +30,7 @@ class AbstractPublicDataset(ABC):
 
     Args:
         dataset_dir: The target folder for storing the dataset.
+        transform (optional): The transformation to apply to all images in the dataset. Defaults to None.
     """
 
     _dataset_name: Optional[str] = None
@@ -37,9 +38,10 @@ class AbstractPublicDataset(ABC):
     _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {}
     _metadata_fields: List[str] = []
 
-    def __init__(self, dataset_dir: Path) -> None:
+    def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None) -> None:
         self._data_dir: Path = dataset_dir
         self._patch_size_pixels: Optional[Tuple[int, int]] = None
+        self._transform = transform
         self._make_sure_folder_exists()
         if not self._dataset_exists_locally():
             logging.info(f"{self._dataset_name} does not exist locally. Downloading it now!")
@@ -61,7 +63,7 @@ class AbstractPublicDataset(ABC):
 
         # from wilds.datasets.download_utils import download_and_extract_archive
         logging.info(f"Downloading dataset to {self._data_dir}...")
-        logging.info(f"You can also download the dataset manually at https://wilds.stanford.edu/downloads.")
+        logging.info(f"You can also download the dataset manually at https://wilds.stanford.edu/downloads!")
 
         try:
             start_time = time.time()
@@ -81,6 +83,9 @@ class AbstractPublicDataset(ABC):
             )
             raise e
 
+    def set_transform(self, val: Callable) -> None:
+        self._transform = val
+
     @property
     def dataset_name(self) -> str:
         """Returns the name of the dataset."""
@@ -99,7 +104,7 @@ class AbstractPublicDataset(ABC):
     def patch_size_pixel(self) -> Tuple[int, int]:
         return self._patch_size_pixels
 
-    def get_input(self, idx: int) -> np.ndarray:
+    def _get_input(self, idx: int) -> np.ndarray:
         """Gets the input image with index 'idx'.
 
         Args:
@@ -152,18 +157,19 @@ class AbstractPublicDataset(ABC):
     def metadata_array(self) -> torch.Tensor:
         """A Tensor of metadata.
 
-        The i-th row representing the metadata associated with the i-th data point. The columns correspond to the
+        The i-th row of the metadata associated with the i-th data point. The columns correspond to the
         metadata_fields defined above.
         """
         return self._metadata_array
 
     def get_subset(
         self, split: str, frac: float = 1.0, transform: Optional[Callable] = None
-    ) -> Union["AbstractPublicDataset", "SubsetPublicDataset"]:
+    ) -> Union["AbstractPublicDataset", "SubsetLabeledPublicDataset"]:
         """Return a subset of a dataset based on the split definition.
 
         Args:
-            split: A Split identifier, e.g., 'train', 'val', 'test', 'id_val'. Must be a key in in self.split_dict.
+            split: A Split identifier, e.g., 'train', 'val', 'test', 'id_val' for labeled dataset and 'train_unlabeled',
+                'val_unlabeled', and 'test_unlabeled' for the unlabeled dataset.. Must be a key in in self.split_dict.
             frac (optional): What fraction of the split to randomly sample. Used for fast development on a small
                 dataset. Defaults to 1.0.
             transform (optional): Any data transformations to be applied to the input x. Defaults to None, in which
@@ -173,7 +179,10 @@ class AbstractPublicDataset(ABC):
             A (potentially subsampled) subset of the WILDSDataset.
         """
         if split not in self.split_dict:
-            raise ValueError(f"Split name {split} is not found in dataset's split_dict.")
+            raise ValueError(
+                f"Split name {split} is not found in dataset's split_dict, available split keys: "
+                + f" {self.split_dict.keys()}"
+            )
 
         split_idx = np.where(self.split_array == self.split_dict[split])[0]
 
@@ -182,13 +191,38 @@ class AbstractPublicDataset(ABC):
             num_to_retain = int(np.round(float(len(split_idx)) * frac))
             split_idx = np.sort(np.random.permutation(split_idx)[:num_to_retain])
 
-        return SubsetPublicDataset(self, split_idx, transform)
+        return self._get_subset_from_split_indices(split_idx=split_idx, transform=transform)
+
+    @abstractmethod
+    def _get_subset_from_split_indices(self, split_idx: np.ndarray, transform: Optional[Callable] = None):
+        raise NotImplementedError
+
+    @abstractmethod
+    def __getitem__(self, idx: int) -> Tuple[np.ndarray, torch.Tensor, torch.Tensor]:
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        return len(self._metadata_array)
+
+    @property
+    def original_resolution(self) -> Tuple[int, int]:
+        """Original image resolution for image datasets."""
+        return getattr(self, "_original_resolution", None)
+
+
+class AbstractLabelledPublicDataset(AbstractPublicDataset):
+    """An abstract class for labeled dataset."""
+
+    def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None) -> None:
+        super().__init__(dataset_dir, transform)
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, torch.Tensor, torch.Tensor]:
         # Any transformations are handled by the WILDSSubset
         # since different subsets (e.g., train vs test) might have different transforms
-        x = self.get_input(idx)
+        x = self._get_input(idx)
         y = self.y_array[idx]
+        if self._transform is not None:
+            x = self._transform(x)
         metadata = self.metadata_array[idx]
         return x, y, metadata
 
@@ -200,10 +234,10 @@ class AbstractPublicDataset(ABC):
         """
         return self._y_array
 
-    @property
-    def original_resolution(self) -> Tuple[int, int]:
-        """Original image resolution for image datasets."""
-        return getattr(self, "_original_resolution", None)
+    def _get_subset_from_split_indices(
+        self, split_idx: np.ndarray, transform: Optional[Callable] = None
+    ) -> "SubsetLabeledPublicDataset":
+        return SubsetLabeledPublicDataset(self, split_idx, transform)
 
     @abstractmethod
     def eval(
@@ -274,7 +308,7 @@ class AbstractPublicDataset(ABC):
         return results, results_str
 
 
-class SubsetPublicDataset(AbstractPublicDataset):
+class SubsetLabeledPublicDataset(AbstractLabelledPublicDataset):
     """A class that acts like `torch.utils.data.Subset` for subset of another dataset.
 
     We pass in `transform` (which is used for data augmentation) explicitly
@@ -283,14 +317,12 @@ class SubsetPublicDataset(AbstractPublicDataset):
     Args:
         full_dataset: The full dataset that includes the datapoints from all splits
         indices: A list of int that specifies the indices in the big dataset to use for the subdataset.
-        do_transform_y: When this is false (the default), `self.transform ` acts only on  `x`. Set this to true if
-            self.transform` should operate on `(x,y)` instead of just `x`.
+        transform: The transformation to apply on the image in the dataset.
     """
 
-    def __init__(
-        self, full_dataset: AbstractPublicDataset, indices: List[int], transform, do_transform_y: bool = False
-    ) -> None:
+    def __init__(self, full_dataset: AbstractPublicDataset, indices: List[int], transform) -> None:
         self._dataset = full_dataset
+        full_dataset.set_transform(transform)
         self._indices = indices
         inherited_attrs = [
             "_dataset_name",
@@ -307,17 +339,9 @@ class SubsetPublicDataset(AbstractPublicDataset):
         for attr_name in inherited_attrs:
             if hasattr(self._dataset, attr_name):
                 setattr(self, attr_name, getattr(self._dataset, attr_name))
-        self._transform = transform
-        self._do_transform_y = do_transform_y
 
     def __getitem__(self, idx: int) -> Tuple[int, int, np.ndarray]:
-        x, y, metadata = self._dataset[self._indices[idx]]
-        if self._transform is not None:
-            if self._do_transform_y:
-                x, y = self._transform(x, y)
-            else:
-                x = self._transform(x)
-        return x, y, metadata
+        return self._dataset[self._indices[idx]]
 
     def __len__(self) -> int:
         return len(self._indices)

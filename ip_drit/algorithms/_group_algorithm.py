@@ -96,7 +96,10 @@ class GroupAlgorithm(Algorithm):
 
     def _check_log_fields_to_be_in_the_results(self, results: Dict[str, Any]):
         if not set(self._logged_fields).issubset(set(results.keys())):
-            raise ValueError("The specified log fields is not a subset of the results' key!")
+            raise ValueError(
+                f"The specified log fields ({self._logged_fields}) is not a subset of the results' keys!"
+                + f"({results.keys()})"
+            )
 
     def get_log(self) -> Dict[str, float]:
         """Sanitizes the internal log (Algorithm.log_dict) and outputs it."""

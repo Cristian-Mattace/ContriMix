@@ -14,7 +14,7 @@ from torch.utils.data.sampler import WeightedRandomSampler
 
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.datasets import AbstractPublicDataset
-from ip_drit.datasets import SubsetPublicDataset
+from ip_drit.datasets import SubsetLabeledPublicDataset
 
 
 class LoaderType(Enum):
@@ -26,14 +26,15 @@ class LoaderType(Enum):
 
 def get_train_loader(
     loader_type: LoaderType,
-    dataset: SubsetPublicDataset,
+    dataset: SubsetLabeledPublicDataset,
     batch_size: int,
     uniform_over_groups: Optional[bool] = None,
     grouper: Optional[AbstractGrouper] = None,
     distinct_groups: bool = True,
     train_n_groups_per_batch: int = None,
     reset_random_generator_after_every_epoch: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
+    run_on_cluster: bool = True,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for training.
@@ -51,7 +52,8 @@ def get_train_loader(
         train_n_groups_per_batch (optional): Number of groups to sample in each minibatch for group loaders.
         reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
             seed that is similar for every epoch. Defaults to False.
-        seed: input seed from flags.
+        seed (optional): input seed from flags. Defautls to None.
+        run_on_cluster (optional): if True, the code will be execuated on he cluster.
         loader_kwargs: kwargs passed into torch DataLoader initialization.
 
     Output:
@@ -65,6 +67,7 @@ def get_train_loader(
             uniform_over_groups=uniform_over_groups,
             grouper=grouper,
             reset_random_generator_after_every_epoch=reset_random_generator_after_every_epoch,
+            run_on_cluster=run_on_cluster,
             seed=seed,
         )
     elif loader_type == LoaderType.GROUP:
@@ -102,7 +105,9 @@ def get_train_loader(
                 distinct_groups=distinct_groups,
             ),
             drop_last=False,
-            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
+            num_workers=_num_of_workers(
+                run_on_cluster
+            ),  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             persistent_workers=False,
             generator=g,
@@ -112,11 +117,12 @@ def get_train_loader(
 
 def _generate_standard_data_loader(
     loader_kwargs,
-    dataset: SubsetPublicDataset,
+    dataset: SubsetLabeledPublicDataset,
     batch_size: int,
     uniform_over_groups: Optional[bool] = None,
     grouper: Optional[AbstractGrouper] = None,
     reset_random_generator_after_every_epoch: Optional[bool] = False,
+    run_on_cluster: bool = True,
     seed: int = 0,
 ) -> DataLoader:
     if reset_random_generator_after_every_epoch:
@@ -133,7 +139,9 @@ def _generate_standard_data_loader(
             collate_fn=dataset.collate,
             batch_size=batch_size,
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
-            num_workers=8,  # Setting this different than 1 is important for worker_init_fn not
+            num_workers=_num_of_workers(
+                run_on_cluster
+            ),  # Setting this different than 1 is important for worker_init_fn not
             generator=g,
             persistent_workers=False,  # Workers are created after every dataset consumption
             **loader_kwargs,
@@ -150,12 +158,18 @@ def _generate_standard_data_loader(
             sampler=WeightedRandomSampler(weights, len(dataset), replacement=True),
             collate_fn=dataset.collate,
             batch_size=batch_size,
-            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
+            num_workers=_num_of_workers(
+                run_on_cluster
+            ),  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             generator=g,
             persistent_workers=False,  # Workers are created after every dataset consumption
             **loader_kwargs,
         )
+
+
+def _num_of_workers(run_on_cluster: bool) -> int:
+    return 8 if run_on_cluster else 1
 
 
 def _worker_init_fn(worker_id: int) -> None:
@@ -177,10 +191,11 @@ def _validate_grouper_availability(uniform_over_groups: bool, grouper: Optional[
 
 def get_eval_loader(
     loader_type: LoaderType,
-    dataset: SubsetPublicDataset,
+    dataset: SubsetLabeledPublicDataset,
     batch_size: int,
     reset_random_generator_after_every_epoch: bool = False,
     seed: int = 0,
+    run_on_cluster: bool = True,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
@@ -192,7 +207,8 @@ def get_eval_loader(
         loader_kwargs: kwargs passed into torch DataLoader initialization.
         reset_random_generator_after_every_epoch (optional): If True, each worker is initialized with a specified random
             seed that is similar for every epoch. Defaults to False.
-        seed: input seed
+        seed (optional): input seed. Defaults to 0.
+        run_on_cluster (optional: if True, the code will be executed on the cluster. Defaults to True.
 
     Returns:
         A data loader for evaluation
@@ -211,7 +227,9 @@ def get_eval_loader(
             collate_fn=dataset.collate,
             batch_size=batch_size,
             persistent_workers=False,
-            num_workers=8,  # Setting this different than 1 is important for worker_init_fn to work.
+            num_workers=_num_of_workers(
+                run_on_cluster
+            ),  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             generator=g,
             **loader_kwargs,
@@ -327,3 +345,29 @@ def _split_into_groups(group_idxs: torch.Tensor) -> Tuple[torch.Tensor, List[tor
     for group_idx in unique_group_idxs:
         unique_group_element_indices.append(torch.nonzero(group_idxs == group_idx, as_tuple=True)[0])
     return unique_group_idxs, unique_group_element_indices, unique_group_counts
+
+
+class InfiniteDataIterator:
+    """A data iterator that continuously produces the data.
+
+    Normally used for unlabeled data.
+    Adapted from https://github.com/thuml/Transfer-Learning-Library
+    Args:
+        dataloader: The original data loader.
+    """
+
+    def __init__(self, dataloader: DataLoader) -> None:
+        self._dataloader = dataloader
+        self._iter = iter(self._dataloader)
+
+    def __next__(self):
+        """Returns the next sample in the batch."""
+        try:
+            data = next(self._iter)
+        except StopIteration:
+            self._iter = iter(self._dataloader)
+            data = next(self._iter)
+        return data
+
+    def __len__(self) -> int:
+        return len(self._dataloader)

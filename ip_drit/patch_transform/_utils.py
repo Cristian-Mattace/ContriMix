@@ -55,18 +55,10 @@ def initialize_transform(
     if transform_name is None:
         return None
     elif transform_name == TransformationType.WEAK:
-        return _add_weak_transform(
-            config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization
-        )
+        return _add_weak_transform(base_transform_steps, normalize=True, default_normalization=default_normalization)
 
     elif transform_name == TransformationType.WEAK_NORMALIZE_TO_0_1:
-        return _add_weak_transform(
-            config_dict,
-            full_dataset,
-            base_transform_steps,
-            normalize=False,
-            default_normalization=default_normalization,
-        )
+        return _add_weak_transform(base_transform_steps, normalize=False, default_normalization=default_normalization)
     elif transform_name == TransformationType.RANDAUGMENT:
         return _add_rand_augment_transform(
             config_dict, full_dataset, base_transform_steps, normalize=True, default_normalization=default_normalization
@@ -80,7 +72,6 @@ def initialize_transform(
             normalize=False,
             default_normalization=default_normalization,
         )
-
     else:
         raise ValueError(f"Unsupported transformation type!")
 
@@ -98,13 +89,7 @@ def _get_image_base_transform_steps(config, dataset) -> List[Callable]:
     return transform_steps
 
 
-def _add_weak_transform(
-    config: Dict[str, Any],
-    dataset: AbstractPublicDataset,
-    base_transform_steps: List[Callable],
-    normalize: bool,
-    default_normalization,
-):
+def _add_weak_transform(base_transform_steps: List[Callable], normalize: bool, default_normalization):
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
     weak_transform_steps = copy.deepcopy(base_transform_steps)
     weak_transform_steps.extend([transforms.RandomHorizontalFlip()])
@@ -120,7 +105,7 @@ def _add_rand_augment_transform(
     base_transform_steps: List[Callable],
     normalize: bool,
     default_normalization,
-):
+) -> transforms.Compose:
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
     target_resolution = _get_target_resolution(config, dataset)
     strong_transform_steps = copy.deepcopy(base_transform_steps)

@@ -3,6 +3,8 @@ from enum import auto
 from enum import Enum
 from typing import Any
 from typing import Dict
+from typing import Tuple
+from typing import Union
 
 import torch
 import torch.nn as nn
@@ -21,15 +23,15 @@ class WildModel(Enum):
 
 
 def initialize_model_from_configuration(
-    config: Dict[str, Any], d_out: int, output_classifier: bool = False
-) -> nn.Module:
+    model_type: WildModel, d_out: int, output_classifier: bool = False
+) -> Union[nn.Module, Tuple[nn.Module, nn.Module]]:
     """Initializes the model based on the input configuration file.
 
     Pretrained weights are loaded according to config.pretrained_model_path using either transformers.from_pretrained
     (for bert-based models) or our own utils.load function (for torchvision models, resnet18-ms, and gin-virtual).
         There is currently no support for loading pretrained weights from disk for other models.
     Args:
-        config: A configuration dictionary for the model to be initialized.
+        model_type: The type of the model to initialize.
         d_out: The dimensionality of the output.
         output_classifier: Creates a sequential architecture in which the classifier will be at the output.
 
@@ -41,24 +43,29 @@ def initialize_model_from_configuration(
 
         If output_classifier=False, returns the featurizer module only.
     """
-    model_type = config["model"]
     if model_type == WildModel.DENSENET121:
         featurizer = _initialize_torchvision_model(name=model_type, d_out=d_out)
 
         out = featurizer
 
-        if output_classifier:
-            classifier = nn.Linear(featurizer.d_out, d_out)
-            out = nn.Sequential(*(featurizer, classifier))
+        classifier = nn.Linear(featurizer.d_out, d_out)
 
-        # The `needs_y` attribute specifies whether the model's forward function
+        # The `needs_y_input` attribute specifies whether the model's forward function
         # needs to take in both (x, y).
         # If False, Algorithm.process_batch will call model(x).
         # If True, Algorithm.process_batch() will call model(x, y) during training,
         # and model(x, None) during eval.
-        if not hasattr(out, "needs_y_input"):
-            out.needs_y_input = False
+        if output_classifier:
+            if not hasattr(featurizer, "needs_y_input"):
+                out.needs_y_input = False
+            out = featurizer, classifier
+        else:
+            out = nn.Sequential(*(featurizer, classifier))
+            if not hasattr(out, "needs_y_input"):
+                out.needs_y_input = False
         return out
+    else:
+        raise ValueError(f"Model type ({model_type}) is not supported!")
 
 
 def _initialize_torchvision_model(name: WildModel, d_out: int, **kwargs):

@@ -4,9 +4,11 @@ from ._all_metrics import MSE
 from ._all_metrics import multiclass_logits_to_pred
 from ._all_metrics import MultiTaskAccuracy
 from ._all_metrics import MultiTaskAveragePrecision
-from ._all_metrics import pseudolabel_binary_logits
-from ._all_metrics import pseudolabel_detection
-from ._all_metrics import pseudolabel_detection_discard_empty
-from ._all_metrics import pseudolabel_identity
-from ._all_metrics import pseudolabel_multiclass_logits
 from ._base import Metric
+from ._pseudo_proc import PSEUDO_LABEL_PROCESS_FUNC_BY_TYPE
+from ._pseudo_proc import pseudolabel_binary_logits
+from ._pseudo_proc import pseudolabel_detection
+from ._pseudo_proc import pseudolabel_detection_discard_empty
+from ._pseudo_proc import pseudolabel_identity
+from ._pseudo_proc import pseudolabel_multiclass_logits
+from ._pseudo_proc import PseudoLabelProcessingFuncType

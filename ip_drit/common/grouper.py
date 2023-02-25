@@ -73,15 +73,29 @@ class CombinatorialGrouper(AbstractGrouper):
 
     def __init__(self, dataset: AbstractPublicDataset, groupby_fields: Optional[List[str]] = None) -> None:
         super().__init__()
-
         self._groupby_fields = groupby_fields
-        if groupby_fields is None:
+        self._groupby_field_indices: List[int] = [
+            i for (i, field) in enumerate(dataset.metadata_fields) if field in groupby_fields
+        ]
+
+        self._initialize_group_metadata(
+            metadata_fields=dataset.metadata_fields,
+            grouped_metadata=dataset.metadata_array[:, self._groupby_field_indices],
+            largest_metadata_map=copy.deepcopy(dataset.metadata_map),
+        )
+
+    def _initialize_group_metadata(
+        self,
+        metadata_fields: List[str],
+        grouped_metadata: torch.Tensor,
+        largest_metadata_map: Dict[str, Union[List, np.ndarray]],
+    ) -> None:
+        if self._groupby_fields is None:
             self._n_groups = 1
         else:
             self._groupby_field_indices: List[int] = [
-                i for (i, field) in enumerate(dataset.metadata_fields) if field in groupby_fields
+                i for (i, field) in enumerate(metadata_fields) if field in self._groupby_fields
             ]
-            grouped_metadata = dataset.metadata_array[:, self._groupby_field_indices]
             for idx, field in enumerate(self._groupby_fields):
                 min_value = grouped_metadata[:, idx].min()
                 if min_value != 0:
@@ -98,7 +112,7 @@ class CombinatorialGrouper(AbstractGrouper):
             self._n_groups = cumprod[-1].item()
 
             self._meta_to_group_index_adjustment_factor = np.concatenate(([1], cumprod[:-1]))
-            self._metadata_map = copy.deepcopy(dataset.metadata_map)
+            self._metadata_map = largest_metadata_map
 
     def metadata_to_group_indices(
         self, metadata: torch.Tensor, return_counts: bool = False
@@ -158,3 +172,50 @@ def _get_counts(group_indices: torch.Tensor, n_groups: int) -> torch.Tensor:
     counts = torch.zeros(n_groups, device=group_indices.device)
     counts[unique_groups] = unique_counts.float()
     return counts
+
+
+class MultiDatasetCombinatorialGrouper(CombinatorialGrouper):
+    """A grouper that form groups by taking all possible combinations of the groupby_fields in lexicographical order.
+
+    For example, if:
+        dataset.metadata_fields = ['country', 'time', 'y']
+        groupby_fields = ['country', 'time']
+
+    and if in dataset.metadata, country is in {0, 1} and time is in {0, 1, 2},
+    then the grouper will assign groups in the following way:
+        country = 0, time = 0 -> group 0
+        country = 1, time = 0 -> group 1
+        country = 0, time = 1 -> group 2
+        country = 1, time = 1 -> group 3
+        country = 0, time = 2 -> group 4
+        country = 1, time = 2 -> group 5
+
+
+    Args:
+        datasets: A list of datasets that contains the all data points.
+        groupby_fields (optional): A list of strings that specifies what fields to group. Defaults to None, in which
+            case all data points are assigned to group 0.
+    """
+
+    def __init__(self, datasets: List[AbstractPublicDataset], groupby_fields: Optional[List[str]] = None) -> None:
+        self._datasets = datasets
+        self._groupby_fields = groupby_fields
+
+        self._check_metadata_fields_consistency(datasets=datasets)
+        metadata_array = torch.cat([d.metadata_array for d in datasets], dim=0)
+        self._groupby_field_indices: List[int] = [
+            i for (i, field) in enumerate(datasets[0].metadata_fields) if field in groupby_fields
+        ]
+
+        self._initialize_group_metadata(
+            metadata_fields=datasets[0].metadata_fields,
+            grouped_metadata=metadata_array[:, self._groupby_field_indices],
+            largest_metadata_map=copy.deepcopy(datasets[0].metadata_map),
+        )
+
+    @staticmethod
+    def _check_metadata_fields_consistency(datasets: List[AbstractPublicDataset]) -> None:
+        first_metadata_fields = datasets[0].metadata_fields
+        for d in datasets[1:]:
+            if d.metadata_fields != first_metadata_fields:
+                raise ValueError(f"The metadata fields of the datasets are not consistent!")

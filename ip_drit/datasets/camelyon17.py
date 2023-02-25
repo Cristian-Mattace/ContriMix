@@ -1,8 +1,6 @@
 """A module that defines a the Camelyon 17 dataset."""
 import logging
 import os
-from enum import auto
-from enum import Enum
 from pathlib import Path
 from typing import Callable
 from typing import Dict
@@ -15,20 +13,14 @@ import pandas as pd
 import torch
 from PIL import Image
 
-from ._dataset import AbstractPublicDataset
+from ._dataset import AbstractLabelledPublicDataset
+from ._utils import SplitSchemeType
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.common.metrics import Accuracy
 
 
-class SplitSchemeType(Enum):
-    """Split scheme type."""
-
-    OFFICIAL = auto()
-    MIX_TO_TEST = auto()
-
-
-class CamelyonDataset(AbstractPublicDataset):
+class CamelyonDataset(AbstractLabelledPublicDataset):
     """A class that defines the Camelyon dataset.
 
     Args:
@@ -61,7 +53,7 @@ class CamelyonDataset(AbstractPublicDataset):
         )
 
         if not use_full_size:
-            self._metadata_df = self._limit_metadata_df(self._metadata_df)
+            self._metadata_df = limit_metadata_df(self._metadata_df, dataset_limit=self._SMALL_DATASET_LIMIT)
 
         self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
 
@@ -74,7 +66,7 @@ class CamelyonDataset(AbstractPublicDataset):
             )
         ]
 
-        self._update_split_field_of_metadata()
+        self._update_split_field_index_of_metadata()
         if split_scheme == SplitSchemeType.MIX_TO_TEST:
             self._update_slide_field_for_mix_to_test_split_scheme()
 
@@ -93,21 +85,7 @@ class CamelyonDataset(AbstractPublicDataset):
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
-    @staticmethod
-    def _limit_metadata_df(metadata_df: pd.DataFrame) -> pd.DataFrame:
-        """Limits the metadata dataframes uniformly over the centers so that we samples from all of them.
-
-        This is needed to keep the dataset small because of the metadata is used to select samples.
-        """
-        data_centers_values = np.unique(metadata_df["center"].values)
-        num_centers = len(data_centers_values)
-        num_values_per_center = CamelyonDataset._SMALL_DATASET_LIMIT // num_centers
-        keep_idxes = []
-        for center_idx in data_centers_values:
-            keep_idxes.extend(np.where(metadata_df["center"].values == center_idx)[0][:num_values_per_center])
-        return metadata_df.iloc[keep_idxes]
-
-    def _update_split_field_of_metadata(self) -> None:
+    def _update_split_field_index_of_metadata(self) -> None:
         centers = self._metadata_df["center"]
         test_center_mask = centers == self._TEST_CENTER
         self._metadata_df.loc[test_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["test"]
@@ -123,7 +101,7 @@ class CamelyonDataset(AbstractPublicDataset):
         slide_mask = self._metadata_df["slide"] == 23
         self._metadata_df.loc[slide_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["train"]
 
-    def get_input(self, idx: int) -> Image:
+    def _get_input(self, idx: int) -> Image:
         """Returns an input image in the order of C x H x W."""
         im_file_name = os.path.join(self._data_dir, self._file_names[idx])
         return Image.open(im_file_name).convert("RGB")
@@ -156,3 +134,17 @@ class CamelyonDataset(AbstractPublicDataset):
             metadata=metadata,
             aggregate=True,
         )
+
+
+def limit_metadata_df(metadata_df: pd.DataFrame, dataset_limit: int = 40000) -> pd.DataFrame:
+    """Limits the metadata dataframes uniformly over the centers so that we samples from all of them.
+
+    This is needed to keep the dataset small because of the metadata is used to select samples.
+    """
+    data_centers_values = np.unique(metadata_df["center"].values)
+    num_centers = len(data_centers_values)
+    num_values_per_center = dataset_limit // num_centers
+    keep_idxes = []
+    for center_idx in data_centers_values:
+        keep_idxes.extend(np.where(metadata_df["center"].values == center_idx)[0][:num_values_per_center])
+    return metadata_df.iloc[keep_idxes]

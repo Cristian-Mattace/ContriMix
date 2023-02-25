@@ -1,6 +1,7 @@
 """A module that defines an algorithm with a model."""
 import logging
 from abc import abstractmethod
+from collections import OrderedDict
 from enum import auto
 from enum import Enum
 from typing import Any
@@ -10,6 +11,7 @@ from typing import Tuple
 from typing import Union
 
 import torch
+import torch.nn as nn
 from torch.nn import DataParallel
 from torch.nn.utils import clip_grad_norm_
 
@@ -26,6 +28,7 @@ class ModelAlgorithm(Enum):
 
     ERM = auto()
     CONTRIMIX = auto()
+    NOISY_STUDENT = auto()
 
 
 class SingleModelAlgorithm(GroupAlgorithm):
@@ -96,13 +99,15 @@ class SingleModelAlgorithm(GroupAlgorithm):
             outputs = self._model(x)
         return outputs
 
-    def _process_batch(self, batch: Tuple[torch.Tensor], unlabeled_batch=None) -> Dict[str, Any]:
+    def _process_batch(
+        self, labeled_batch: Tuple[torch.Tensor, ...], unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None
+    ) -> Dict[str, Any]:
         """Process a single batch of data.
 
         ERM defines its own process_batch to handle if self.use_unlabeled_y is true.
 
         Args:
-            batch: A tuple of tensor for a batch of data yielded by data loaders
+            batch: A tuple of tensor for a batch of data yielded by the labeled data loaders.
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader. Defaults to None.
 
         Returns
@@ -116,24 +121,23 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 unlabeled_y_pred: Predictions for unlabeled batch for fully-supervised ERM experiments
                 unlabeled_y_true: True labels for unlabeled batch for fully-supervised ERM experiments
         """
-        x, y_true, metadata = batch
+        x, y_true, metadata = labeled_batch
         x = move_to(x, self._device)
         y_true = move_to(y_true, self._device)
-        g = move_to(self.grouper.metadata_to_group(metadata), self._device)
+        g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
+        results = {"g": g, "y_true": y_true, "y_pred": self._get_model_output(x, y_true), "metadata": metadata}
 
-        outputs = self._get_model_output(x, y_true)
-
-        results = {"g": g, "y_true": y_true, "y_pred": outputs, "metadata": metadata}
         if unlabeled_batch is not None:
-            x, metadata = unlabeled_batch
-            x = x.to(self.device)
-            results["unlabeled_metadata"] = metadata
-            results["unlabeled_features"] = self.featurizer(x)
-            results["unlabeled_g"] = self.grouper.metadata_to_group(metadata).to(self.device)
+            results.update(self._process_unlabeled_batch(unlabeled_batch=unlabeled_batch))
         return results
 
     @abstractmethod
-    def objective(self, results):
+    def _process_unlabeled_batch(self, unlabeled_batch: Tuple[torch.Tensor]) -> Dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def objective(self, results: Dict[str, Any]) -> float:
+        """Returnst the value of the objective function."""
         raise NotImplementedError
 
     def evaluate(self, batch: Tuple[torch.Tensor, ...]) -> Dict[str, Union[torch.Tensor, float]]:
@@ -159,14 +163,14 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
     def update(
         self,
-        batch: Tuple[torch.Tensor, ...],
+        labeled_batch: Tuple[torch.Tensor, ...],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
     ):
         """Process the batch, update the log, and update the model.
 
         Args:
-            batch: A batch of data yielded by data loaders.
+            labeled_batch: A batch of data yielded by data loaders.
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
@@ -183,7 +187,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         assert self._is_training
 
         # process this batch
-        results = self._process_batch(batch, unlabeled_batch)
+        results = self._process_batch(labeled_batch, unlabeled_batch)
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(
@@ -224,3 +228,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
                 raise ValueError(f"Metric value can only be a number or single-element tensor. value={value}")
         else:
             results[metric] = value
+
+    @property
+    def model(self) -> nn.Module:
+        return self._model
