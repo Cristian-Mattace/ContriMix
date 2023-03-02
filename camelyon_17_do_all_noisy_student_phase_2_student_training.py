@@ -7,7 +7,6 @@ generalization.
 import argparse
 import logging
 import sys
-from copy import deepcopy
 from typing import Any
 from typing import Dict
 
@@ -78,7 +77,8 @@ def main():
     target_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     algorithm = ModelAlgorithm.NOISY_STUDENT
-    batch_size = calculate_batch_size(algorithm=ModelAlgorithm.NOISY_STUDENT, run_on_cluster=FLAGS.run_on_cluster)
+    batch_size = calculate_batch_size(algorithm=algorithm, run_on_cluster=FLAGS.run_on_cluster)
+
     config_dict: Dict[str, Any] = {
         "algo_log_metric": "accuracy",
         "algorithm": algorithm,
@@ -104,6 +104,7 @@ def main():
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "pseudolabels_proc_func": PseudoLabelProcessingFuncType.BINARY_LOGITS,
+        "print_accuracy_on_labeled_data_from_teacher_model": False,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
         "report_batch_metric": True,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
@@ -122,7 +123,7 @@ def main():
         "target_resolution": None,  # Keep the original dataset resolution
         "train_group_by_fields": ["hospital"],
         "train_loader": LoaderType.GROUP,
-        "transform": TransformationType.RANDAUGMENT,
+        "transform": TransformationType.WEAK,
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "use_data_parallel": use_data_parallel(),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
@@ -134,10 +135,17 @@ def main():
     teacher_model = initialize_model_from_configuration(
         model_type=WildModel.DENSENET121, d_out=1, output_classifier=False
     )
-    teacher_model.load_state_dict(state_dict=load_model_state_dict_from_checkpoint(model_path=FLAGS.teacher_model_path))
+    teacher_model.load_state_dict(
+        state_dict=load_model_state_dict_from_checkpoint(
+            model_path=FLAGS.teacher_model_path, start_str="_model.module."
+        )
+    )
     teacher_model.to(config_dict["device"])
 
-    psedo_label_eval_loader = get_eval_loader(
+    if config_dict["print_accuracy_on_labeled_data_from_teacher_model"]:
+        _print_accuracy_on_trained_labeled_data_for_debugging(labeled_camelyon_dataset, teacher_model, config_dict)
+
+    pseudo_label_eval_loader = get_eval_loader(
         loader_type=LoaderType.STANDARD,
         dataset=unlabeled_camelyon_dataset,
         batch_size=config_dict["batch_size"],
@@ -148,7 +156,7 @@ def main():
         model=teacher_model,
         unlabeled_dataset=unlabeled_camelyon_dataset,
         config_dict=_construct_config_dict_pseudolabel_generation(config_dict),
-        eval_loader=psedo_label_eval_loader,
+        eval_loader=pseudo_label_eval_loader,
     )
 
     train_grouper = MultiDatasetCombinatorialGrouper(
@@ -193,7 +201,7 @@ def main():
                 model=algorithm.model,
                 unlabeled_dataset=unlabeled_camelyon_dataset,
                 config_dict=_construct_config_dict_pseudolabel_generation(config_dict),
-                eval_loader=psedo_label_eval_loader,
+                eval_loader=pseudo_label_eval_loader,
             )
     else:
         raise ValueError("Evaluation mode of the Noisy Student is not supported.")
@@ -208,6 +216,29 @@ def _add_script_specific_flags(parser: argparse.ArgumentParser) -> argparse.Argu
         help="Path to the trained teacher model.",
     )
     return parser
+
+
+def _print_accuracy_on_trained_labeled_data_for_debugging(
+    labeled_camelyon_dataset: CamelyonDataset, teacher_model: nn.Module, config_dict: Dict[str, Any]
+):
+    labeled_camelyon_dataset.set_transform(
+        val=initialize_transform(
+            transform_name=TransformationType.RANDAUGMENT,
+            full_dataset=labeled_camelyon_dataset,  # No need to supply the full dataset of we use Weak transform
+            config_dict={"target_resolution": config_dict["target_resolution"], "randaugment_n": 2},
+        )
+    )
+    infer_predictions(
+        model=teacher_model,
+        loader=get_eval_loader(
+            loader_type=LoaderType.STANDARD,
+            dataset=labeled_camelyon_dataset,
+            batch_size=config_dict["batch_size"],
+            run_on_cluster=config_dict["run_on_cluster"],
+        ),
+        config=config_dict,
+        acc_cal=True,
+    )
 
 
 def _construct_config_dict_pseudolabel_generation(full_config_dict: Dict[str, Any]) -> Dict[str, Any]:

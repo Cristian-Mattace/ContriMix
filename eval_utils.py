@@ -15,7 +15,11 @@ from ip_drit.common.metrics import PSEUDO_LABEL_PROCESS_FUNC_BY_TYPE
 
 
 def infer_predictions(
-    model: nn.Module, loader: DataLoader, config: Dict[str, Any], process_pseudo_label: bool = True
+    model: nn.Module,
+    loader: DataLoader,
+    config: Dict[str, Any],
+    process_pseudo_label: bool = True,
+    acc_cal: bool = False,
 ) -> torch.Tensor:
     """Infers the labels from a model.
 
@@ -29,11 +33,17 @@ def infer_predictions(
         A tensor of predicted labels.
     """
     model.eval()
+    torch.set_grad_enabled(False)
 
     y_pred: List[float] = []
     logging.info(f"Evaluating the model on {len(loader)} batches.")
     for batch in tqdm(loader):
         x = batch[0].to(config["device"])
+        if len(batch) > 0:
+            y_gt = batch[1].to(config["device"])
+        else:
+            y_gt = None
+
         with torch.no_grad():
             out = model(x)
             if process_pseudo_label:
@@ -46,4 +56,9 @@ def infer_predictions(
             else:
                 raise RuntimeError(f"infer_predictions() does not support non-pseudo label processing")
             y_pred.extend(y_out.detach().clone())
+
+        # Debugging
+        if acc_cal and y_gt is not None:
+            print(f"Accuracy = {(y_out.squeeze()==y_gt).sum()/len(batch[1])}")
+
     return torch.cat(y_pred, dim=0)
