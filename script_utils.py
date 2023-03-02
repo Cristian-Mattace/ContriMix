@@ -292,13 +292,13 @@ def calculate_batch_size(algorithm: ModelAlgorithm, run_on_cluster: bool) -> int
     PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER: Dict[ModelAlgorithm, int] = {
         ModelAlgorithm.CONTRIMIX: 210,
         ModelAlgorithm.ERM: 1500,
-        ModelAlgorithm.NOISY_STUDENT: 600,
+        ModelAlgorithm.NOISY_STUDENT: 900,
     }
 
     PER_GPU_BATCH_SIZE_BY_ALGORITHM_LOCAL: Dict[ModelAlgorithm, int] = {
         ModelAlgorithm.CONTRIMIX: 153,
         ModelAlgorithm.ERM: 90,
-        ModelAlgorithm.NOISY_STUDENT: 50,
+        ModelAlgorithm.NOISY_STUDENT: 45,
     }
 
     if run_on_cluster:

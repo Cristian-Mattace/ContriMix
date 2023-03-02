@@ -196,6 +196,7 @@ def get_eval_loader(
     reset_random_generator_after_every_epoch: bool = False,
     seed: int = 0,
     run_on_cluster: bool = True,
+    num_workers: Optional[int] = None,
     **loader_kwargs,
 ) -> DataLoader:
     """Constructs and returns the data loader for evaluation.
@@ -227,9 +228,9 @@ def get_eval_loader(
             collate_fn=dataset.collate,
             batch_size=batch_size,
             persistent_workers=False,
-            num_workers=_num_of_workers(
-                run_on_cluster
-            ),  # Setting this different than 1 is important for worker_init_fn to work.
+            num_workers=_num_of_workers(run_on_cluster)
+            if num_workers is None
+            else num_workers,  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             generator=g,
             **loader_kwargs,

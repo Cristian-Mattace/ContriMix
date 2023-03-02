@@ -1,4 +1,5 @@
 """A module that defines a the Camelyon 17 dataset."""
+import itertools
 import logging
 import os
 from pathlib import Path
@@ -141,10 +142,14 @@ def limit_metadata_df(metadata_df: pd.DataFrame, dataset_limit: int = 40000) -> 
 
     This is needed to keep the dataset small because of the metadata is used to select samples.
     """
-    data_centers_values = np.unique(metadata_df["center"].values)
-    num_centers = len(data_centers_values)
-    num_values_per_center = dataset_limit // num_centers
+    unique_combinations = metadata_df[["center", "tumor"]].drop_duplicates().values
+    num_combination = len(unique_combinations)
+    num_values_per_combination = dataset_limit // num_combination
     keep_idxes = []
-    for center_idx in data_centers_values:
-        keep_idxes.extend(np.where(metadata_df["center"].values == center_idx)[0][:num_values_per_center])
+    for c in unique_combinations:
+        keep_idxes.extend(
+            np.where(np.logical_and(metadata_df["center"].values == c[0], metadata_df["tumor"].values == c[1]))[0][
+                :num_values_per_combination
+            ]
+        )
     return metadata_df.iloc[keep_idxes]

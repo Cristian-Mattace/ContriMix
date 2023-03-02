@@ -14,18 +14,18 @@ from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.common.grouper import CombinatorialGrouper
-from ip_drit.common.metrics import PseudoLabelProcessingFuncType
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.patch_transform import TransformationType
+from saving_utils import load
 from script_utils import calculate_batch_size
 from script_utils import configure_parser
 from script_utils import configure_split_dict_by_names
 from script_utils import dataset_and_log_location
 from script_utils import use_data_parallel
+from train_utils import evaluate_over_splits
 from train_utils import train
-
 
 package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
@@ -96,9 +96,9 @@ def main():
         "scheduler_metric_name": "scheduler_metric_name",
         "seed": FLAGS.seed,
         "target_resolution": None,  # Keep the original dataset resolution
-        "train_group_by_fields": ["hospital"],
+        "train_group_by_fields": ["hospital", "y"],
         "train_loader": LoaderType.GROUP,
-        "transform": TransformationType.RANDAUGMENT,
+        "transform": TransformationType.RANDAUGMENT,  # Teacher is always trained with strong augmentation.
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "use_data_parallel": use_data_parallel(),
         "soft_pseudolabels": FLAGS.soft_pseudolabels,
@@ -123,15 +123,29 @@ def main():
         unlabeled_split_dict_by_name=None,
     )
 
-    logging.info("Training the teacher model for noisy student!")
-    train(
-        algorithm=algorithm,
-        labeled_split_dict_by_name=labeled_split_dict_by_names,
-        unlabeled_split_dict_by_name=None,
-        general_logger=logger,
-        config_dict=config_dict,
-        epoch_offset=0,
-    )
+    if not config_dict["eval_only"]:
+        logging.info("Training the teacher model for noisy student!")
+        train(
+            algorithm=algorithm,
+            labeled_split_dict_by_name=labeled_split_dict_by_names,
+            unlabeled_split_dict_by_name=None,
+            general_logger=logger,
+            config_dict=config_dict,
+            epoch_offset=0,
+        )
+    else:
+        logging.info("Evaluation mode on the training data!")
+        best_epoch, _ = load(algorithm, config_dict["pretrained_model_path"], device=config_dict["device"])
+        epoch = best_epoch if FLAGS.eval_epoch is None else FLAGS.eval_epoch
+        evaluate_over_splits(
+            algorithm=algorithm,
+            datasets=labeled_split_dict_by_names,
+            epoch=epoch,
+            general_logger=logger,
+            config_dict=config_dict,
+            is_best=epoch == best_epoch,
+            save_results=True,
+        )
 
 
 if __name__ == "__main__":
