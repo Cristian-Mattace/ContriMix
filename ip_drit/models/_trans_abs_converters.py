@@ -15,6 +15,12 @@ class SignalType(Enum):
 
 _MAX_ABSORBANCE_VALUE = 6.0
 
+# This small neagive is to replace the value of 0.0. While 0.0 physically makes sense. This lower bound acts like a
+# ReLU, causing dead gradients. This prevents backprop to correct aborbance pixel values that are negative. Without
+# being updated to be correct, the self-reconstruction loss stay plateau because of negative pixels. A small negative
+# value fixes it.
+_MIN_ABSORBANCE_VALUE = -0.2
+
 
 class AbsorbanceToTransmittance(object):
     """Converts an absorbance image to the transmittance image."""
@@ -23,7 +29,7 @@ class AbsorbanceToTransmittance(object):
         im, sig_type = im_and_sig_type
         if sig_type != SignalType.ABS:
             raise RuntimeError(f"Can't convert a none absorbance signal. The current signal type is {sig_type}!")
-        im = torch.clip(im, 0.0, _MAX_ABSORBANCE_VALUE)
+        im = torch.clip(im, _MIN_ABSORBANCE_VALUE, _MAX_ABSORBANCE_VALUE)
         return 10 ** (-im), SignalType.TRANS
 
 
