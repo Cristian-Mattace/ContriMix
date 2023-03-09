@@ -5,6 +5,7 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -25,6 +26,8 @@ class ContriMixLoss(MultiTaskMetric):
             "self_recon_weight": The weights for the self-recon loss.
         name (optional): The name of the loss. Defaults to None, in which case, the default name of "contrimix_loss"
             will be used.
+        save_images_for_debugging (optional): If True, different mixing images will be save for debugging. Defaults to
+            False.
     """
 
     def __init__(
@@ -32,9 +35,12 @@ class ContriMixLoss(MultiTaskMetric):
         loss_fn: Optional[Callable],
         loss_weights_by_name: Dict[str, float],
         name: Optional[str] = "contrimix_loss",
+        save_images_for_debugging: bool = False,
     ) -> None:
         self._loss_fn = loss_fn
         self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
+        self._save_images_for_debugging = save_images_for_debugging
+        self._debug_image: Optional[np.ndarray] = None
         super().__init__(name)
 
     @staticmethod
@@ -70,11 +76,17 @@ class ContriMixLoss(MultiTaskMetric):
         backbone = in_dict["backbone"]
         abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
         sig_type = in_dict["sig_type"]
-        zc = in_dict["zc"]
-        za = in_dict["za"]
         za_targets = in_dict["za_targets"]
         x_org = in_dict["x_org"]
 
+        all_target_image_indices = in_dict["all_target_image_indices"]
+
+        x_abs_org = in_dict["x_abs_org"]
+        cont_enc = in_dict["cont_enc"]
+        attr_enc = in_dict["attr_enc"]
+
+        zc = cont_enc(x_abs_org)
+        za = attr_enc(x_abs_org)
         x_abs_self_recon = im_gen(zc, za)
         x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, sig_type))[0]
 
@@ -98,10 +110,19 @@ class ContriMixLoss(MultiTaskMetric):
             )
         ]
 
+        if self._save_images_for_debugging:
+            save_images: List[np.ndarray] = [x_self_recon[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
+            target_images: List[np.ndarray] = [x_org[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
+
         for mix_idx in range(num_mixings):
             za_target = za_targets[mix_idx]
             x_abs_cross_translation = im_gen(zc, za_target)
             x_cross_translation = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, sig_type))[0]
+
+            if self._save_images_for_debugging:
+                target_index = all_target_image_indices[:, mix_idx][0]
+                target_images.append(x_org[target_index].clone().detach().cpu().numpy().transpose(1, 2, 0))
+                save_images.append(x_cross_translation[0].clone().detach().cpu().numpy().transpose(1, 2, 0))
 
             entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation), y_true))
 
@@ -131,6 +152,12 @@ class ContriMixLoss(MultiTaskMetric):
             + self._loss_weights_by_name["attr_cons_weight"] * attr_cons_loss
             + self._loss_weights_by_name["cont_cons_weight"] * cont_cons_loss
         )
+
+        if self._save_images_for_debugging:
+            target_image = np.concatenate(target_images, axis=1)
+            augmented_image = np.concatenate(save_images, axis=1)
+            self._debug_image = np.concatenate([target_image, augmented_image], axis=0)
+
         if return_dict:
             # Used for updating logs.
             return {
@@ -214,3 +241,9 @@ class ContriMixLoss(MultiTaskMetric):
             return {self.name: flattened_metrics, "index": batch_idx}
         else:
             return flattened_metrics, batch_idx
+
+    @property
+    def debug_image(self) -> np.ndarray:
+        if self._debug_image is None:
+            raise RuntimeError(f"Debug image was not saved, set save_images_for_debugging to True to get it")
+        return self._debug_image

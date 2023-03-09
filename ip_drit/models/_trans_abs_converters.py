@@ -14,6 +14,7 @@ class SignalType(Enum):
 
 
 _MAX_ABSORBANCE_VALUE = 6.0
+_MIN_ABSORBANCE_VALUE = -0.2  # Using a little bit of negative for stability during training.
 
 # This small neagive is to replace the value of 0.0. While 0.0 physically makes sense. This lower bound acts like a
 # ReLU, causing dead gradients. This prevents backprop to correct aborbance pixel values that are negative. Without

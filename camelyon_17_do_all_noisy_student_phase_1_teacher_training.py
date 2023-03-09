@@ -10,6 +10,7 @@ from typing import Dict
 
 import torch.cuda
 
+from ip_drit.algorithms import calculate_number_of_training_steps
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.data_loaders import LoaderType
@@ -118,9 +119,10 @@ def main():
 
     algorithm = initialize_algorithm(
         config=config_dict,
-        labeled_split_dict_by_name=labeled_split_dict_by_names,
+        num_train_steps=calculate_number_of_training_steps(
+            config=config_dict, train_loader=labeled_split_dict_by_names["train"]["loader"]
+        ),
         train_grouper=train_grouper,
-        unlabeled_split_dict_by_name=None,
     )
 
     if not config_dict["eval_only"]:

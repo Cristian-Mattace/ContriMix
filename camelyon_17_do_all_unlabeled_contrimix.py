@@ -1,4 +1,4 @@
-"""A scripts to run the benchmark for the Camelyon dataset."""
+"""A scripts to run the benchmark for the Camelyon dataset with unlabeled dataset."""
 import logging
 import sys
 from typing import Any
@@ -14,17 +14,18 @@ from script_utils import configure_parser, dataset_and_log_location, generate_ev
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
-from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets.camelyon17 import CamelyonDataset
+from ip_drit.datasets.unlabeled_camelyon import CamelyonUnlabeledDataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
+from ip_drit.common.grouper import MultiDatasetCombinatorialGrouper
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
-from ip_drit.algorithms import calculate_number_of_training_steps
 from script_utils import configure_split_dict_by_names
 from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
 from saving_utils import load
+from ip_drit.algorithms import calculate_number_of_training_steps
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -46,8 +47,12 @@ def main():
     all_dataset_dir.mkdir(exist_ok=True)
     log_dir.mkdir(exist_ok=True)
 
-    camelyon_dataset = CamelyonDataset(
+    labeled_camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+    )
+
+    unlabeled_camelyon_dataset = CamelyonUnlabeledDataset(
+        dataset_dir=all_dataset_dir / "unlabelled_camelyon17/", use_full_size=FLAGS.use_full_dataset
     )
 
     config_dict: Dict[str, Any] = {
@@ -74,10 +79,10 @@ def main():
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
         "optimizer": "AdamW",
-        "lr": 1e-4,
+        "lr": 1e-3,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
-        "max_grad_norm": 0.8,
+        "max_grad_norm": 0.5,
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
@@ -99,16 +104,24 @@ def main():
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
 
-    train_grouper = CombinatorialGrouper(dataset=camelyon_dataset, groupby_fields=config_dict["train_group_by_fields"])
-
-    split_dict_by_names = configure_split_dict_by_names(
-        full_dataset=camelyon_dataset, grouper=train_grouper, config_dict=config_dict
+    train_grouper = MultiDatasetCombinatorialGrouper(
+        datasets=[labeled_camelyon_dataset, unlabeled_camelyon_dataset],
+        groupby_fields=config_dict["train_group_by_fields"],
     )
+
+    labeled_split_dict_by_names = configure_split_dict_by_names(
+        full_dataset=labeled_camelyon_dataset, grouper=train_grouper, config_dict=config_dict
+    )
+
+    unlabeled_split_dict_by_names = configure_split_dict_by_names(
+        full_dataset=unlabeled_camelyon_dataset, grouper=train_grouper, config_dict=config_dict
+    )
+
     algorithm = initialize_algorithm(
         config=config_dict,
         train_grouper=train_grouper,
         num_train_steps=calculate_number_of_training_steps(
-            config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
+            config=config_dict, train_loader=labeled_split_dict_by_names["train"]["loader"]
         ),
         loss_weights_by_name={
             "entropy_weight": 0.1,
@@ -122,7 +135,8 @@ def main():
         logging.info("Training mode!")
         train(
             algorithm=algorithm,
-            labeled_split_dict_by_name=split_dict_by_names,
+            labeled_split_dict_by_name=labeled_split_dict_by_names,
+            unlabeled_split_dict_by_name=unlabeled_split_dict_by_names,
             general_logger=logger,
             config_dict=config_dict,
             epoch_offset=0,
@@ -135,7 +149,7 @@ def main():
         is_best = epoch == best_epoch
         evaluate_over_splits(
             algorithm=algorithm,
-            datasets=split_dict_by_names,
+            datasets=labeled_split_dict_by_names,
             epoch=epoch,
             general_logger=logger,
             config_dict=config_dict,
