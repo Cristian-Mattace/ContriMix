@@ -40,7 +40,7 @@ class ContriMix(MultimodelAlgorithm):
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_STAIN_VECTORS = 4
+    _NUM_ATTR_VECTORS = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
         "self_recon_loss",
@@ -78,12 +78,12 @@ class ContriMix(MultimodelAlgorithm):
                 "backbone": backbone_network,
                 "cont_enc": ContentEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    num_stain_vectors=self._NUM_ATTR_VECTORS,
                     k=downsampling_factor,
                 ),
                 "attr_enc": AttributeEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_STAIN_VECTORS,
+                    num_stain_vectors=self._NUM_ATTR_VECTORS,
                     k=downsampling_factor,
                 ),
                 "im_gen": AbsorbanceImGenerator(k=downsampling_factor),
@@ -108,12 +108,15 @@ class ContriMix(MultimodelAlgorithm):
         y_true = move_to(y_true, self._device)
         group_indices = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
 
-        out_dict = self._get_model_output(x, y_true)
+        unlabeled_x = None
+        if unlabeled_batch is not None:
+            unlabeled_x = unlabeled_batch[0]
+            unlabeled_x = move_to(unlabeled_x, self._device)
+
+        out_dict = self._get_model_output(x, y_true, unlabeled_x)
 
         results = {"g": group_indices, "y_true": y_true, "metadata": metadata, **out_dict}
 
-        if unlabeled_batch is not None:
-            raise ValueError("ContriMix does not support unlabeled data yet!")
         return results
 
     @staticmethod
@@ -122,7 +125,9 @@ class ContriMix(MultimodelAlgorithm):
         if x.min().item() < 0.0 or x.max().item() > 1.0:
             raise ValueError("The input tensor is not in a valid range of [0, 1]!")
 
-    def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> Dict[str, Union[torch.Tensor, SignalType]]:
+    def _get_model_output(
+        self, x: torch.Tensor, y_true: torch.Tensor, unlabeled_x: Optional[torch.Tensor]
+    ) -> Dict[str, Union[torch.Tensor, SignalType]]:
         """Computes the model outputs.
 
         Args:
@@ -136,21 +141,33 @@ class ContriMix(MultimodelAlgorithm):
         attr_enc = self._models_by_names["attr_enc"]
         all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
         all_target_image_indices = torch.stack(all_target_image_indices, dim=0)  # (Minibatch dim x #augmentations)
+
         if self._convert_to_absorbance_in_between:
             x_abs, signal_type = self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))
-            zc = cont_enc(x_abs)
             za = attr_enc(x_abs)
+
+            if unlabeled_x is not None:
+                unlabeled_za = attr_enc(unlabeled_x)
+            else:
+                unlabeled_za = None
 
             za_targets: List[torch.Tensor] = []
             for mix_idx in range(self._num_mixing_per_image):
                 # Extract attributes of the target patches.
                 target_im_idxs = all_target_image_indices[:, mix_idx]
-                za_targets.append(za[target_im_idxs])
+
+                if unlabeled_za is None:
+                    za_targets.append(za[target_im_idxs])
+                else:
+                    # Either borrow from the label or unlabel dataset
+                    if float(torch.rand(1)) > 0.5:
+                        za_targets.append(unlabeled_za[target_im_idxs])
+                    else:
+                        za_targets.append(za[target_im_idxs])
+
             za_targets = torch.stack(za_targets, dim=0)
 
         return {
-            "zc": zc,
-            "za": za,
             "x_abs_org": x_abs,
             "za_targets": za_targets,
             "x_org": x,
@@ -162,6 +179,7 @@ class ContriMix(MultimodelAlgorithm):
             "abs_to_trans_cvt": self._abs_to_trans_converter,
             "trans_to_abs_cvt": self._trans_to_abs_converter,
             "backbone": self._models_by_names["backbone"],
+            "all_target_image_indices": all_target_image_indices,
         }
 
     def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:

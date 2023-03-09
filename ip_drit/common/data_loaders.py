@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader
 from torch.utils.data.sampler import WeightedRandomSampler
 
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets import SubsetLabeledPublicDataset
 
 

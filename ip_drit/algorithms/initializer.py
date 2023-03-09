@@ -7,6 +7,7 @@ from typing import Dict
 from typing import Optional
 
 import torch.nn as nn
+from torch.utils.data import DataLoader
 
 from ._contrimix import ContriMix
 from ._erm import ERM
@@ -36,30 +37,21 @@ algo_log_metrics = {
 
 def initialize_algorithm(
     config: Dict[str, Any],
-    labeled_split_dict_by_name: Dict[str, Dict],
+    num_train_steps: int,
     train_grouper: AbstractGrouper,
-    unlabeled_split_dict_by_name: Optional[Dict[str, Dict]] = None,
+    loss_weights_by_name: Optional[Dict[str, float]] = None,
 ) -> SingleModelAlgorithm:
     """Initializes an algorithm based on the provided config dictionary.
 
     Args:
         config: A dictionary that is used to configure hwo the model should be initialized.
-        labeled_split_dict_by_name: A dictionary whose key are 'train', 'val', 'id_val', 'test' of different splits.
-            For each key, the value is a dictionary with further (key, values) that defines the attribute of the
-            split. They key can be 'loader' (for the data loader), 'dataset' (for the dataset), 'name' (for the name of
-            the split), 'eval_logger', and 'algo_logger'.
+        num_train_steps: The number of training steps.
         train_grouper: A grouper object that defines the groups for which we compute/log statistics for.
-        unlabeled_split_dict_by_name (optional):  A dictionary whose key are 'train_unlabeled', 'val_unlabeled',
-            'test_unlabeled' corresponding to different splits. For each key, the value is a dictionary with further
-            (key, values) that defines the attribute of the split. They key can be 'loader' (for the data loader),
-            'dataset' (for the dataset), 'name' (for the name of the split), 'eval_logger', and 'algo_logger'. Defaults
-            to None.
+        loss_weights_by_name: A dictionary of loss weigths, keyed by the name of the losss.
 
     Returns:
         The initialized algorithm.
     """
-    train_loader = labeled_split_dict_by_name["train"]["loader"]
-    num_train_steps = math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"]
     logging.info(f"Initializing the {config['algorithm'].name} algorithm!")
 
     if config["algorithm"] == ModelAlgorithm.ERM:
@@ -83,12 +75,8 @@ def initialize_algorithm(
             grouper=train_grouper,
             loss=ContriMixLoss(
                 loss_fn=nn.BCEWithLogitsLoss(reduction="none"),
-                loss_weights_by_name={
-                    "entropy_weight": 0.1,
-                    "self_recon_weight": 0.3,
-                    "attr_cons_weight": 0.1,
-                    "cont_cons_weight": 0.5,
-                },
+                loss_weights_by_name=loss_weights_by_name,
+                save_images_for_debugging=True,
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
@@ -115,6 +103,11 @@ def initialize_algorithm(
         logging.info(f"Loaded model state from {pretrain_model_path}!")
 
     return algorithm
+
+
+def calculate_number_of_training_steps(config: Dict[str, Any], train_loader: DataLoader) -> int:
+    """Computes the number of training steps."""
+    return math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"]
 
 
 def _compute_unlabeled_loss(use_soft_pseudo_label: bool, loss_type: str) -> Callable:

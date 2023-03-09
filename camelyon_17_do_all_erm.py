@@ -8,7 +8,7 @@ package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_dr
 if package_path not in sys.path:
     sys.path.append(package_path)
 
-from script_utils import num_of_available_devices, dataset_and_log_location, generate_eval_model_path
+from script_utils import dataset_and_log_location, generate_eval_model_path
 from script_utils import configure_parser
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
@@ -24,6 +24,7 @@ from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
 from saving_utils import load
 from script_utils import calculate_batch_size
+from ip_drit.algorithms import calculate_number_of_training_steps
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -104,7 +105,11 @@ def main():
         full_dataset=camelyon_dataset, grouper=train_grouper, config_dict=config_dict
     )
     algorithm = initialize_algorithm(
-        config=config_dict, labeled_split_dict_by_name=split_dict_by_names, train_grouper=train_grouper
+        config=config_dict,
+        train_grouper=train_grouper,
+        num_train_steps=calculate_number_of_training_steps(
+            config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
+        ),
     )
 
     if not config_dict["eval_only"]:

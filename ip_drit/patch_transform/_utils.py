@@ -92,8 +92,7 @@ def _get_image_base_transform_steps(config, dataset) -> List[Callable]:
 def _add_weak_transform(base_transform_steps: List[Callable], normalize: bool, default_normalization):
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
     weak_transform_steps = copy.deepcopy(base_transform_steps)
-    weak_transform_steps.extend([transforms.RandomHorizontalFlip()])
-    weak_transform_steps.append(transforms.ToTensor())
+    weak_transform_steps.extend([transforms.RandomHorizontalFlip(), transforms.ToTensor()])
     if normalize:
         weak_transform_steps.append(default_normalization)
     return transforms.Compose(weak_transform_steps)
