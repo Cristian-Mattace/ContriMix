@@ -5,6 +5,7 @@ from typing import Any
 from typing import Dict
 
 from script_utils import calculate_batch_size
+from script_utils import set_visible_gpus
 
 package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
@@ -35,6 +36,8 @@ def main():
     parser = configure_parser()
     FLAGS = parser.parse_args()
 
+    set_visible_gpus(gpu_ids=FLAGS.gpu_ids)
+
     all_dataset_dir, log_dir = dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
@@ -56,7 +59,7 @@ def main():
         "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": ["hospital"],
+        "train_group_by_fields": ["hospital", "y"],
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
@@ -66,9 +69,13 @@ def main():
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
-        "batch_size": calculate_batch_size(algorithm=ModelAlgorithm.CONTRIMIX, run_on_cluster=FLAGS.run_on_cluster),
+        "batch_size": calculate_batch_size(
+            algorithm=ModelAlgorithm.CONTRIMIX,
+            run_on_cluster=FLAGS.run_on_cluster,
+            batch_size_per_gpu=FLAGS.batch_size_per_gpu,
+        ),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
+        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
@@ -77,7 +84,7 @@ def main():
         "lr": 1e-4,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
-        "max_grad_norm": 0.8,
+        "max_grad_norm": 0.5,
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
