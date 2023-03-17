@@ -6,6 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 from typing import Dict
+from typing import List
+from typing import Optional
 from typing import Tuple
 
 import torch.cuda
@@ -59,6 +61,7 @@ def configure_split_dict_by_names(
                 transform_name=config_dict["transform"], config_dict=config_dict, full_dataset=full_dataset
             ),
         )
+
         split_dict[split_name]["dataset"] = subdataset
         logging.info(f"Dataset size = {len(subdataset)}")
 
@@ -97,6 +100,7 @@ def _get_data_loader_by_split_name(
             seed=config_dict["seed"],
             run_on_cluster=config_dict["run_on_cluster"],
         )
+
     elif split_name in ("id_val", "test", "val", "val_unlabeled", "test_unlabeled"):
         return get_eval_loader(
             loader_type=LoaderType.STANDARD,
@@ -262,7 +266,19 @@ def configure_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument("--soft_pseudolabels", type=parse_bool, default=False, help="If True, use soft pseudo labels")
-
+    parser.add_argument(
+        "--gpu_ids",
+        type=int,
+        nargs="*",
+        default=None,
+        help="The list of GPUs to use. Defaults to " + "None, in which case, all GPUs will be used.",
+    )
+    parser.add_argument(
+        "--batch_size_per_gpu",
+        type=int,
+        default=None,
+        help="The default batch size. Defaults to None, in" + "which case, it will be automatically calculated.",
+    )
     return parser
 
 
@@ -285,7 +301,9 @@ def generate_eval_model_path(eval_epoch: int, model_prefix: str, seed: int) -> s
     return eval_model_path
 
 
-def calculate_batch_size(algorithm: ModelAlgorithm, run_on_cluster: bool) -> int:
+def calculate_batch_size(
+    algorithm: ModelAlgorithm, run_on_cluster: bool, batch_size_per_gpu: Optional[int] = None
+) -> int:
     """Calculates the batch size for a given 'algorithm' and wether the code 'run_on_cluster' or not."""
     num_devices = num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
@@ -301,11 +319,29 @@ def calculate_batch_size(algorithm: ModelAlgorithm, run_on_cluster: bool) -> int
         ModelAlgorithm.NOISY_STUDENT: 45,
     }
 
-    if run_on_cluster:
-        batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER[algorithm]
+    if batch_size_per_gpu is None:
+        if run_on_cluster:
+            batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER[algorithm]
+        else:
+            batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_LOCAL[algorithm]
     else:
-        batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_LOCAL[algorithm]
+        batch_size_per_gpu = batch_size_per_gpu
 
     batch_size = batch_size_per_gpu * num_devices
     logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
     return batch_size
+
+
+def set_visible_gpus(gpu_ids: Optional[List[int]] = None) -> None:
+    """Sets specific GPUs to be available.
+
+    Args:
+        gpu_ids (optional): A list of GPU ids to set. Defaults to None, in which case, all GPUs should be available.
+    """
+    if gpu_ids is not None:
+        gpu_ids = ",".join(str(i) for i in gpu_ids)
+    else:
+        gpu_ids = ",".join(str(i) for i in range(torch.cuda.device_count()))
+    logging.info(f"Setting GPU ids {gpu_ids} to be visible!")
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids

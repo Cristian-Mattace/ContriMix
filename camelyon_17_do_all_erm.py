@@ -28,6 +28,8 @@ from ip_drit.algorithms import calculate_number_of_training_steps
 
 logging.getLogger().setLevel(logging.INFO)
 
+from script_utils import set_visible_gpus
+
 
 def main():
     """Demo scripts for training, evaluation with Camelyon."""
@@ -35,6 +37,7 @@ def main():
     parser = configure_parser()
     FLAGS = parser.parse_args()
 
+    set_visible_gpus(gpu_ids=None)
     all_dataset_dir, log_dir = dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,

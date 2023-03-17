@@ -1,5 +1,4 @@
 """This modules implements the ContriMix Augmentation algorithm."""
-import logging
 from typing import Any
 from typing import Dict
 from typing import List

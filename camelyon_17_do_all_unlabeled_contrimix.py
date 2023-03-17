@@ -73,13 +73,13 @@ def main():
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
         "batch_size": calculate_batch_size(algorithm=ModelAlgorithm.CONTRIMIX, run_on_cluster=FLAGS.run_on_cluster),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
+        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
         "optimizer": "AdamW",
-        "lr": 1e-3,
+        "lr": 1e-4,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
