@@ -6,7 +6,8 @@
 #D105: Missing docstring in magic method
 #D417: Missing argument descriptions in the docstring
 #F401: Module imported but unused
-ignore = E203,D102,W503,D107,D105,D417,F401,E402
+#E731: Do not assign a lambda expression, use a def
+ignore = E203,D102,W503,D107,D105,D417,F401,E402, E731
 max-line-length = 120
 docstring-convention = google
 exclude = *_test.py, __init__.py,setup.py,conftest.py
