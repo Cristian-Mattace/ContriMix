@@ -141,12 +141,15 @@ class ContriMix(MultimodelAlgorithm):
         all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
         all_target_image_indices = torch.stack(all_target_image_indices, dim=0)  # (Minibatch dim x #augmentations)
 
+        input_img_proc_func = lambda x: self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))[0]
+
         if self._convert_to_absorbance_in_between:
-            x_abs, signal_type = self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))
+            x_abs = input_img_proc_func(x)
             za = attr_enc(x_abs)
 
             if unlabeled_x is not None:
-                unlabeled_za = attr_enc(unlabeled_x)
+                unlabel_x_abs = input_img_proc_func(unlabeled_x)
+                unlabeled_za = attr_enc(unlabel_x_abs)
             else:
                 unlabeled_za = None
 
@@ -170,7 +173,7 @@ class ContriMix(MultimodelAlgorithm):
             "x_abs_org": x_abs,
             "za_targets": za_targets,
             "x_org": x,
-            "sig_type": signal_type,
+            "sig_type": SignalType.ABS,
             "y_true": y_true,
             "cont_enc": cont_enc,
             "attr_enc": attr_enc,
