@@ -50,7 +50,9 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
-        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+        dataset_dir=all_dataset_dir / "camelyon17/",
+        use_full_size=FLAGS.use_full_dataset,
+        drop_centers=FLAGS.drop_centers,
     )
 
     config_dict: Dict[str, Any] = {

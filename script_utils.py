@@ -279,6 +279,9 @@ def configure_parser() -> argparse.ArgumentParser:
         default=None,
         help="The default batch size. Defaults to None, in" + "which case, it will be automatically calculated.",
     )
+    parser.add_argument(
+        "--drop_centers", nargs="+", default=[], help="Drop centers from train set, has to be a subset of [0,3,4]"
+    )
     return parser
 
 

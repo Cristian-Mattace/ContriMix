@@ -29,6 +29,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         split_scheme: The splitting scheme.
         use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
             40000, which is faster for code development. Defaults to True.
+        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
     """
 
     _dataset_name: Optional[str] = "camelyon17"
@@ -42,7 +43,11 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
     _SMALL_DATASET_LIMIT = 40000
 
     def __init__(
-        self, dataset_dir: Path, split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL, use_full_size: bool = True
+        self,
+        dataset_dir: Path,
+        split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
+        use_full_size: bool = True,
+        drop_centers: List = [],
     ) -> None:
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir)
@@ -67,7 +72,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
             )
         ]
 
-        self._update_split_field_index_of_metadata()
+        self._update_split_field_index_of_metadata(drop_centers)
         if split_scheme == SplitSchemeType.MIX_TO_TEST:
             self._update_slide_field_for_mix_to_test_split_scheme()
 
@@ -86,7 +91,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
-    def _update_split_field_index_of_metadata(self) -> None:
+    def _update_split_field_index_of_metadata(self, drop_centers: List = []) -> None:
         centers = self._metadata_df["center"]
         test_center_mask = centers == self._TEST_CENTER
         self._metadata_df.loc[test_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["test"]
@@ -94,6 +99,10 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         val_center_mask = centers == self._OOD_VAL_CENTER
         # 'val' means OOD val center, its different from id_val
         self._metadata_df.loc[val_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["val"]
+
+        # train centers are [0, 3, 4], dropping a subset of them
+        if len(drop_centers) > 0:
+            self._metadata_df = self._metadata_df[~(self._metadata_df["center"].isin(drop_centers))]
 
     def _update_slide_field_for_mix_to_test_split_scheme(self):
         # For the mixed-to-test setting,
