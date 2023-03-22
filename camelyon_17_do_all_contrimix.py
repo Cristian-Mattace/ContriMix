@@ -7,7 +7,7 @@ from typing import Dict
 from script_utils import calculate_batch_size
 from script_utils import set_visible_gpus
 
-package_path = "/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/"
+package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
@@ -50,7 +50,9 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
-        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+        dataset_dir=all_dataset_dir / "camelyon17/",
+        use_full_size=FLAGS.use_full_dataset,
+        drop_centers=FLAGS.drop_centers,
     )
 
     config_dict: Dict[str, Any] = {
