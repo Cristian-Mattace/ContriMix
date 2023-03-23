@@ -61,7 +61,7 @@ def main():
         "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": ["hospital", "y"],
+        "train_group_by_fields": ["hospital"],
         "loss_function": "multitask_bce",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
