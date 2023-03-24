@@ -72,29 +72,46 @@ class ContriMixLoss(MultiTaskMetric):
             - results (dict): Dictionary of results, mapping metric.agg_metric_field to avg_metric.
         """
         y_true = in_dict["y_true"]
-        im_gen = in_dict["im_gen"]
         backbone = in_dict["backbone"]
         abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
-        sig_type = in_dict["sig_type"]
-        za_targets = in_dict["za_targets"]
+        trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
+
         x_org = in_dict["x_org"]
-
+        unlabeled_x_org = in_dict["unlabeled_x_org"]
         all_target_image_indices = in_dict["all_target_image_indices"]
-
-        x_abs_org = in_dict["x_abs_org"]
         cont_enc = in_dict["cont_enc"]
         attr_enc = in_dict["attr_enc"]
+        im_gen = in_dict["im_gen"]
 
+        x_abs_org = trans_to_abs_cvt(im_and_sig_type=(x_org, SignalType.TRANS))[0]
         zc = cont_enc(x_abs_org)
         za = attr_enc(x_abs_org)
         x_abs_self_recon = im_gen(zc, za)
-        x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, sig_type))[0]
+        x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, SignalType.ABS))[0]
+
+        # TODO: investigate whether the consistency should be in the absorbance or transmittance space.
+        self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)]
+
+        if unlabeled_x_org is not None:
+            unlabeled_x_abs_org = trans_to_abs_cvt(im_and_sig_type=(unlabeled_x_org, SignalType.TRANS))[0]
+            unlabeled_za = attr_enc(unlabeled_x_abs_org)
+            self_recon_losses.append(
+                self._self_recon_consistency_loss(
+                    self_recon_ims=abs_to_trans_cvt(
+                        im_and_sig_type=(im_gen(cont_enc(unlabeled_x_abs_org), unlabeled_za), SignalType.ABS)
+                    )[0],
+                    expected_ims=unlabeled_x_org,
+                )
+            )
+        else:
+            unlabeled_za = None
+
+        self_recon_loss = torch.mean(torch.stack(self_recon_losses, dim=0))
+
+        za_targets = self._generate_za_targets(za=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
 
         y_pred = backbone(x_self_recon)
         in_dict["y_pred"] = y_pred
-
-        # TODO: investigate whether the consistency should be in the absorbance or transmittance space.
-        self_recon_loss = self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)
 
         num_mixings = za_targets.shape[0]
         entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
@@ -117,7 +134,7 @@ class ContriMixLoss(MultiTaskMetric):
         for mix_idx in range(num_mixings):
             za_target = za_targets[mix_idx]
             x_abs_cross_translation = im_gen(zc, za_target)
-            x_cross_translation = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, sig_type))[0]
+            x_cross_translation = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, SignalType.ABS))[0]
 
             if self._save_images_for_debugging:
                 target_index = all_target_image_indices[:, mix_idx][0]
@@ -170,6 +187,30 @@ class ContriMixLoss(MultiTaskMetric):
         else:
             # Used for updating the objective.
             return total_loss
+
+    @staticmethod
+    def _generate_za_targets(
+        za: torch.Tensor, unlabeled_za: Optional[torch.Tensor], all_mix_target_im_idxs: torch.Tensor
+    ) -> torch.Tensor:
+        """Generates a tensor that contains the target attributes to mix.
+
+        Args:
+            za: The attributes from the labeled images.
+            unlabeled_za: The attributes from the unlabeled images.
+            all_mix_target_im_idxs: A 2D tensor of size minibatch size x # mixings that contains the indices to use.
+        """
+        za_targets: List[torch.Tensor] = []
+        for mix_idx in range(all_mix_target_im_idxs.size(1)):
+            target_im_idxs = all_mix_target_im_idxs[:, mix_idx]
+            if unlabeled_za is None:
+                za_targets.append(za[target_im_idxs])
+            else:
+                # Either borrow from the label or unlabel dataset
+                if float(torch.rand(1)) > 0.5:
+                    za_targets.append(unlabeled_za[target_im_idxs])
+                else:
+                    za_targets.append(za[target_im_idxs])
+        return torch.stack(za_targets, dim=0)
 
     @staticmethod
     def _self_recon_consistency_loss(self_recon_ims: torch.Tensor, expected_ims: torch.Tensor) -> float:
