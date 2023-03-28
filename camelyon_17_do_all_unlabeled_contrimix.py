@@ -100,6 +100,7 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
+        "num_attr_vectors": FLAGS.contrimix_num_attr_vectors
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))

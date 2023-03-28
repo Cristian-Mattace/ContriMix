@@ -4,7 +4,7 @@ import sys
 from typing import Any
 from typing import Dict
 
-package_path = "/jupyter-users-home/chintan-2eshah/repos/intraminibatch_permutation_drit/"
+package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
