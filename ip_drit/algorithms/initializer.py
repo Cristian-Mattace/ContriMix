@@ -80,6 +80,7 @@ def initialize_algorithm(
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
+            num_attr_vectors=config['num_attr_vectors']
         )
     elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
         algorithm = NoisyStudent(
