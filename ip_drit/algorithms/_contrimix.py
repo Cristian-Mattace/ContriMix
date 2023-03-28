@@ -36,6 +36,7 @@ class ContriMix(MultimodelAlgorithm):
         convert_to_absorbance_in_between (optional): If True (default), the input image will be converted to absorbance
             before decomposing into content and attribute.
         num_mxing_per_image (optional): The number of mixing images for each original image. Defaults to 5.
+        num_attr_vectors (optional): The number of stain vectors. Defaults to 4
     """
 
     _NUM_INPUT_CHANNELS = 3
