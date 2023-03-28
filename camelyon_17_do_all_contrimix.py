@@ -11,6 +11,8 @@ package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_dr
 if package_path not in sys.path:
     sys.path.append(package_path)
 
+from script_utils import calculate_batch_size
+from script_utils import set_visible_gpus
 from script_utils import configure_parser, dataset_and_log_location, generate_eval_model_path
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
@@ -104,6 +106,7 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
+        "num_attr_vectors": FLAGS.contrimix_num_attr_vectors
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))

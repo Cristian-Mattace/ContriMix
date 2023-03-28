@@ -39,7 +39,6 @@ class ContriMix(MultimodelAlgorithm):
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_ATTR_VECTORS = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
         "self_recon_loss",
@@ -58,6 +57,7 @@ class ContriMix(MultimodelAlgorithm):
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
         num_mixing_per_image: int = 5,
+        num_attr_vectors:int=4
     ) -> None:
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
@@ -77,12 +77,12 @@ class ContriMix(MultimodelAlgorithm):
                 "backbone": backbone_network,
                 "cont_enc": ContentEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_ATTR_VECTORS,
+                    num_stain_vectors=num_attr_vectors,
                     k=downsampling_factor,
                 ),
                 "attr_enc": AttributeEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_ATTR_VECTORS,
+                    num_stain_vectors=num_attr_vectors,
                     k=downsampling_factor,
                 ),
                 "im_gen": AbsorbanceImGenerator(k=downsampling_factor),
