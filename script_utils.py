@@ -201,7 +201,7 @@ def configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--use_full_dataset",
         type=parse_bool,
-        default=False,
+        default=True,
         help="If True, full dataset will be used. Defaults to False.",
     )
 
@@ -281,6 +281,12 @@ def configure_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--drop_centers", nargs="+", default=[], help="Drop centers from train set, has to be a subset of [0,3,4]"
+    )
+    parser.add_argument(
+        "--contrimix_num_attr_vectors",
+        type=int,
+        default=4,
+        help="number of attribute vectors to use for contrimix",
     )
     return parser
 

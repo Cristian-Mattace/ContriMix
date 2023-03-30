@@ -36,10 +36,10 @@ class ContriMix(MultimodelAlgorithm):
         convert_to_absorbance_in_between (optional): If True (default), the input image will be converted to absorbance
             before decomposing into content and attribute.
         num_mxing_per_image (optional): The number of mixing images for each original image. Defaults to 5.
+        num_attr_vectors (optional): The number of stain vectors. Defaults to 4
     """
 
     _NUM_INPUT_CHANNELS = 3
-    _NUM_ATTR_VECTORS = 4
     _LOGGED_FIELDS: List[str] = [
         "objective",
         "self_recon_loss",
@@ -58,6 +58,7 @@ class ContriMix(MultimodelAlgorithm):
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
         num_mixing_per_image: int = 5,
+        num_attr_vectors:int=4
     ) -> None:
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
@@ -77,12 +78,12 @@ class ContriMix(MultimodelAlgorithm):
                 "backbone": backbone_network,
                 "cont_enc": ContentEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_ATTR_VECTORS,
+                    num_stain_vectors=num_attr_vectors,
                     k=downsampling_factor,
                 ),
                 "attr_enc": AttributeEncoder(
                     in_channels=self._NUM_INPUT_CHANNELS,
-                    num_stain_vectors=self._NUM_ATTR_VECTORS,
+                    num_stain_vectors=num_attr_vectors,
                     k=downsampling_factor,
                 ),
                 "im_gen": AbsorbanceImGenerator(k=downsampling_factor),
@@ -141,39 +142,9 @@ class ContriMix(MultimodelAlgorithm):
         all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
         all_target_image_indices = torch.stack(all_target_image_indices, dim=0)  # (Minibatch dim x #augmentations)
 
-        input_img_proc_func = lambda x: self._trans_to_abs_converter(im_and_sig_type=(x, SignalType.TRANS))[0]
-
-        if self._convert_to_absorbance_in_between:
-            x_abs = input_img_proc_func(x)
-            za = attr_enc(x_abs)
-
-            if unlabeled_x is not None:
-                unlabel_x_abs = input_img_proc_func(unlabeled_x)
-                unlabeled_za = attr_enc(unlabel_x_abs)
-            else:
-                unlabeled_za = None
-
-            za_targets: List[torch.Tensor] = []
-            for mix_idx in range(self._num_mixing_per_image):
-                # Extract attributes of the target patches.
-                target_im_idxs = all_target_image_indices[:, mix_idx]
-
-                if unlabeled_za is None:
-                    za_targets.append(za[target_im_idxs])
-                else:
-                    # Either borrow from the label or unlabel dataset
-                    if float(torch.rand(1)) > 0.5:
-                        za_targets.append(unlabeled_za[target_im_idxs])
-                    else:
-                        za_targets.append(za[target_im_idxs])
-
-            za_targets = torch.stack(za_targets, dim=0)
-
         return {
-            "x_abs_org": x_abs,
-            "za_targets": za_targets,
             "x_org": x,
-            "sig_type": SignalType.ABS,
+            "unlabeled_x_org": unlabeled_x,
             "y_true": y_true,
             "cont_enc": cont_enc,
             "attr_enc": attr_enc,
