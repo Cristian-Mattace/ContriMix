@@ -1,4 +1,6 @@
 """A module that defines the loss class for the contrimix."""
+from enum import auto
+from enum import Enum
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -15,6 +17,13 @@ from ..common.metrics._utils import numel
 from ip_drit.models import SignalType
 
 
+class ContriMixAggregationType(Enum):
+    """An enum class that defines how we should aggregates over the mixings."""
+
+    MEAN = auto()
+    AUGREG = auto()
+
+
 class ContriMixLoss(MultiTaskMetric):
     """A class that defines a multi-task loss.
 
@@ -28,6 +37,10 @@ class ContriMixLoss(MultiTaskMetric):
             will be used.
         save_images_for_debugging (optional): If True, different mixing images will be save for debugging. Defaults to
             False.
+        aggregation (optional): The type of the aggregation on the backbone loss. Defaults to
+            ContriMixAggregationType.AUGREG, in which augmentation regularization will be used for image consistency.
+        aug_reg_variance_weight (optional): The factor that is used to penalize the variance of the model performance.
+            Defaults to 10.0.
     """
 
     def __init__(
@@ -36,11 +49,16 @@ class ContriMixLoss(MultiTaskMetric):
         loss_weights_by_name: Dict[str, float],
         name: Optional[str] = "contrimix_loss",
         save_images_for_debugging: bool = False,
+        aggregation: ContriMixAggregationType = ContriMixAggregationType.AUGREG,
+        aug_reg_variance_weight: float = 10.0,
     ) -> None:
         self._loss_fn = loss_fn
         self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
         self._save_images_for_debugging = save_images_for_debugging
         self._debug_image: Optional[np.ndarray] = None
+        self._aug_reg_variance_weight: float = aug_reg_variance_weight
+
+        self._aggregation: ContriMixAggregationType = aggregation
         super().__init__(name)
 
     @staticmethod
@@ -89,7 +107,7 @@ class ContriMixLoss(MultiTaskMetric):
         x_abs_self_recon = im_gen(zc, za)
         x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, SignalType.ABS))[0]
 
-        # TODO: investigate whether the consistency should be in the absorbance or transmittance space.
+        # We should not evaluate the error in the absorbance space because it does not uniformly across the range.
         self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)]
 
         if unlabeled_x_org is not None:
@@ -160,8 +178,16 @@ class ContriMixLoss(MultiTaskMetric):
         attr_cons_loss = torch.mean(torch.stack(attr_cons_losses, dim=0))
         cont_cons_loss = torch.mean(torch.stack(cont_cons_losses, dim=0))
 
-        # TODO: test with max here.
-        entropy_loss = torch.mean(torch.stack(entropy_losses, dim=0))
+        entropy_losses = torch.stack(entropy_losses, dim=0)
+        entropy_loss_mean_avg = torch.mean(entropy_losses)
+        if self._aggregation == ContriMixAggregationType.MEAN:
+            entropy_loss = entropy_loss_mean_avg
+        elif self._aggregation == ContriMixAggregationType.AUGREG:
+            entropy_loss = entropy_loss_mean_avg + self._aug_reg_variance_weight * torch.mean(
+                torch.var(entropy_losses, dim=0)
+            )
+        else:
+            raise ValueError(f"Aggregation type of {self._aggregation} is not supported!")
 
         total_loss = (
             self._loss_weights_by_name["self_recon_weight"] * self_recon_loss
@@ -217,7 +243,7 @@ class ContriMixLoss(MultiTaskMetric):
         return torch.nn.L1Loss(reduction="mean")(self_recon_ims, expected_ims)
 
     def _compute_entropy_loss_from_logits(self, y_pred_logits: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
-        """Returns the cross-entropy loss from logits."""
+        """Returns the cross-entropy loss from logits (not averaging over the minibatch samples)."""
         is_labeled = ~torch.isnan(y_true)
         y_pred_logits = y_pred_logits[is_labeled]
         y_true = y_true[is_labeled]
@@ -229,7 +255,7 @@ class ContriMixLoss(MultiTaskMetric):
 
         if loss.numel() == 0:
             return torch.tensor(0.0, device=y_true.device)
-        return loss.mean()
+        return loss
 
     @staticmethod
     def _attribute_consistency_loss(
