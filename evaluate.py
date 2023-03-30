@@ -82,7 +82,11 @@ def evaluate_benchmark(
         aggregated_results[split] = {}
         for metric in metrics:
             replicates_metric_values: List[float] = replicates_results[split][metric]
-            aggregated_results[split][f"{metric}_std"] = np.std(replicates_metric_values, ddof=1)
+            # if single element, std_dev is zero
+            if len(replicates_metric_values) == 1:
+                aggregated_results[split][f"{metric}_std"] = 0.0
+            else:
+                aggregated_results[split][f"{metric}_std"] = np.std(replicates_metric_values, ddof=1)
             aggregated_results[split][metric] = np.mean(replicates_metric_values)
 
     # Write out aggregated results to output file
