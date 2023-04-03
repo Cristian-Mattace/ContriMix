@@ -29,6 +29,7 @@ def evaluate_benchmark(
     root_dir: str,
     splits: List[List[str]],
     seeds: List[List[int]],
+    drop_centers: List[int],
 ) -> Dict[str, Dict[str, float]]:
     """Evaluates across multiple replicates for a single benchmark.
 
@@ -40,6 +41,7 @@ def evaluate_benchmark(
         splits (optional): Only generate results on given splits. Values can be subset of
         ['train', 'id_val', 'test', 'val']. If not specified, results generated on all of them except `train`
         seeds (optional): A list of seeds to aggregate results over. If not provided, 0 to 9 used.
+        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
 
     Returns:
         Metrics as a dictionary with metrics as the keys and metric values as the values
@@ -71,7 +73,7 @@ def evaluate_benchmark(
 
             predicted_labels: torch.Tensor = get_predictions(full_path)
 
-            metric_results = evaluate_replicate(wilds_dataset, split, predicted_labels)
+            metric_results = evaluate_replicate(wilds_dataset, split, predicted_labels, drop_centers)
             for metric in metrics:
                 replicates_results[split][metric].append(metric_results[metric])
 
@@ -122,21 +124,27 @@ def _get_metrics(dataset_name: str) -> List[str]:
         raise ValueError(f"Invalid dataset: {dataset_name}")
 
 
-def evaluate_replicate(dataset, split: str, predicted_labels: torch.Tensor) -> Dict[str, float]:
+def evaluate_replicate(dataset, split: str, predicted_labels: torch.Tensor, drop_centers: List) -> Dict[str, float]:
     """Evaluates the given predictions and returns the appropriate metrics.
 
     Args:
         dataset: A WILDS Dataset
         split: split we are evaluating on
         predicted_labels: Predictions
+        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
 
     Returns:
         Metrics as a dictionary with metrics as the keys and metric values as the values
     """
     # Dataset will only be downloaded if it does not exist
     subset = dataset.get_subset(split)
-    metadata: torch.Tensor = subset.metadata_array
+    metadata: torch.Tensor = subset.metadata_array  # [hospital, slide, y] for camelyon
     true_labels = subset.y_array
+    if len(drop_centers) > 0:  # drop entries from true_labels and metadata corresponding to drop_centers
+        for drop_center in drop_centers:
+            filtered_indices = torch.where(metadata[:, 0] != int(drop_center))  # zeroth index corresponds to hospital
+            true_labels = true_labels[filtered_indices]
+            metadata = metadata[filtered_indices]
     if predicted_labels.shape != true_labels.shape:
         predicted_labels.unsqueeze_(-1)
     return dataset.eval(predicted_labels, true_labels, metadata)[0]
@@ -180,7 +188,13 @@ def _is_path_url(path: str) -> bool:
 def main():
     """Aggregate evaluation metrics on given splits and seeds and save them."""
     evaluate_benchmark(
-        args.dataset, args.predictions_dir, args.output_dir, args.root_dir, args.run_on_splits, args.run_on_seeds
+        args.dataset,
+        args.predictions_dir,
+        args.output_dir,
+        args.root_dir,
+        args.run_on_splits,
+        args.run_on_seeds,
+        args.drop_centers,
     )
 
 
@@ -216,6 +230,10 @@ if __name__ == "__main__":
         default=[],
         help="Only generate results on given seeds. Values can be subset of"
         "integer list from 0 to 9, If not provided, results from all seeds from 0 to 9 expected in predictions_dir",
+    )
+
+    parser.add_argument(
+        "--drop_centers", nargs="+", default=[], help="Drop centers from train set, has to be a subset of [0,3,4]"
     )
     # Parse args and run this script
     args = parser.parse_args()
