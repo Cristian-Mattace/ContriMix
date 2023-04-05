@@ -143,6 +143,7 @@ def _run_train_epoch(
     if use_unlabeled_data:
         unlabeled_data_iterator = InfiniteDataIterator(unlabeled_split_dict["loader"])
 
+    algorithm.update_loss_weight_based_on_epoch(epoch=epoch)
     for batch_idx, labeled_batch in enumerate(batches):
         logging.debug(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
         if use_unlabeled_data:
@@ -150,9 +151,12 @@ def _run_train_epoch(
                 labeled_batch=labeled_batch,
                 unlabeled_batch=next(unlabeled_data_iterator),
                 is_epoch_end=(batch_idx == last_batch_idx),
+                epoch=epoch,
             )
         else:
-            batch_results = algorithm.update(labeled_batch=labeled_batch, is_epoch_end=(batch_idx == last_batch_idx))
+            batch_results = algorithm.update(
+                labeled_batch=labeled_batch, is_epoch_end=(batch_idx == last_batch_idx), epoch=epoch
+            )
 
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
         epoch_y_pred.append(detach_and_clone(batch_results["y_pred"]))

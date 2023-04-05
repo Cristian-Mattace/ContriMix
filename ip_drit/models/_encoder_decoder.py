@@ -37,6 +37,7 @@ class AttributeEncoder(nn.Module):
         self.needs_y_input: bool = False
         self._num_stain_vectors = num_stain_vectors
         self._three_times_k_sqr = 3 * k**2
+        out_channels = self._num_stain_vectors * self._three_times_k_sqr
         self._model = Initializer()(
             nn.Sequential(
                 nn.Conv2d(
@@ -54,14 +55,8 @@ class AttributeEncoder(nn.Module):
                 Downsampling2xkWithSkipConnection(in_channels=128, out_channels=256),
                 Downsampling2xkWithSkipConnection(in_channels=256, out_channels=512),
                 nn.AdaptiveAvgPool2d(output_size=(1, 1)),  # Condense all the X, Y dimensions to 1 pixels.
-                nn.Conv2d(
-                    in_channels=512,
-                    out_channels=self._num_stain_vectors * self._three_times_k_sqr,
-                    kernel_size=1,
-                    stride=1,
-                    padding=0,
-                    bias=True,
-                ),
+                nn.Conv2d(in_channels=512, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=True),
+                nn.LayerNorm([out_channels, 1, 1]),
                 nn.LeakyReLU(inplace=False),
             )
         )

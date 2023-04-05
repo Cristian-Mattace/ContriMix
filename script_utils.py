@@ -283,10 +283,7 @@ def configure_parser() -> argparse.ArgumentParser:
         "--drop_centers", nargs="+", default=[], help="Drop centers from train set, has to be a subset of [0,3,4]"
     )
     parser.add_argument(
-        "--contrimix_num_attr_vectors",
-        type=int,
-        default=4,
-        help="number of attribute vectors to use for contrimix",
+        "--contrimix_num_attr_vectors", type=int, default=8, help="number of attribute vectors to use for contrimix"
     )
     return parser
 
@@ -317,7 +314,7 @@ def calculate_batch_size(
     num_devices = num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER: Dict[ModelAlgorithm, int] = {
-        ModelAlgorithm.CONTRIMIX: 210,
+        ModelAlgorithm.CONTRIMIX: 300,  # Work with both unlabeled and labeled dataset. For labeled one, can use 420.
         ModelAlgorithm.ERM: 1500,
         ModelAlgorithm.NOISY_STUDENT: 900,
     }

@@ -166,6 +166,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         labeled_batch: Tuple[torch.Tensor, ...],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
+        epoch: Optional[int] = None,
     ):
         """Process the batch, update the log, and update the model.
 
@@ -174,6 +175,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
+            epoch (optional): The index of the current epoch.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -211,6 +213,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         """
         objective = self.objective(results)
         results["objective"] = objective.item()
+        objective = objective / self._gradient_accumulation_steps
         objective.backward()
 
         if should_step:
@@ -232,3 +235,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
     @property
     def model(self) -> nn.Module:
         return self._model
+
+    def update_loss_weight_based_on_epoch(self, epoch: int) -> None:
+        """Update the weights of the loss terms for each epoch."""
+        pass
