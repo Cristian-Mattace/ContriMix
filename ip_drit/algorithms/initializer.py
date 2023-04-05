@@ -75,12 +75,12 @@ def initialize_algorithm(
             grouper=train_grouper,
             loss=ContriMixLoss(
                 loss_fn=nn.BCEWithLogitsLoss(reduction="none"),
-                loss_weights_by_name=loss_weights_by_name,
+                contrimix_loss_weights_by_name=loss_weights_by_name,
                 save_images_for_debugging=True,
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
-            num_attr_vectors=config['num_attr_vectors']
+            num_attr_vectors=config["num_attr_vectors"],
         )
     elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
         algorithm = NoisyStudent(

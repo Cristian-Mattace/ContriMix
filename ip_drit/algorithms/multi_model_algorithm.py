@@ -88,6 +88,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         labeled_batch: Tuple[torch.Tensor, ...],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
+        epoch: Optional[int] = None,
     ):
         """Process the batch, update the log, and update the model.
 
@@ -96,6 +97,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
+            epoch (optional): The index of the epoch.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -136,7 +138,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
         results["objective"] = objective.item()
         results.update(non_objective_loss_by_name)
-
+        objective = objective / self._gradient_accumulation_steps
         objective.backward()
 
         if should_step:
@@ -171,3 +173,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         results.update(non_objective_loss_by_name)
         self.update_log(results)
         return self._sanitize_dict(results)
+
+    def update_loss_weight_based_on_epoch(self, epoch: int) -> None:
+        """Update the weights of the loss based on epoch index."""
+        self._loss.update_contrimix_loss_weights_for_current_epoch(epoch=epoch)

@@ -76,7 +76,7 @@ def main():
             batch_size_per_gpu=FLAGS.batch_size_per_gpu,
         ),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
+        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
@@ -103,7 +103,7 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
-        "num_attr_vectors": FLAGS.contrimix_num_attr_vectors
+        "num_attr_vectors": FLAGS.contrimix_num_attr_vectors,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -119,12 +119,7 @@ def main():
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
-        loss_weights_by_name={
-            "entropy_weight": 0.1,
-            "attr_cons_weight": 0.1,
-            "self_recon_weight": 0.3,
-            "cont_cons_weight": 0.5,
-        },
+        loss_weights_by_name={"attr_cons_weight": 0.05, "self_recon_weight": 0.7, "cont_cons_weight": 0.25},
     )
 
     if not config_dict["eval_only"]:
