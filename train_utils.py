@@ -246,7 +246,6 @@ def _run_eval_epoch(
     epoch_y_true = torch.cat(epoch_y_true, dim=0)
     epoch_y_pred = torch.cat(epoch_y_pred, dim=0)
     epoch_metadata = torch.cat(epoch_metadata, dim=0)
-
     results, results_str = labeled_split_dict["dataset"].eval(
         epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=binary_logits_to_pred
     )

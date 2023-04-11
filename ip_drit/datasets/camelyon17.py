@@ -61,6 +61,9 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         if not use_full_size:
             self._metadata_df = limit_metadata_df(self._metadata_df, dataset_limit=self._SMALL_DATASET_LIMIT)
 
+        if len(drop_centers) > 0:
+            self._metadata_df = remove_samples_from_given_centers(self._metadata_df, drop_centers)
+
         self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
 
         self._n_classes = 2
@@ -72,7 +75,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
             )
         ]
 
-        self._update_split_field_index_of_metadata(drop_centers)
+        self._update_split_field_index_of_metadata()
         if split_scheme == SplitSchemeType.MIX_TO_TEST:
             self._update_slide_field_for_mix_to_test_split_scheme()
 
@@ -88,10 +91,11 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
 
         # The evaluation grouper operates ovfer all the slides.
-        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
+        # Changing groupby_fields to 'y' since 'slide' throws an exception if you throw away center 0 in training
+        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["y"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
-    def _update_split_field_index_of_metadata(self, drop_centers: List = []) -> None:
+    def _update_split_field_index_of_metadata(self) -> None:
         centers = self._metadata_df["center"]
         test_center_mask = centers == self._TEST_CENTER
         self._metadata_df.loc[test_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["test"]
@@ -99,10 +103,6 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         val_center_mask = centers == self._OOD_VAL_CENTER
         # 'val' means OOD val center, its different from id_val
         self._metadata_df.loc[val_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["val"]
-
-        # train centers are [0, 3, 4], dropping a subset of them
-        if len(drop_centers) > 0:
-            self._metadata_df = self._metadata_df[~(self._metadata_df["center"].isin(drop_centers))]
 
     def _update_slide_field_for_mix_to_test_split_scheme(self):
         # For the mixed-to-test setting,
@@ -162,3 +162,18 @@ def limit_metadata_df(metadata_df: pd.DataFrame, dataset_limit: int = 40000) -> 
             ]
         )
     return metadata_df.iloc[keep_idxes]
+
+
+def remove_samples_from_given_centers(metadata_df, drop_centers):
+    """Removes samples belonging to given centers.
+
+    Args:
+        metadata_df: metadata df.
+        drop_centers: list of centers to drop.
+
+    Returns:
+        metadata_df.
+    """
+    # train centers are [0, 3, 4], dropping a subset of them
+    metadata_df = metadata_df[~(metadata_df["center"].isin(drop_centers))]
+    return metadata_df
