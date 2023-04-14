@@ -91,8 +91,8 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
 
         # The evaluation grouper operates ovfer all the slides.
-        # Changing groupby_fields to 'y' since 'slide' throws an exception if you throw away center 0 in training
-        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["y"])
+        # Since 'slide' throws an exception if you throw away center 0 in training, use groupby_fields='y' in that case
+        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
     def _update_split_field_index_of_metadata(self) -> None:
