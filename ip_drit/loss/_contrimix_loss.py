@@ -26,7 +26,7 @@ class ContriMixAggregationType(Enum):
 
 
 class ContriMixLoss(MultiTaskMetric):
-    """A class that defines a multi-task loss.
+    """A class that defines a Contrimix loss in absorbance space.
 
     Args:
         loss_fn: A function to compute the loss from the label, excluding other ContriMix specific loss.
@@ -96,34 +96,33 @@ class ContriMixLoss(MultiTaskMetric):
         """
         y_true = in_dict["y_true"]
         backbone = in_dict["backbone"]
-        abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
-        trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
+        self._abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
+        self._trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
 
-        x_org = in_dict["x_org"]
-        unlabeled_x_org = in_dict["unlabeled_x_org"]
+        x_org_1 = in_dict["x_org"]
+        unlabeled_x_org_1 = in_dict["unlabeled_x_org"]
         all_target_image_indices = in_dict["all_target_image_indices"]
         cont_enc = in_dict["cont_enc"]
         attr_enc = in_dict["attr_enc"]
         im_gen = in_dict["im_gen"]
 
-        x_abs_org = trans_to_abs_cvt(im_and_sig_type=(x_org, SignalType.TRANS))[0]
-        zc = cont_enc(x_abs_org)
-        za = attr_enc(x_abs_org)
-        x_abs_self_recon = im_gen(zc, za)
-        x_self_recon = abs_to_trans_cvt(im_and_sig_type=(x_abs_self_recon, SignalType.ABS))[0]
+        # The index 2 is to tell what space the original image is going to, which can be absorbance, or transmittance.
+        x_org_2 = self._one_to_two_conversion(im_1=x_org_1)
+        zc = cont_enc(x_org_2)
+        za = attr_enc(x_org_2)
+        x_self_recon_2 = im_gen(zc, za)
+        x_self_recon_1 = self._two_to_one_conversion(im_2=x_self_recon_2)
 
         # We should not evaluate the error in the absorbance space because it does not uniformly across the range.
-        self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon, expected_ims=x_org)]
+        self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon_1, expected_ims=x_org_1)]
 
-        if unlabeled_x_org is not None:
-            unlabeled_x_abs_org = trans_to_abs_cvt(im_and_sig_type=(unlabeled_x_org, SignalType.TRANS))[0]
-            unlabeled_za = attr_enc(unlabeled_x_abs_org)
+        if unlabeled_x_org_1 is not None:
+            unlabeled_x_org_2 = self._one_to_two_conversion(im_1=unlabeled_x_org_1)
+            unlabeled_za = attr_enc(unlabeled_x_org_2)
             self_recon_losses.append(
                 self._self_recon_consistency_loss(
-                    self_recon_ims=abs_to_trans_cvt(
-                        im_and_sig_type=(im_gen(cont_enc(unlabeled_x_abs_org), unlabeled_za), SignalType.ABS)
-                    )[0],
-                    expected_ims=unlabeled_x_org,
+                    self_recon_ims=self._two_to_one_conversion(im_2=im_gen(cont_enc(unlabeled_x_org_2), unlabeled_za)),
+                    expected_ims=unlabeled_x_org_1,
                 )
             )
         else:
@@ -133,50 +132,48 @@ class ContriMixLoss(MultiTaskMetric):
 
         za_targets = self._generate_za_targets(za=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
 
-        y_pred = backbone(x_self_recon)
+        y_pred = backbone(x_self_recon_1)
         in_dict["y_pred"] = y_pred
 
         num_mixings = za_targets.shape[0]
         entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
         attr_cons_losses: List[float] = [
             self._attribute_consistency_loss(
-                x_abs_cross_translation_im=x_abs_self_recon, expected_za=za, attr_enc=in_dict["attr_enc"]
+                x_cross_translation=x_self_recon_2, expected_za=za, attr_enc=in_dict["attr_enc"]
             )
         ]
 
         cont_cons_losses: List[float] = [
             self._content_consistency_loss(
-                x_abs_cross_translation_im=x_abs_self_recon, expected_zc=zc, cont_enc=in_dict["cont_enc"]
+                x_cross_translation=x_self_recon_2, expected_zc=zc, cont_enc=in_dict["cont_enc"]
             )
         ]
 
         if self._save_images_for_debugging:
-            save_images: List[np.ndarray] = [x_self_recon[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
-            target_images: List[np.ndarray] = [x_org[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
+            save_images: List[np.ndarray] = [x_self_recon_1[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
+            target_images: List[np.ndarray] = [x_org_1[0].clone().detach().cpu().numpy().transpose(1, 2, 0)]
 
         for mix_idx in range(num_mixings):
             za_target = za_targets[mix_idx]
-            x_abs_cross_translation = im_gen(zc, za_target)
-            x_cross_translation = abs_to_trans_cvt(im_and_sig_type=(x_abs_cross_translation, SignalType.ABS))[0]
+            x_cross_translation_2 = im_gen(zc, za_target)
+            x_cross_translation_1 = self._two_to_one_conversion(im_2=x_cross_translation_2)
 
             if self._save_images_for_debugging:
                 target_index = all_target_image_indices[:, mix_idx][0]
-                target_images.append(x_org[target_index].clone().detach().cpu().numpy().transpose(1, 2, 0))
-                save_images.append(x_cross_translation[0].clone().detach().cpu().numpy().transpose(1, 2, 0))
+                target_images.append(x_org_1[target_index].clone().detach().cpu().numpy().transpose(1, 2, 0))
+                save_images.append(x_cross_translation_1[0].clone().detach().cpu().numpy().transpose(1, 2, 0))
 
-            entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation), y_true))
+            entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation_1), y_true))
 
             attr_cons_losses.append(
                 self._attribute_consistency_loss(
-                    x_abs_cross_translation_im=x_abs_cross_translation,
-                    expected_za=za_target,
-                    attr_enc=in_dict["attr_enc"],
+                    x_cross_translation=x_cross_translation_2, expected_za=za_target, attr_enc=in_dict["attr_enc"]
                 )
             )
 
             cont_cons_losses.append(
                 self._content_consistency_loss(
-                    x_abs_cross_translation_im=x_abs_cross_translation, expected_zc=zc, cont_enc=in_dict["cont_enc"]
+                    x_cross_translation=x_cross_translation_2, expected_zc=zc, cont_enc=in_dict["cont_enc"]
                 )
             )
 
@@ -218,6 +215,12 @@ class ContriMixLoss(MultiTaskMetric):
         else:
             # Used for updating the objective.
             return total_loss
+
+    def _one_to_two_conversion(self, im_1: torch.Tensor) -> torch.Tensor:
+        return self._trans_to_abs_cvt(im_trans=im_1) if self._trans_to_abs_cvt is not None else im_1
+
+    def _two_to_one_conversion(self, im_2: torch.Tensor) -> torch.Tensor:
+        return self._abs_to_trans_cvt(im_abs=im_2) if self._abs_to_trans_cvt is not None else im_2
 
     @staticmethod
     def _generate_za_targets(
@@ -264,36 +267,36 @@ class ContriMixLoss(MultiTaskMetric):
 
     @staticmethod
     def _attribute_consistency_loss(
-        x_abs_cross_translation_im: torch.Tensor, expected_za: torch.Tensor, attr_enc: nn.Module
+        x_cross_translation: torch.Tensor, expected_za: torch.Tensor, attr_enc: nn.Module
     ) -> float:
         """Computes the attribute consistency loss.
 
         Args:
-            x_abs_cross_translation_im: The (absorbance) translated images that we used for augmentations.
+            x_cross_translation: The cross translation images that we used for augmentations.
             expected_za: The expected attribute tensor.
             attr_enc: The attribute encoder.
 
         Returns:
             A floating point value for the loss.
         """
-        za_recon = attr_enc(x_abs_cross_translation_im)
+        za_recon = attr_enc(x_cross_translation)
         return torch.nn.L1Loss(reduction="mean")(za_recon, expected_za)
 
     @staticmethod
     def _content_consistency_loss(
-        x_abs_cross_translation_im: torch.Tensor, expected_zc: torch.Tensor, cont_enc: nn.Module
+        x_cross_translation: torch.Tensor, expected_zc: torch.Tensor, cont_enc: nn.Module
     ) -> float:
         """Computes the attribute consistency loss.
 
         Args:
-            x_abs_cross_translation_im: The (absorbance) translated images that we used for augmentations.
+            x_cross_translation: The cross translation images that we used for augmentations.
             expected_zc: The expcted content tensor.
             cont_enc: The content encoder.
 
         Returns:
             A floating point value for the loss.
         """
-        zc_recon = cont_enc(x_abs_cross_translation_im)
+        zc_recon = cont_enc(x_cross_translation)
         return torch.nn.L1Loss(reduction="mean")(zc_recon, expected_zc)
 
     def _compute(self, y_pred, y_true):

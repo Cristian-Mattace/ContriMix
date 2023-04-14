@@ -40,6 +40,7 @@ def initialize_algorithm(
     num_train_steps: int,
     train_grouper: AbstractGrouper,
     loss_weights_by_name: Optional[Dict[str, float]] = None,
+    **kw_args: Dict[str, Any],
 ) -> SingleModelAlgorithm:
     """Initializes an algorithm based on the provided config dictionary.
 
@@ -47,7 +48,8 @@ def initialize_algorithm(
         config: A dictionary that is used to configure hwo the model should be initialized.
         num_train_steps: The number of training steps.
         train_grouper: A grouper object that defines the groups for which we compute/log statistics for.
-        loss_weights_by_name: A dictionary of loss weigths, keyed by the name of the losss.
+        loss_weights_by_name (optional): A dictionary of loss weigths, keyed by the name of the loss. Defaults to None.
+        kw_args: Keyword arguments.
 
     Returns:
         The initialized algorithm.
@@ -62,6 +64,7 @@ def initialize_algorithm(
             loss=initialize_loss(loss_type=config["loss_function"]),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
+            **kw_args,
         )
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
         logging.warning(
@@ -81,6 +84,7 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             num_attr_vectors=config["num_attr_vectors"],
+            **kw_args,
         )
     elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
         algorithm = NoisyStudent(
@@ -93,6 +97,7 @@ def initialize_algorithm(
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
+            **kw_args,
         )
     else:
         raise ValueError(f"The algorithm {config['algorithm']} is not supported!")
