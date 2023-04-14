@@ -26,22 +26,14 @@ _MIN_ABSORBANCE_VALUE = -0.2
 class AbsorbanceToTransmittance(object):
     """Converts an absorbance image to the transmittance image."""
 
-    def __call__(self, im_and_sig_type: Tuple[torch.Tensor, SignalType]) -> Tuple[torch.Tensor, SignalType]:
-        im, sig_type = im_and_sig_type
-        if sig_type != SignalType.ABS:
-            raise RuntimeError(f"Can't convert a none absorbance signal. The current signal type is {sig_type}!")
-        im = torch.clip(im, _MIN_ABSORBANCE_VALUE, _MAX_ABSORBANCE_VALUE)
-        return 10 ** (-im), SignalType.TRANS
+    def __call__(self, im_abs: torch.Tensor) -> torch.Tensor:
+        im_abs = torch.clip(im_abs, _MIN_ABSORBANCE_VALUE, _MAX_ABSORBANCE_VALUE)
+        return 10 ** (-im_abs)
 
 
 class TransmittanceToAbsorbance(object):
     """Converts a transmittance image to the absorbance image."""
 
-    def __call__(
-        self, im_and_sig_type: Tuple[torch.Tensor, SignalType], min_trans_signal=10 ** (-_MAX_ABSORBANCE_VALUE)
-    ) -> Tuple[torch.Tensor, SignalType]:
-        im, sig_type = im_and_sig_type
-        if sig_type != SignalType.TRANS:
-            raise RuntimeError(f"Can't convert a non-transmission signal. The current signal type is {sig_type}")
-        im = torch.clip(im, min_trans_signal, None)
-        return -torch.log10(im), SignalType.ABS
+    def __call__(self, im_trans: torch.Tensor, min_trans_signal=10 ** (-_MAX_ABSORBANCE_VALUE)) -> torch.Tensor:
+        im_trans = torch.clip(im_trans, min_trans_signal, None)
+        return -torch.log10(im_trans)
