@@ -69,7 +69,8 @@ class ContriMix(MultimodelAlgorithm):
             self._trans_to_abs_converter = TransmittanceToAbsorbance()
             self._abs_to_trans_converter = AbsorbanceToTransmittance()
         else:
-            raise ValueError("ContriMix without converting to absorbance in between is not supported yet!")
+            self._trans_to_abs_converter = None
+            self._abs_to_trans_converter = None
 
         downsampling_factor: int = 1
         super().__init__(
