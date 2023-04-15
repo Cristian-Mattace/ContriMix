@@ -30,6 +30,9 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
             40000, which is faster for code development. Defaults to True.
         drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
+        eval_grouper_group_by_fields (optional): A list of strings that defines the field to group by when displaying.
+            the summary. Defaults to "slides". In the experiment that relates to droping center, ["y"] can be used
+            because using "slides" caused an exception when droping center 0.
     """
 
     _dataset_name: Optional[str] = "camelyon17"
@@ -48,6 +51,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
         use_full_size: bool = True,
         drop_centers: List = [],
+        eval_grouper_group_by_fields: List[str] = ["slide"],
     ) -> None:
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir)
@@ -90,9 +94,10 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         )
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
 
-        # The evaluation grouper operates ovfer all the slides.
-        # Since 'slide' throws an exception if you throw away center 0 in training, use groupby_fields='y' in that case
-        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
+        # The evaluation grouper for the whole dataset.
+        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(
+            dataset=self, groupby_fields=eval_grouper_group_by_fields
+        )
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
     def _update_split_field_index_of_metadata(self) -> None:
