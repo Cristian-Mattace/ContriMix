@@ -176,4 +176,4 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
     def update_loss_weight_based_on_epoch(self, epoch: int) -> None:
         """Update the weights of the loss based on epoch index."""
-        self._loss.update_contrimix_loss_weights_for_current_epoch(epoch=epoch)
+        self._loss.update_epoch_index(epoch=epoch)

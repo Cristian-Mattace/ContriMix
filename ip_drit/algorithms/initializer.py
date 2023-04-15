@@ -78,7 +78,7 @@ def initialize_algorithm(
             grouper=train_grouper,
             loss=ContriMixLoss(
                 loss_fn=nn.BCEWithLogitsLoss(reduction="none"),
-                contrimix_loss_weights_by_name=loss_weights_by_name,
+                loss_weights_by_name=loss_weights_by_name,
                 save_images_for_debugging=True,
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],

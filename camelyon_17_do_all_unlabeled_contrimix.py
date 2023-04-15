@@ -124,8 +124,13 @@ def main():
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=labeled_split_dict_by_names["train"]["loader"]
         ),
-        loss_weights_by_name={"attr_cons_weight": 0.05, "self_recon_weight": 0.7, "cont_cons_weight": 0.25},
         convert_to_absorbance_in_between=True,
+        loss_weights_by_name={
+            "attr_cons_weight": 0.05,
+            "self_recon_weight": 0.5,
+            "cont_cons_weight": 0.25,
+            "entropy_weight": 0.2,
+        },
     )
 
     if not config_dict["eval_only"]:

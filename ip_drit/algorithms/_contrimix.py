@@ -150,6 +150,7 @@ class ContriMix(MultimodelAlgorithm):
             "trans_to_abs_cvt": self._trans_to_abs_converter,
             "backbone": self._models_by_names["backbone"],
             "all_target_image_indices": all_target_image_indices,
+            "is_training": self._is_training,
         }
 
     def _select_random_image_indices_by_image_index(self, batch_size: int) -> List[torch.Tensor]:

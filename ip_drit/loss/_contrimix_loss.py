@@ -30,7 +30,7 @@ class ContriMixLoss(MultiTaskMetric):
 
     Args:
         loss_fn: A function to compute the loss from the label, excluding other ContriMix specific loss.
-        contrimix_loss_weights_by_name: A dictionary of loss weights for Contrimix terms only, excluding the cross-
+        loss_weights_by_name: A dictionary of loss weights for Contrimix terms only, excluding the cross-
             entropy term. The sum of the weights must be equal to 1.0.
         name (optional): The name of the loss. Defaults to None, in which case, the default name of "contrimix_loss"
             will be used.
@@ -40,33 +40,29 @@ class ContriMixLoss(MultiTaskMetric):
             ContriMixAggregationType.AUGREG, in which augmentation regularization will be used for image consistency.
         aug_reg_variance_weight (optional): The factor that is used to penalize the variance of the model performance.
             Defaults to 10.0.
-        weight_decay_rate (float): The rate that the contrixmix weights should be decay. Defaults to 0.95.
+        weight_ramp_up_steps (int): The number of steps that the weights of cross-entropy should ramp up. Defaults to 1.
         max_cross_entropy_loss_weight (float): The maximum values for the cross-entropy loss weight. Defaults to 0.2.
     """
 
     def __init__(
         self,
         loss_fn: Optional[Callable],
-        contrimix_loss_weights_by_name: Dict[str, float],
+        loss_weights_by_name: Dict[str, float],
         name: Optional[str] = "contrimix_loss",
         save_images_for_debugging: bool = False,
         aggregation: ContriMixAggregationType = ContriMixAggregationType.AUGREG,
         aug_reg_variance_weight: float = 10.0,
-        weight_decay_rate: float = 0.95,
-        max_cross_entropy_loss_weight: float = 0.2,
+        weight_ramp_up_steps: int = 1,
     ) -> None:
         self._loss_fn = loss_fn
-        self._contrimix_loss_weights_by_name = self._clean_up_loss_weight_dictionary(contrimix_loss_weights_by_name)
+        self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
         self._save_images_for_debugging = save_images_for_debugging
         self._debug_image: Optional[np.ndarray] = None
         self._aug_reg_variance_weight: float = aug_reg_variance_weight
 
         self._aggregation: ContriMixAggregationType = aggregation
         super().__init__(name)
-        self._weight_decay_rate: float = weight_decay_rate
-        self._max_epoch_to_update_weight: int = int(
-            np.log10(1 - max_cross_entropy_loss_weight) / np.log10(self._weight_decay_rate)
-        )
+        self._weight_ramp_up_steps: float = weight_ramp_up_steps
         self._epoch: int = 0
 
     @staticmethod
@@ -105,6 +101,7 @@ class ContriMixLoss(MultiTaskMetric):
         cont_enc = in_dict["cont_enc"]
         attr_enc = in_dict["attr_enc"]
         im_gen = in_dict["im_gen"]
+        is_training = in_dict["is_training"]
 
         # The index 2 is to tell what space the original image is going to, which can be absorbance, or transmittance.
         x_org_2 = self._one_to_two_conversion(im_1=x_org_1)
@@ -191,11 +188,17 @@ class ContriMixLoss(MultiTaskMetric):
         else:
             raise ValueError(f"Aggregation type of {self._aggregation} is not supported!")
 
+        all_loss_weights = self._loss_weights_by_name
+        if is_training:
+            all_loss_weights = self._loss_weights_from_epoch()
+        else:
+            all_loss_weights = self._loss_weights_by_name
+
         total_loss = (
-            self._all_loss_weights_by_name["self_recon_weight"] * self_recon_loss
-            + self._all_loss_weights_by_name["entropy_weight"] * entropy_loss
-            + self._all_loss_weights_by_name["attr_cons_weight"] * attr_cons_loss
-            + self._all_loss_weights_by_name["cont_cons_weight"] * cont_cons_loss
+            all_loss_weights["self_recon_weight"] * self_recon_loss
+            + all_loss_weights["entropy_weight"] * entropy_loss
+            + all_loss_weights["attr_cons_weight"] * attr_cons_loss
+            + all_loss_weights["cont_cons_weight"] * cont_cons_loss
         )
 
         if self._save_images_for_debugging:
@@ -323,12 +326,28 @@ class ContriMixLoss(MultiTaskMetric):
             raise RuntimeError(f"Debug image was not saved, set save_images_for_debugging to True to get it")
         return self._debug_image
 
-    def update_contrimix_loss_weights_for_current_epoch(self, epoch: int) -> None:
-        """Calculates a dictionary of the contrimix loss weights."""
-        if epoch > self._max_epoch_to_update_weight:
+    def update_epoch_index(self, epoch: int) -> None:
+        """Updates the current epoch index."""
+        self._epoch = epoch
+
+    def _loss_weights_from_epoch(self) -> Dict[str, float]:
+        if self._epoch >= self._weight_ramp_up_steps:
             return
-        lambdaa = self._weight_decay_rate**epoch
-        weight_dict = {k: lambdaa * v for k, v in self._contrimix_loss_weights_by_name.items()}
-        weight_dict["entropy_weight"] = 1.0 - lambdaa
-        logging.info(f"   Contrimix loss weights = {weight_dict}")
-        self._all_loss_weights_by_name = weight_dict
+        cur_cross_entropy_weight = (
+            self._epoch / self._weight_ramp_up_steps * self._loss_weights_by_name["entropy_weight"]
+        )
+        total_contrix_weights = (
+            self._loss_weights_by_name["self_recon_weight"]
+            + self._loss_weights_by_name["attr_cons_weight"]
+            + self._loss_weights_by_name["cont_cons_weight"]
+        )
+        target_total_contrimix_weights = 1.0 - cur_cross_entropy_weight
+        weight_dict = {"entropy_weight": cur_cross_entropy_weight}
+        weight_dict.update(
+            {
+                k: self._loss_weights_by_name[k] * (target_total_contrimix_weights / total_contrix_weights)
+                for k in ("self_recon_weight", "attr_cons_weight", "cont_cons_weight")
+            }
+        )
+
+        return weight_dict
