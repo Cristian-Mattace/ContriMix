@@ -332,7 +332,7 @@ class ContriMixLoss(MultiTaskMetric):
 
     def _loss_weights_from_epoch(self) -> Dict[str, float]:
         if self._epoch >= self._weight_ramp_up_steps:
-            return
+            return self._loss_weights_by_name
         cur_cross_entropy_weight = (
             self._epoch / self._weight_ramp_up_steps * self._loss_weights_by_name["entropy_weight"]
         )
