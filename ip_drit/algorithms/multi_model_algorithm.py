@@ -18,6 +18,7 @@ from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
 from ip_drit.optimizer import get_parameters_from_models
 from ip_drit.optimizer import initialize_optimizer
+from ip_drit.patch_transform import AbstractJointTensorTransform
 from ip_drit.scheduler import initialize_scheduler
 
 
@@ -33,6 +34,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
             returns by the loss.
         metric: The metric to use.
         n_train_steps: The number of training steps.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
     """
 
     def __init__(
@@ -44,8 +47,10 @@ class MultimodelAlgorithm(GroupAlgorithm):
         logged_fields: List[str],
         metric: Metric,
         n_train_steps: int,
+        batch_transform: Optional[AbstractJointTensorTransform] = None,
     ):
         self._loss = loss
+        self._batch_transform = batch_transform
         logged_metrics = [self._loss]
         if metric is not None:
             self._metric = metric

@@ -12,7 +12,6 @@ import torch
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as tf
 
-from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.patch_transform.data_augmentation._randaugment import FIX_MATCH_AUGMENTATION_POOL
 from ip_drit.patch_transform.data_augmentation._randaugment import RandAugment
 
@@ -34,7 +33,7 @@ _DEFAULT_IMAGE_TENSOR_NORMALIZATION_STD = [0.229, 0.224, 0.225]
 def initialize_transform(
     transform_name: Optional[TransformationType],
     # TODO: move the dataset out of here!
-    full_dataset: AbstractPublicDataset,
+    full_dataset,
     config_dict: Dict[str, Any],
     is_training: bool = True,
 ) -> Optional[Callable]:
@@ -105,11 +104,7 @@ def _add_weak_transform(base_transform_steps: List[Callable], normalize: bool, d
 
 
 def _add_rand_augment_transform(
-    config: Dict[str, Any],
-    dataset: AbstractPublicDataset,
-    base_transform_steps: List[Callable],
-    normalize: bool,
-    default_normalization,
+    config: Dict[str, Any], dataset, base_transform_steps: List[Callable], normalize: bool, default_normalization
 ) -> transforms.Compose:
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
     target_resolution = _get_target_resolution(config, dataset)

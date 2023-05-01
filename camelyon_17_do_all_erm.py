@@ -25,6 +25,7 @@ from train_utils import train, evaluate_over_splits
 from saving_utils import load
 from script_utils import calculate_batch_size
 from ip_drit.algorithms import calculate_number_of_training_steps
+from ip_drit.patch_transform import CutMixJointTensorTransform
 
 logging.getLogger().setLevel(logging.INFO)
 
@@ -53,6 +54,7 @@ def main():
         dataset_dir=all_dataset_dir / "camelyon17/",
         use_full_size=FLAGS.use_full_dataset,
         drop_centers=FLAGS.drop_centers,
+        return_one_hot=True,
     )
 
     config_dict: Dict[str, Any] = {
@@ -120,6 +122,7 @@ def main():
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
+        batch_transform=None,
     )
 
     if not config_dict["eval_only"]:

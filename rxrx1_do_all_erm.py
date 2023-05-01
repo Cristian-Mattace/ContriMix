@@ -58,6 +58,8 @@ def main():
         dataset_dir=all_dataset_dir / "rxrx1/",
         use_full_size=FLAGS.use_full_dataset,
         split_scheme=SplitSchemeType.OFFICIAL,
+        return_one_hot=True,
+        cache_inputs=False,
     )
 
     config_dict: Dict[str, Any] = {

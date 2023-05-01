@@ -21,6 +21,7 @@ from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
 from ip_drit.algorithms import calculate_number_of_training_steps
+from ip_drit.patch_transform import CutMixJointTensorTransform
 from script_utils import configure_split_dict_by_names
 from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
@@ -52,6 +53,7 @@ def main():
         dataset_dir=all_dataset_dir / "camelyon17/",
         use_full_size=FLAGS.use_full_dataset,
         drop_centers=FLAGS.drop_centers,
+        return_one_hot=True,
     )
 
     config_dict: Dict[str, Any] = {
@@ -128,6 +130,7 @@ def main():
             "cont_cons_weight": 0.25,
             "entropy_weight": 0.2,
         },
+        batch_transform=CutMixJointTensorTransform(x_resolution=camelyon_dataset.original_resolution),
     )
 
     if not config_dict["eval_only"]:

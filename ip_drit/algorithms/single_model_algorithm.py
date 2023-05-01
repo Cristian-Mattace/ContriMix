@@ -20,6 +20,7 @@ from ._utils import move_to
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
 from ip_drit.optimizer import initialize_optimizer
+from ip_drit.patch_transform import AbstractJointTensorTransform
 from ip_drit.scheduler import initialize_scheduler
 
 
@@ -41,6 +42,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
         loss: The loss object.
         metric: The metric to use.
         n_train_steps: The number of training steps.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
     """
 
     def __init__(
@@ -51,6 +54,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         loss,
         metric: Metric,
         n_train_steps: int,
+        batch_transform: Optional[AbstractJointTensorTransform] = None,
     ):
         self._loss = loss
         logged_metrics = [self._loss]
@@ -88,6 +92,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         parallelized_model.needs_y_input = model.needs_y_input
 
         self._model = parallelized_model
+        self._batch_transform = batch_transform
 
     def _get_model_output(self, x: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         if self._model.needs_y_input:
@@ -124,6 +129,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
         x, y_true, metadata = labeled_batch
         x = move_to(x, self._device)
         y_true = move_to(y_true, self._device)
+        if self._batch_transform is not None:
+            x, y_true = self._batch_transform.transform(x, y_true)
         g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
         results = {"g": g, "y_true": y_true, "y_pred": self._get_model_output(x, y_true), "metadata": metadata}
 

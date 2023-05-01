@@ -21,6 +21,7 @@ from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.grouper import MultiDatasetCombinatorialGrouper
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
+from ip_drit.patch_transform import CutMixJointTensorTransform
 from script_utils import configure_split_dict_by_names
 from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
@@ -48,7 +49,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     labeled_camelyon_dataset = CamelyonDataset(
-        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset, return_one_hot=True
     )
 
     unlabeled_camelyon_dataset = CamelyonUnlabeledDataset(
@@ -136,6 +137,7 @@ def main():
             "cont_cons_weight": 0.25,
             "entropy_weight": 0.2,
         },
+        batch_transform=CutMixJointTensorTransform(x_resolution=labeled_camelyon_dataset.original_resolution),
     )
 
     if not config_dict["eval_only"]:
