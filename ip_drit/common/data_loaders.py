@@ -108,7 +108,7 @@ def get_train_loader(
                 run_on_cluster
             ),  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
-            persistent_workers=False,
+            persistent_workers=True,
             generator=g,
             **loader_kwargs,
         )
@@ -142,7 +142,7 @@ def _generate_standard_data_loader(
                 run_on_cluster
             ),  # Setting this different than 1 is important for worker_init_fn not
             generator=g,
-            persistent_workers=False,  # Workers are created after every dataset consumption
+            persistent_workers=True,  # Workers are created after every dataset consumption
             **loader_kwargs,
         )
     else:
@@ -162,7 +162,7 @@ def _generate_standard_data_loader(
             ),  # Setting this different than 1 is important for worker_init_fn to work.
             worker_init_fn=_worker_init_fn if reset_random_generator_after_every_epoch else None,
             generator=g,
-            persistent_workers=False,  # Workers are created after every dataset consumption
+            persistent_workers=True,  # Workers are created after every dataset consumption
             **loader_kwargs,
         )
 
@@ -226,7 +226,7 @@ def get_eval_loader(
             sampler=None,
             collate_fn=dataset.collate,
             batch_size=batch_size,
-            persistent_workers=False,
+            persistent_workers=True,
             num_workers=_num_of_workers(run_on_cluster)
             if num_workers is None
             else num_workers,  # Setting this different than 1 is important for worker_init_fn to work.

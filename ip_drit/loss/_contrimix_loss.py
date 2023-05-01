@@ -261,7 +261,6 @@ class ContriMixLoss(MultiTaskMetric):
         if isinstance(self._loss_fn, torch.nn.BCEWithLogitsLoss):
             y_pred_logits = y_pred_logits.float()
             y_true = y_true.float()
-        y_true = torch.reshape(y_true, y_pred_logits.shape)
         loss = self._loss_fn(y_pred_logits, y_true)
 
         if loss.numel() == 0:

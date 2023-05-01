@@ -239,6 +239,31 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
     ) -> "SubsetLabeledPublicDataset":
         return SubsetLabeledPublicDataset(self, split_idx, transform)
 
+    @property
+    def y_size(self) -> int:
+        """Returns The number of dimensions/elements in the target, i.e., len(y_array[i]).
+
+        For standard classification/regression tasks, y_size = 1.
+        For multi-task or structured prediction settings, y_size > 1.
+        Used for logging and to configure models to produce appropriately-sized output.
+        """
+        return self._y_size
+
+    @property
+    def n_classes(self):
+        """Number of classes for single-task classification datasets.
+
+        Used for logging and to configure models to produce appropriately-sized output.
+        None by default.
+        Leave as None if not applicable (e.g., regression or multi-task classification).
+        """
+        return getattr(self, "_n_classes", None)
+
+    @property
+    def is_classification(self) -> bool:
+        """True if the task is classification, and false otherwise."""
+        return True if self.n_classes is not None else False
+
     @abstractmethod
     def eval(
         self,

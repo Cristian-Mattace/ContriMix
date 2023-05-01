@@ -190,7 +190,6 @@ class ElementwiseMetric(Metric):
         return avg_metric
 
     def _compute_group_wise(self, y_pred, y_true, g, n_groups):
-        y_pred = torch.reshape(y_pred, y_true.shape)
         element_wise_metrics = self._compute_element_wise(y_pred, y_true)
         group_metrics, group_counts = avg_over_groups(element_wise_metrics.float(), g, n_groups)
         worst_group_metric = self.worst(group_metrics[group_counts > 0])

@@ -62,7 +62,7 @@ def main():
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],
-        "loss_function": "multitask_bce",
+        "loss_function": "cross_entropy",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
@@ -70,7 +70,11 @@ def main():
         "log_every_n_batches": FLAGS.log_every_n_batches,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": False,
-        "batch_size": calculate_batch_size(algorithm=ModelAlgorithm.ERM, run_on_cluster=FLAGS.run_on_cluster),
+        "batch_size": calculate_batch_size(
+            dataset_name=camelyon_dataset.dataset_name,
+            algorithm=ModelAlgorithm.ERM,
+            run_on_cluster=FLAGS.run_on_cluster,
+        ),
         "run_on_cluster": FLAGS.run_on_cluster,
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
@@ -110,6 +114,7 @@ def main():
         full_dataset=camelyon_dataset, grouper=train_grouper, config_dict=config_dict
     )
     algorithm = initialize_algorithm(
+        train_dataset=split_dict_by_names["train"]["dataset"],
         config=config_dict,
         train_grouper=train_grouper,
         num_train_steps=calculate_number_of_training_steps(
