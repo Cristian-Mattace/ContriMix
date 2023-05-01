@@ -82,7 +82,7 @@ def main():
             batch_size_per_gpu=FLAGS.batch_size_per_gpu,
         ),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
+        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},

@@ -47,9 +47,12 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
 
     def __init__(
         self,
+        dataset_dir: str,
         split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
         eval_grouper_group_by_fields: List[str] = ["slide"],
         return_one_hot: bool = False,
+        use_full_size: bool = True,
+        drop_centers: List[int] = [0, 3, 4],
     ) -> None:
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
