@@ -32,6 +32,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         eval_grouper_group_by_fields (optional): A list of strings that defines the field to group by when displaying.
             the summary. Defaults to "slides". In the experiment that relates to droping center, ["y"] can be used
             because using "slides" caused an exception when droping center 0.
+        return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
     """
 
     _dataset_name: Optional[str] = "camelyon17"
@@ -46,10 +47,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
 
     def __init__(
         self,
-        dataset_dir: Path,
         split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
-        use_full_size: bool = True,
-        drop_centers: List = [],
         eval_grouper_group_by_fields: List[str] = ["slide"],
         return_one_hot: bool = False,
     ) -> None:

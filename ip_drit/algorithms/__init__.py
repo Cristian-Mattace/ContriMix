@@ -1,1 +1,2 @@
+from ._contrimix import ContriMixMixingType
 from .initializer import calculate_number_of_training_steps

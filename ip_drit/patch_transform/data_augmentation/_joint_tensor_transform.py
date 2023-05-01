@@ -10,7 +10,7 @@ import torch
 class AbstractJointTensorTransform(ABC):
     """A class that jointly transforms the input tensor and the target tensor."""
 
-    def transform(self, x: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __call__(self, x: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Transforms the input tensor and the target tensor.
 
         Returns:
@@ -18,7 +18,10 @@ class AbstractJointTensorTransform(ABC):
             y: The transformeed tensor of the class probalities.
         """
         if len(y.shape) != 2:
-            raise ValueError(f"Can't transform the label y because it is only a 1 dimension tensor.")
+            raise ValueError(
+                f"Can't transform the label y because it is only a 1 dimension tensor. "
+                + "To fix this, set return_one_hot=True in the Dataset initialization!"
+            )
         return self._transform(x, y)
 
     @abstractclassmethod
@@ -30,15 +33,13 @@ class CutMixJointTensorTransform(AbstractJointTensorTransform):
     """A class that performs the CutMix operation.
 
     Args:
-        x_resolution: The resolution of the original image.
         alpha: The factor alpha to sample the mixing coefficient. Defaults to 1.0
 
     References:
         [1]. CutMix: Regularization strategy to train strong classifiers with localizable features.
     """
 
-    def __init__(self, x_resolution: Tuple[int, int], alpha: float = 1.0) -> None:
-        self._x_resolution: Tuple[int, int] = x_resolution
+    def __init__(self, alpha: float = 1.0) -> None:
         self._alpha: float = alpha
 
     def _transform(self, x: torch.Tensor, y: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
