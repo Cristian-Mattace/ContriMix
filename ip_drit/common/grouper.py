@@ -106,7 +106,7 @@ class CombinatorialGrouper(AbstractGrouper):
 
             # We assume that the metadata fields are integers,
             # so we can measure the cardinality of each field by taking its max + 1, where 1 is for the first group of 0
-            # Note that this might result in some empty groups.
+            # Note that this might result in some empty groups!
             self._cardinality = 1 + torch.max(grouped_metadata, dim=0)[0]
             cumprod = torch.cumprod(self._cardinality, dim=0)
             self._n_groups = cumprod[-1].item()

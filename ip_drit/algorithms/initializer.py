@@ -45,6 +45,7 @@ def initialize_algorithm(
     train_grouper: AbstractGrouper,
     loss_weights_by_name: Optional[Dict[str, float]] = None,
     batch_transform: Optional[AbstractJointTensorTransform] = None,
+    algorithm_parameters: Optional[Dict[str, Any]] = None,
     **kw_args: Dict[str, Any],
 ) -> SingleModelAlgorithm:
     """Initializes an algorithm based on the provided config dictionary.
@@ -57,6 +58,7 @@ def initialize_algorithm(
         loss_weights_by_name (optional): A dictionary of loss weigths, keyed by the name of the loss. Defaults to None.
         batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
             processing will be performed.
+        algorithm_parameters (optional): The parameters of the algorithm.
         kw_args: Keyword arguments.
 
     Returns:
@@ -65,6 +67,8 @@ def initialize_algorithm(
     logging.info(f"Initializing the {config['algorithm'].name} algorithm!")
 
     output_dim = _infer_output_dimensions(train_dataset=train_dataset, config=config)
+
+    algorithm_parameters = {} if algorithm_parameters is None else algorithm_parameters
 
     if config["algorithm"] == ModelAlgorithm.ERM:
         algorithm = ERM(
@@ -75,7 +79,7 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             batch_transform=batch_transform,
-            **kw_args,
+            **algorithm_parameters,
         )
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
         logging.warning(
@@ -95,8 +99,8 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             num_attr_vectors=config["num_attr_vectors"],
-            batch_transform=batch_transform,
-            **kw_args,
+            batch_transforms=batch_transform,
+            **algorithm_parameters,
         )
     elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
         algorithm = NoisyStudent(
@@ -110,7 +114,7 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             batch_transform=batch_transform,
-            **kw_args,
+            **algorithm_parameters,
         )
     else:
         raise ValueError(f"The algorithm {config['algorithm']} is not supported!")

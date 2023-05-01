@@ -16,6 +16,7 @@ from ..common.metrics._base import Metric
 from ..common.metrics._base import MultiTaskMetric
 from ip_drit.models import SignalType
 from ip_drit.patch_transform import CutMixJointTensorTransform
+from ip_drit.patch_transform import ZeroMeanUnitStdNormalizer
 
 
 class ContriMixAggregationType(Enum):
@@ -42,6 +43,9 @@ class ContriMixLoss(MultiTaskMetric):
             Defaults to 10.0.
         weight_ramp_up_steps (int): The number of steps that the weights of cross-entropy should ramp up. Defaults to 1.
         max_cross_entropy_loss_weight (float): The maximum values for the cross-entropy loss weight. Defaults to 0.2.
+        use_cut_mix (optional): If True, the CutMix transform will be used before computing the cross-entropy loss.
+        normalize_signals_into_to_backbone (bool): If True, the input signal into the backbone will be normalized.
+            Defaults to True.
     """
 
     def __init__(
@@ -53,17 +57,20 @@ class ContriMixLoss(MultiTaskMetric):
         aggregation: ContriMixAggregationType = ContriMixAggregationType.MEAN,
         aug_reg_variance_weight: float = 10.0,
         weight_ramp_up_steps: int = 1,
+        use_cut_mix: bool = True,
+        normalize_signals_into_to_backbone: bool = True,
     ) -> None:
         self._loss_fn = loss_fn
         self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
         self._save_images_for_debugging = save_images_for_debugging
         self._debug_image: Optional[np.ndarray] = None
         self._aug_reg_variance_weight: float = aug_reg_variance_weight
-
+        self._backbone_input_normalizer = ZeroMeanUnitStdNormalizer() if normalize_signals_into_to_backbone else None
         self._aggregation: ContriMixAggregationType = aggregation
         super().__init__(name)
         self._weight_ramp_up_steps: float = weight_ramp_up_steps
         self._epoch: int = 0
+        self._cut_mix_transform = CutMixJointTensorTransform() if use_cut_mix else None
 
     @staticmethod
     def _clean_up_loss_weight_dictionary(loss_weights_by_name: Dict[str, float]) -> Dict[str, float]:
@@ -95,6 +102,7 @@ class ContriMixLoss(MultiTaskMetric):
         self._abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
         self._trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
         self._batch_transform = in_dict["batch_transform"]
+        self._is_training = in_dict["is_training"]
         self._validate_batch_transform(batch_transform=self._batch_transform)
 
         x_org_1 = in_dict["x_org"]
@@ -131,11 +139,15 @@ class ContriMixLoss(MultiTaskMetric):
 
         za_targets = self._generate_za_targets(za=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
 
-        in_dict["y_pred"] = backbone(x_self_recon_1)
+        in_dict["y_pred"] = backbone(self._compute_backbone_input(x_self_recon_1))
 
         num_mixings = za_targets.shape[0]
 
-        entropy_losses = [self._compute_entropy_loss_from_logits(x_self_recon_1, y_true, backbone=backbone)]
+        entropy_losses = [
+            self._compute_entropy_loss_from_logits(
+                self._compute_backbone_input(x_self_recon_1), y_true, backbone=backbone
+            )
+        ]
 
         attr_cons_losses: List[float] = [
             self._attribute_consistency_loss(
@@ -164,7 +176,9 @@ class ContriMixLoss(MultiTaskMetric):
                 save_images.append(x_cross_translation_1[0].clone().detach().cpu().numpy().transpose(1, 2, 0))
 
             entropy_losses.append(
-                self._compute_entropy_loss_from_logits(x_cross_translation_1, y_true, backbone=backbone)
+                self._compute_entropy_loss_from_logits(
+                    self._compute_backbone_input(x_cross_translation_1), y_true, backbone=backbone
+                )
             )
 
             attr_cons_losses.append(
@@ -209,7 +223,7 @@ class ContriMixLoss(MultiTaskMetric):
         if self._save_images_for_debugging:
             target_image = np.concatenate(target_images, axis=1)
             augmented_image = np.concatenate(save_images, axis=1)
-            self._debug_image = np.concatenate([target_image, augmented_image], axis=0)
+            self._debug_image = np.clip(np.concatenate([target_image, augmented_image], axis=0), a_min=0.0, a_max=1.0)
 
         if return_dict:
             # Used for updating logs.
@@ -262,8 +276,8 @@ class ContriMixLoss(MultiTaskMetric):
         self, x: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
     ) -> torch.Tensor:
         """Returns the cross-entropy loss from logits (not averaging over the minibatch samples)."""
-        if self._batch_transform is not None:
-            x, y_true = self._batch_transform.transform(x, y_true)
+        if self._cut_mix_transform is not None and self._is_training:
+            x, y_true = self._cut_mix_transform(x, y_true)
 
         y_pred_logits = backbone(x)
         if isinstance(self._loss_fn, torch.nn.BCEWithLogitsLoss):
@@ -364,3 +378,15 @@ class ContriMixLoss(MultiTaskMetric):
             self._aggregation == ContriMixAggregationType.AUGREG
         ):
             raise ValueError("Can't use CutMix with AugReg. Turn off one of them!")
+
+    def _compute_backbone_input(self, x: torch.Tensor) -> torch.Tensor:
+        if self._is_training:
+            # Only apply random rotations, adding noise during training.
+            if self._batch_transform is not None:
+                return self._batch_transform(self._normalize_signal_into_backbone(x))
+        return self._normalize_signal_into_backbone(x)
+
+    def _normalize_signal_into_backbone(self, x: torch.Tensor) -> torch.Tensor:
+        if self._backbone_input_normalizer is None:
+            return x
+        return self._backbone_input_normalizer(x)

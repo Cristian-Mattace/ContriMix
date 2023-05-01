@@ -102,7 +102,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._downsampling_factor: int = downsampling_factor
-        self._original_resolution = (256, 256)
+        self._original_resolution = (int(256 / downsampling_factor), int(256 / downsampling_factor))
         self._cache_inputs = cache_inputs
 
         # Read in metadata
@@ -214,9 +214,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
             num_chans (optional): The number of training channels. Defaults to 3.
         """
         logging.info("Initializing a shared array for caching all RxRx1 samples!")
-        h, w = int(self._original_resolution[0] / self._downsampling_factor), int(
-            self._original_resolution[1] / self._downsampling_factor
-        )
+        h, w = self._original_resolution
         shared_array = mp.Array(ctypes.c_uint8, num_samples * num_chans * h * w)
         shared_array = np.ctypeslib.as_array(shared_array.get_obj())
         self._shared_array = shared_array.reshape(num_samples, h, w, num_chans)
@@ -286,6 +284,14 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
             prefix, ext = self._input_array[idx].split(".")
             file_name = prefix + "_" + str(self._downsampling_factor) + "x_ds." + ext
             return self._data_dir / file_name
+
+    def get_index_for_relevant_images(self, idx: int) -> List[int]:
+        """Identifies a set of image indexes that are relevant to the current image indexes.
+
+        Args:
+            idx: The index of the current sample.
+        """
+        pass
 
     def eval(
         self,

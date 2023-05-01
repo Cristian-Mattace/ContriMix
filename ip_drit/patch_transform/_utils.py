@@ -9,6 +9,7 @@ from typing import List
 from typing import Optional
 
 import torch
+import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as tf
 
@@ -28,6 +29,17 @@ class TransformationType(Enum):
 
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_MEAN = [0.485, 0.456, 0.406]
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_STD = [0.229, 0.224, 0.225]
+
+
+class RandomRotation(nn.Module):
+    """A module that does rotation by a multiple of 90 degrees."""
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        angles = [0, 90, 180, 270]
+        angle = angles[torch.randint(low=0, high=len(angles), size=(1,))]
+        if angle > 0:
+            x = tf.rotate(x, angle)
+        return x
 
 
 def initialize_transform(
@@ -97,7 +109,7 @@ def _get_image_base_transform_steps(config, dataset) -> List[Callable]:
 def _add_weak_transform(base_transform_steps: List[Callable], normalize: bool, default_normalization):
     # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
     weak_transform_steps = copy.deepcopy(base_transform_steps)
-    weak_transform_steps.extend([transforms.RandomHorizontalFlip(), transforms.ToTensor()])
+    weak_transform_steps.extend([RandomRotation(), transforms.RandomHorizontalFlip(), transforms.ToTensor()])
     if normalize:
         weak_transform_steps.append(default_normalization)
     return transforms.Compose(weak_transform_steps)
@@ -142,9 +154,6 @@ def _get_rxrx1_transform(is_training: bool):
         std[std == 0.0] = 1.0
         return tf.normalize(x, mean, std)
 
-    t_random_rotation = transforms.Lambda(lambda x: random_rotation(x))
     t_normalize = transforms.Lambda(lambda x: normalize(x))
 
-    return transforms.Compose(
-        [t_random_rotation, transforms.RandomHorizontalFlip(), transforms.ToTensor(), t_normalize]
-    )
+    return transforms.Compose([RandomRotation(), transforms.RandomHorizontalFlip(), transforms.ToTensor(), t_normalize])

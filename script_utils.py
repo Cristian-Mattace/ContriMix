@@ -94,6 +94,7 @@ def _get_data_loader_by_split_name(
             batch_size=config_dict["batch_size"],
             uniform_over_groups=config_dict["uniform_over_groups"],
             grouper=grouper,
+            group_sampler_parameters=config_dict.get("group_sampler_parameters", None),
             distinct_groups=config_dict["distinct_groups"],
             train_n_groups_per_batch=config_dict["n_groups_per_batch"],
             reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
@@ -323,8 +324,7 @@ def calculate_batch_size(
     logging.info(f"Number of training devices = {num_devices}.")
     DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
         "camelyon17": {ModelAlgorithm.CONTRIMIX: 300, ModelAlgorithm.ERM: 1500, ModelAlgorithm.NOISY_STUDENT: 900},
-        "rxrx1": {ModelAlgorithm.CONTRIMIX: 250, ModelAlgorithm.ERM: 300},
-        # ERM with rxrx1: 300 when ds = 1, 1200 when ds = 2
+        "rxrx1": {ModelAlgorithm.ERM: 300},
     }
 
     DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
