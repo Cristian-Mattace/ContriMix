@@ -51,9 +51,10 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         use_full_size: bool = True,
         drop_centers: List = [],
         eval_grouper_group_by_fields: List[str] = ["slide"],
+        return_one_hot: bool = False,
     ) -> None:
         self._version = "1.0"
-        super().__init__(dataset_dir=dataset_dir)
+        super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._original_resolution = (96, 96)
 
         # Read in metadata

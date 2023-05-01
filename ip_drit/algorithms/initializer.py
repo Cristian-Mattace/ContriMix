@@ -24,7 +24,9 @@ from ip_drit.common.metrics import MultiTaskAveragePrecision
 from ip_drit.datasets import AbstractLabelledPublicDataset
 from ip_drit.loss import ContriMixLoss
 from ip_drit.loss.initializer import initialize_loss
+from ip_drit.patch_transform import AbstractJointTensorTransform
 from saving_utils import load
+
 
 algo_log_metrics = {
     "accuracy": Accuracy(prediction_fn=multiclass_logits_to_pred),
@@ -42,6 +44,7 @@ def initialize_algorithm(
     num_train_steps: int,
     train_grouper: AbstractGrouper,
     loss_weights_by_name: Optional[Dict[str, float]] = None,
+    batch_transform: Optional[AbstractJointTensorTransform] = None,
     **kw_args: Dict[str, Any],
 ) -> SingleModelAlgorithm:
     """Initializes an algorithm based on the provided config dictionary.
@@ -52,6 +55,8 @@ def initialize_algorithm(
         num_train_steps: The number of training steps.
         train_grouper: A grouper object that defines the groups for which we compute/log statistics for.
         loss_weights_by_name (optional): A dictionary of loss weigths, keyed by the name of the loss. Defaults to None.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
         kw_args: Keyword arguments.
 
     Returns:
@@ -69,6 +74,7 @@ def initialize_algorithm(
             loss=initialize_loss(loss_type=config["loss_function"]),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
+            batch_transform=batch_transform,
             **kw_args,
         )
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
@@ -89,6 +95,7 @@ def initialize_algorithm(
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             num_attr_vectors=config["num_attr_vectors"],
+            batch_transform=batch_transform,
             **kw_args,
         )
     elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
@@ -102,6 +109,7 @@ def initialize_algorithm(
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
+            batch_transform=batch_transform,
             **kw_args,
         )
     else:

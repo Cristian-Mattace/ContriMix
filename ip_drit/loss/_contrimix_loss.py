@@ -14,8 +14,8 @@ import torch.nn as nn
 
 from ..common.metrics._base import Metric
 from ..common.metrics._base import MultiTaskMetric
-from ..common.metrics._utils import numel
 from ip_drit.models import SignalType
+from ip_drit.patch_transform import CutMixJointTensorTransform
 
 
 class ContriMixAggregationType(Enum):
@@ -37,7 +37,7 @@ class ContriMixLoss(MultiTaskMetric):
         save_images_for_debugging (optional): If True, different mixing images will be save for debugging. Defaults to
             False.
         aggregation (optional): The type of the aggregation on the backbone loss. Defaults to
-            ContriMixAggregationType.AUGREG, in which augmentation regularization will be used for image consistency.
+            ContriMixAggregationType.MEAN.
         aug_reg_variance_weight (optional): The factor that is used to penalize the variance of the model performance.
             Defaults to 10.0.
         weight_ramp_up_steps (int): The number of steps that the weights of cross-entropy should ramp up. Defaults to 1.
@@ -50,7 +50,7 @@ class ContriMixLoss(MultiTaskMetric):
         loss_weights_by_name: Dict[str, float],
         name: Optional[str] = "contrimix_loss",
         save_images_for_debugging: bool = False,
-        aggregation: ContriMixAggregationType = ContriMixAggregationType.AUGREG,
+        aggregation: ContriMixAggregationType = ContriMixAggregationType.MEAN,
         aug_reg_variance_weight: float = 10.0,
         weight_ramp_up_steps: int = 1,
     ) -> None:
@@ -94,6 +94,8 @@ class ContriMixLoss(MultiTaskMetric):
         backbone = in_dict["backbone"]
         self._abs_to_trans_cvt = in_dict["abs_to_trans_cvt"]
         self._trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
+        self._batch_transform = in_dict["batch_transform"]
+        self._validate_batch_transform(batch_transform=self._batch_transform)
 
         x_org_1 = in_dict["x_org"]
         unlabeled_x_org_1 = in_dict["unlabeled_x_org"]
@@ -129,11 +131,12 @@ class ContriMixLoss(MultiTaskMetric):
 
         za_targets = self._generate_za_targets(za=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
 
-        y_pred = backbone(x_self_recon_1)
-        in_dict["y_pred"] = y_pred
+        in_dict["y_pred"] = backbone(x_self_recon_1)
 
         num_mixings = za_targets.shape[0]
-        entropy_losses = [self._compute_entropy_loss_from_logits(y_pred, y_true)]
+
+        entropy_losses = [self._compute_entropy_loss_from_logits(x_self_recon_1, y_true, backbone=backbone)]
+
         attr_cons_losses: List[float] = [
             self._attribute_consistency_loss(
                 x_cross_translation=x_self_recon_2, expected_za=za, attr_enc=in_dict["attr_enc"]
@@ -160,7 +163,9 @@ class ContriMixLoss(MultiTaskMetric):
                 target_images.append(x_org_1[target_index].clone().detach().cpu().numpy().transpose(1, 2, 0))
                 save_images.append(x_cross_translation_1[0].clone().detach().cpu().numpy().transpose(1, 2, 0))
 
-            entropy_losses.append(self._compute_entropy_loss_from_logits(backbone(x_cross_translation_1), y_true))
+            entropy_losses.append(
+                self._compute_entropy_loss_from_logits(x_cross_translation_1, y_true, backbone=backbone)
+            )
 
             attr_cons_losses.append(
                 self._attribute_consistency_loss(
@@ -253,11 +258,14 @@ class ContriMixLoss(MultiTaskMetric):
     def _self_recon_consistency_loss(self_recon_ims: torch.Tensor, expected_ims: torch.Tensor) -> float:
         return torch.nn.L1Loss(reduction="mean")(self_recon_ims, expected_ims)
 
-    def _compute_entropy_loss_from_logits(self, y_pred_logits: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
+    def _compute_entropy_loss_from_logits(
+        self, x: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
+    ) -> torch.Tensor:
         """Returns the cross-entropy loss from logits (not averaging over the minibatch samples)."""
-        is_labeled = ~torch.isnan(y_true)
-        y_pred_logits = y_pred_logits[is_labeled]
-        y_true = y_true[is_labeled]
+        if self._batch_transform is not None:
+            x, y_true = self._batch_transform.transform(x, y_true)
+
+        y_pred_logits = backbone(x)
         if isinstance(self._loss_fn, torch.nn.BCEWithLogitsLoss):
             y_pred_logits = y_pred_logits.float()
             y_true = y_true.float()
@@ -350,3 +358,9 @@ class ContriMixLoss(MultiTaskMetric):
         )
 
         return weight_dict
+
+    def _validate_batch_transform(self, batch_transform: Callable) -> None:
+        if isinstance(batch_transform, CutMixJointTensorTransform) and (
+            self._aggregation == ContriMixAggregationType.AUGREG
+        ):
+            raise ValueError("Can't use CutMix with AugReg. Turn off one of them!")

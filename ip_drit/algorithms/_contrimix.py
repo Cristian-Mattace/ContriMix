@@ -7,6 +7,7 @@ from typing import Tuple
 from typing import Union
 
 import torch
+import torch.nn as nn
 
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
@@ -21,6 +22,7 @@ from ip_drit.models import ContentEncoder
 from ip_drit.models import SignalType
 from ip_drit.models import TransmittanceToAbsorbance
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
+from ip_drit.patch_transform import AbstractJointTensorTransform
 
 
 class ContriMix(MultimodelAlgorithm):
@@ -36,7 +38,9 @@ class ContriMix(MultimodelAlgorithm):
         convert_to_absorbance_in_between (optional): If True (default), the input image will be converted to absorbance
             before decomposing into content and attribute.
         num_mxing_per_image (optional): The number of mixing images for each original image. Defaults to 5.
-        num_attr_vectors (optional): The number of stain vectors. Defaults to 4
+        num_attr_vectors (optional): The number of stain vectors. Defaults to 4.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
     """
 
     _NUM_INPUT_CHANNELS = 3
@@ -59,6 +63,7 @@ class ContriMix(MultimodelAlgorithm):
         convert_to_absorbance_in_between: bool = True,
         num_mixing_per_image: int = 2,
         num_attr_vectors: int = 6,
+        batch_transform: Optional[AbstractJointTensorTransform] = None,
     ) -> None:
         if not isinstance(loss, ContriMixLoss):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not ContriMixLoss!")
@@ -90,6 +95,7 @@ class ContriMix(MultimodelAlgorithm):
             logged_fields=ContriMix._LOGGED_FIELDS,
             metric=metric,
             n_train_steps=n_train_steps,
+            batch_transform=batch_transform,
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
         self._num_mixing_per_image = num_mixing_per_image

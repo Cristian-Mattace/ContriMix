@@ -71,6 +71,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
             40000, which is faster for code development. Defaults to True.
         downsampling_factor (optional): The downsample factor used for downsampling the input image. Defaults to True/
         cache_inputs (optional): If true, the input data will be cached. Defaults to True.
+        return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
     """
 
     _dataset_name: Optional[str] = "rxrx1"
@@ -95,10 +96,11 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
         use_full_size: bool = True,
         downsampling_factor: int = 1,
         cache_inputs: bool = True,
+        return_one_hot: bool = False,
     ) -> None:
         logging.info("Initializing the RxRx1 data.")
         self._version = "1.0"
-        super().__init__(dataset_dir=dataset_dir)
+        super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._downsampling_factor: int = downsampling_factor
         self._original_resolution = (256, 256)
         self._cache_inputs = cache_inputs

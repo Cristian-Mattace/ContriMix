@@ -5,8 +5,6 @@ from typing import Union
 
 import torch
 
-from ip_drit.common.metrics._base import Metric
-
 
 def numel(obj: Union[torch.Tensor, List[Any]]) -> int:
     """Gets the length of an object.
