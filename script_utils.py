@@ -185,7 +185,7 @@ def configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--sample_uniform_over_groups",
         type=parse_bool,
-        default=True,
+        default=False,
         const=True,
         nargs="?",
         help="A string to specify how the sampling should be done. If True, sample examples such that batches are "

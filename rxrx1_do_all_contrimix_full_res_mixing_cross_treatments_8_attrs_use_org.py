@@ -74,23 +74,20 @@ def main():
         "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": [
-            "y"
-        ],  # Since the treatment affect the density, distribution of the cells, it should be ok to use it for grouping.
+        "train_group_by_fields": ["experiment"],
         "loss_function": "cross_entropy",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "train_loader": LoaderType.TARGERTED,
+        "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": False,
-        "batch_size": 80 * num_of_available_devices(),
+        "batch_size": 68 * num_of_available_devices(),
         "run_on_cluster": FLAGS.run_on_cluster,
-        "group_sampler_parameters": {"chunk_size": 2},
-        "uniform_over_groups": True,  #
+        "uniform_over_groups": False,  #
         "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
-        "n_groups_per_batch": 40 * num_of_available_devices(),  # There are 1139 groups in the RxRx1 for 1139 treatments
+        "n_groups_per_batch": 17,
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
@@ -116,7 +113,7 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
-        "num_attr_vectors": 4,
+        "num_attr_vectors": 8,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -134,14 +131,14 @@ def main():
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
         loss_weights_by_name={
-            "attr_cons_weight": 0.05,
-            "self_recon_weight": 0.5,
-            "cont_cons_weight": 0.25,
+            "attr_cons_weight": 0.03,
+            "self_recon_weight": 0.7,
+            "cont_cons_weight": 0.07,
             "entropy_weight": 0.2,
         },
         algorithm_parameters={
             "convert_to_absorbance_in_between": False,
-            "num_mixing_per_image": config_dict["group_sampler_parameters"]["chunk_size"] - 1,
+            "num_mixing_per_image": 1,
             "contrimix_mixing_type": ContriMixMixingType.WITHIN_CHUNK,
         },
         batch_transform=PostContrimixTransformPipeline(
@@ -149,9 +146,10 @@ def main():
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
                 RandomRotation(),
-                GaussianNoiseAdder(noise_std=0.005),
+                GaussianNoiseAdder(noise_std=0.01),
             ]
         ),
+        loss_kwargs={"use_original_image_for_entropy_loss": True},
     )
     #
     if not config_dict["eval_only"]:

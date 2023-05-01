@@ -24,16 +24,7 @@ from ip_drit.models import ContentEncoder
 from ip_drit.models import SignalType
 from ip_drit.models import TransmittanceToAbsorbance
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
-
 from ip_drit.patch_transform import PostContrimixTransformPipeline
-
-
-class ContriMixMixingType(Enum):
-    """An enum class that defines the type of mixings."""
-
-    RANDOM = auto()
-    WITHIN_CHUNK = auto()
-
 
 class ContriMixMixingType(Enum):
     """An enum class that defines the type of mixings."""

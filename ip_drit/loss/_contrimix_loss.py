@@ -46,6 +46,8 @@ class ContriMixLoss(MultiTaskMetric):
         use_cut_mix (optional): If True, the CutMix transform will be used before computing the cross-entropy loss.
         normalize_signals_into_to_backbone (bool): If True, the input signal into the backbone will be normalized.
             Defaults to True.
+        use_original_image_for_entropy_loss (bool): If True, the original image instead of the self-recon will be used
+            for the cross-entropy loss. Defaults to False.
     """
 
     def __init__(
@@ -59,6 +61,7 @@ class ContriMixLoss(MultiTaskMetric):
         weight_ramp_up_steps: int = 1,
         use_cut_mix: bool = True,
         normalize_signals_into_to_backbone: bool = True,
+        use_original_image_for_entropy_loss: bool = False,
     ) -> None:
         self._loss_fn = loss_fn
         self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
@@ -71,6 +74,7 @@ class ContriMixLoss(MultiTaskMetric):
         self._weight_ramp_up_steps: float = weight_ramp_up_steps
         self._epoch: int = 0
         self._cut_mix_transform = CutMixJointTensorTransform() if use_cut_mix else None
+        self._use_original_image_for_entropy_loss: bool = use_original_image_for_entropy_loss
 
     @staticmethod
     def _clean_up_loss_weight_dictionary(loss_weights_by_name: Dict[str, float]) -> Dict[str, float]:
@@ -139,15 +143,20 @@ class ContriMixLoss(MultiTaskMetric):
 
         za_targets = self._generate_za_targets(za=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
 
-        in_dict["y_pred"] = backbone(self._compute_backbone_input(x_self_recon_1))
+        if self._use_original_image_for_entropy_loss:
+            in_dict["y_pred"] = backbone(self._compute_backbone_input(x_org_1))
+            entropy_losses = [
+                self._compute_entropy_loss_from_logits(self._compute_backbone_input(x_org_1), y_true, backbone=backbone)
+            ]
+        else:
+            in_dict["y_pred"] = backbone(self._compute_backbone_input(x_self_recon_1))
+            entropy_losses = [
+                self._compute_entropy_loss_from_logits(
+                    self._compute_backbone_input(x_self_recon_1), y_true, backbone=backbone
+                )
+            ]
 
         num_mixings = za_targets.shape[0]
-
-        entropy_losses = [
-            self._compute_entropy_loss_from_logits(
-                self._compute_backbone_input(x_self_recon_1), y_true, backbone=backbone
-            )
-        ]
 
         attr_cons_losses: List[float] = [
             self._attribute_consistency_loss(

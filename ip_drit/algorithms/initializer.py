@@ -46,6 +46,7 @@ def initialize_algorithm(
     loss_weights_by_name: Optional[Dict[str, float]] = None,
     batch_transform: Optional[AbstractJointTensorTransform] = None,
     algorithm_parameters: Optional[Dict[str, Any]] = None,
+    loss_kwargs: Dict[str, Any] = {},
     **kw_args: Dict[str, Any],
 ) -> SingleModelAlgorithm:
     """Initializes an algorithm based on the provided config dictionary.
@@ -59,6 +60,7 @@ def initialize_algorithm(
         batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
             processing will be performed.
         algorithm_parameters (optional): The parameters of the algorithm.
+        loss_kwargs (optional): A dictionary of parameters for the loss. Defaults to None.
         kw_args: Keyword arguments.
 
     Returns:
@@ -95,6 +97,7 @@ def initialize_algorithm(
                 loss_weights_by_name=loss_weights_by_name,
                 loss_fn=nn.CrossEntropyLoss(reduction="none"),
                 save_images_for_debugging=True,
+                **loss_kwargs,
             ),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
