@@ -101,7 +101,7 @@ def _get_data_loader_by_split_name(
             run_on_cluster=config_dict["run_on_cluster"],
         )
 
-    elif split_name in ("id_val", "test", "val", "val_unlabeled", "test_unlabeled"):
+    elif split_name in ("id_val", "test", "val", "val_unlabeled", "test_unlabeled", "id_test"):
         return get_eval_loader(
             loader_type=LoaderType.STANDARD,
             dataset=sub_dataset,
@@ -308,28 +308,33 @@ def generate_eval_model_path(eval_epoch: int, model_prefix: str, seed: int) -> s
 
 
 def calculate_batch_size(
-    algorithm: ModelAlgorithm, run_on_cluster: bool, batch_size_per_gpu: Optional[int] = None
+    dataset_name: str, algorithm: ModelAlgorithm, run_on_cluster: bool, batch_size_per_gpu: Optional[int] = None
 ) -> int:
-    """Calculates the batch size for a given 'algorithm' and wether the code 'run_on_cluster' or not."""
+    """Calculates the batch size for a given 'algorithm' and wether the code 'run_on_cluster' or not.
+
+    Args:
+        dataset_name: name of the dataset
+        algorithm: name of the algorithm
+        run_on_cluster: If True, the code will be run on the cluster. Otherwise, it will be run locally on a Mac.
+        batch_size_per_gpu (optional): The specified number of samples per GPUs. If specified, returns that values.
+            Otherwise, returns the default values.
+    """
     num_devices = num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
-    PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER: Dict[ModelAlgorithm, int] = {
-        ModelAlgorithm.CONTRIMIX: 300,  # Work with both unlabeled and labeled dataset. For labeled one, can use 420.
-        ModelAlgorithm.ERM: 1500,
-        ModelAlgorithm.NOISY_STUDENT: 900,
+    DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
+        "camelyon17": {ModelAlgorithm.CONTRIMIX: 300, ModelAlgorithm.ERM: 1500, ModelAlgorithm.NOISY_STUDENT: 900},
+        "rxrx1": {ModelAlgorithm.CONTRIMIX: 250, ModelAlgorithm.ERM: 300},
+        # ERM with rxrx1: 300 when ds = 1, 1200 when ds = 2
     }
 
-    PER_GPU_BATCH_SIZE_BY_ALGORITHM_LOCAL: Dict[ModelAlgorithm, int] = {
-        ModelAlgorithm.CONTRIMIX: 153,
-        ModelAlgorithm.ERM: 90,
-        ModelAlgorithm.NOISY_STUDENT: 45,
+    DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
+        "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90, ModelAlgorithm.NOISY_STUDENT: 45}
     }
-
     if batch_size_per_gpu is None:
         if run_on_cluster:
-            batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_ON_CLUSTER[algorithm]
+            batch_size_per_gpu = DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER[dataset_name][algorithm]
         else:
-            batch_size_per_gpu = PER_GPU_BATCH_SIZE_BY_ALGORITHM_LOCAL[algorithm]
+            batch_size_per_gpu = DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL[dataset_name][algorithm]
     else:
         batch_size_per_gpu = batch_size_per_gpu
 

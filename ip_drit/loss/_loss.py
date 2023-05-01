@@ -97,7 +97,7 @@ class MultiTaskLoss(MultiTaskMetric):
     """
 
     def __init__(self, loss_fn: Optional[Callable], name: Optional[str] = None) -> None:
-        self.loss_fn = loss_fn  # should be elementwise
+        self.loss_fn = loss_fn
         if name is None:
             name = "loss"
         super().__init__(name=name)
@@ -110,7 +110,6 @@ class MultiTaskLoss(MultiTaskMetric):
             flattened_y_true = flattened_y_true.float()
         elif isinstance(self.loss_fn, torch.nn.CrossEntropyLoss):
             flattened_y_true = flattened_y_true.long()
-        flattened_y_true = torch.reshape(flattened_y_true, flattened_y_pred.shape)
         flattened_loss = self.loss_fn(flattened_y_pred, flattened_y_true)
         return flattened_loss
 

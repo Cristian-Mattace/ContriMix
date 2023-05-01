@@ -1,5 +1,4 @@
 """A module that defines a the Camelyon 17 dataset."""
-import itertools
 import logging
 import os
 from pathlib import Path
@@ -69,7 +68,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
             self._metadata_df = remove_samples_from_given_centers(self._metadata_df, drop_centers)
 
         self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
-
+        self._y_size = 1
         self._n_classes = 2
 
         self._file_names: List[str] = [
