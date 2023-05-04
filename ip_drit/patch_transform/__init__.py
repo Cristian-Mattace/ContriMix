@@ -1,6 +1,7 @@
 from ip_drit.patch_transform._utils import initialize_transform
 from ip_drit.patch_transform._utils import RandomRotation
 from ip_drit.patch_transform._utils import TransformationType
+from ip_drit.patch_transform._utils import RandAugment
 from ip_drit.patch_transform.data_augmentation import *
 from ip_drit.patch_transform.data_augmentation._joint_tensor_transform import AbstractJointTensorTransform
 from ip_drit.patch_transform.data_augmentation._joint_tensor_transform import CutMixJointTensorTransform
