@@ -130,10 +130,10 @@ def main():
         ),
         convert_to_absorbance_in_between=True,
         loss_weights_by_name={
-            "attr_cons_weight": 0.1,  # 0.05,
-            "self_recon_weight": 0.1,  # 0.5,
-            "cont_cons_weight": 0.3,  # 0.25,
-            "entropy_weight": 0.5,  # 0.2,
+            "attr_cons_weight": 0.1,
+            "self_recon_weight": 0.1,
+            "cont_cons_weight": 0.3,
+            "entropy_weight": 0.5,
         },
         batch_transform=PostContrimixTransformPipeline(
             transforms=[
