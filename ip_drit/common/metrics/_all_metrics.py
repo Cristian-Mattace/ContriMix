@@ -56,6 +56,10 @@ class Accuracy(ElementwiseMetric):
     def _compute_element_wise(self, y_pred: torch.Tensor, y_true: torch.Tensor) -> torch.Tensor:
         if self.prediction_fn is not None:
             y_pred = self.prediction_fn(y_pred)
+
+        if len(y_true.shape) == 2:  # y_true rows are the class probabilities
+            y_true = y_true.argmax(dim=1, keepdim=False)
+
         return torch.squeeze(y_pred) == y_true
 
     def worst(self, metrics):

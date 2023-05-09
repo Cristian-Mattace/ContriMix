@@ -1,5 +1,4 @@
 """A module that defines a the Camelyon 17 dataset."""
-import itertools
 import logging
 import os
 from pathlib import Path
@@ -29,6 +28,11 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         split_scheme: The splitting scheme.
         use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
             40000, which is faster for code development. Defaults to True.
+        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
+        eval_grouper_group_by_fields (optional): A list of strings that defines the field to group by when displaying.
+            the summary. Defaults to "slides". In the experiment that relates to droping center, ["y"] can be used
+            because using "slides" caused an exception when droping center 0.
+        return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
     """
 
     _dataset_name: Optional[str] = "camelyon17"
@@ -42,10 +46,16 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
     _SMALL_DATASET_LIMIT = 40000
 
     def __init__(
-        self, dataset_dir: Path, split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL, use_full_size: bool = True
+        self,
+        dataset_dir: str,
+        split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
+        eval_grouper_group_by_fields: List[str] = ["slide"],
+        return_one_hot: bool = False,
+        use_full_size: bool = True,
+        drop_centers: List[int] = [0, 3, 4],
     ) -> None:
         self._version = "1.0"
-        super().__init__(dataset_dir=dataset_dir)
+        super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._original_resolution = (96, 96)
 
         # Read in metadata
@@ -56,8 +66,11 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         if not use_full_size:
             self._metadata_df = limit_metadata_df(self._metadata_df, dataset_limit=self._SMALL_DATASET_LIMIT)
 
-        self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
+        if len(drop_centers) > 0:
+            self._metadata_df = remove_samples_from_given_centers(self._metadata_df, drop_centers)
 
+        self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
+        self._y_size = 1
         self._n_classes = 2
 
         self._file_names: List[str] = [
@@ -82,8 +95,10 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         )
         self._metadata_fields: List[str] = ["hospital", "slide", "y"]
 
-        # The evaluation grouper operates ovfer all the slides.
-        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["slide"])
+        # The evaluation grouper for the whole dataset.
+        self._eval_grouper: AbstractGrouper = CombinatorialGrouper(
+            dataset=self, groupby_fields=eval_grouper_group_by_fields
+        )
         logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
     def _update_split_field_index_of_metadata(self) -> None:
@@ -153,3 +168,18 @@ def limit_metadata_df(metadata_df: pd.DataFrame, dataset_limit: int = 40000) -> 
             ]
         )
     return metadata_df.iloc[keep_idxes]
+
+
+def remove_samples_from_given_centers(metadata_df, drop_centers):
+    """Removes samples belonging to given centers.
+
+    Args:
+        metadata_df: metadata df.
+        drop_centers: list of centers to drop.
+
+    Returns:
+        metadata_df.
+    """
+    # train centers are [0, 3, 4], dropping a subset of them
+    metadata_df = metadata_df[~(metadata_df["center"].isin(drop_centers))]
+    return metadata_df

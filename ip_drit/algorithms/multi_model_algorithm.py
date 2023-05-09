@@ -18,6 +18,7 @@ from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
 from ip_drit.optimizer import get_parameters_from_models
 from ip_drit.optimizer import initialize_optimizer
+from ip_drit.patch_transform import AbstractJointTensorTransform
 from ip_drit.scheduler import initialize_scheduler
 
 
@@ -33,6 +34,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
             returns by the loss.
         metric: The metric to use.
         n_train_steps: The number of training steps.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
     """
 
     def __init__(
@@ -44,8 +47,10 @@ class MultimodelAlgorithm(GroupAlgorithm):
         logged_fields: List[str],
         metric: Metric,
         n_train_steps: int,
+        batch_transform: Optional[AbstractJointTensorTransform] = None,
     ):
         self._loss = loss
+        self._batch_transform = batch_transform
         logged_metrics = [self._loss]
         if metric is not None:
             self._metric = metric
@@ -88,6 +93,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         labeled_batch: Tuple[torch.Tensor, ...],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
+        epoch: Optional[int] = None,
     ):
         """Process the batch, update the log, and update the model.
 
@@ -96,6 +102,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
             unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
+            epoch (optional): The index of the epoch.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -136,7 +143,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
         results["objective"] = objective.item()
         results.update(non_objective_loss_by_name)
-
+        objective = objective / self._gradient_accumulation_steps
         objective.backward()
 
         if should_step:
@@ -171,3 +178,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         results.update(non_objective_loss_by_name)
         self.update_log(results)
         return self._sanitize_dict(results)
+
+    def update_loss_weight_based_on_epoch(self, epoch: int) -> None:
+        """Update the weights of the loss based on epoch index."""
+        self._loss.update_epoch_index(epoch=epoch)

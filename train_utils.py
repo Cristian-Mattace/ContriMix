@@ -13,7 +13,7 @@ from tqdm import tqdm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.data_loaders import InfiniteDataIterator
-from ip_drit.common.metrics import binary_logits_to_pred
+from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.logger import Logger
 from saving_utils import save_model_if_needed
 from saving_utils import save_pred_if_needed
@@ -28,6 +28,7 @@ def train(
     config_dict: Dict[str, Any],
     epoch_offset: int,
     unlabeled_split_dict_by_name: Optional[Dict[str, Dict]] = None,
+    num_training_epochs_per_evaluation: int = 1,
 ) -> None:
     """Trains the model.
 
@@ -48,6 +49,8 @@ def train(
         epoch_offset: The initial epoch offset.
         unlabeled_split_dict_by_name (optional): A dictionary that defines different things (dataset, loaders etc) for
             different splits of the unlabeled data. Defaults to None.
+        num_training_epochs_per_evaluation (optional): The number of training epochs before running the evaluation.
+            Defaults to 1.
     """
     best_val_metric = None
     for epoch in range(epoch_offset, config_dict["n_epochs"]):
@@ -64,41 +67,45 @@ def train(
             else unlabeled_split_dict_by_name["train_unlabeled"],
         )
 
-        metrics_to_evaluate = config_dict["metric"]
-        test_results, y_pred = _run_eval_epoch(
-            algorithm=algorithm,
-            labeled_split_dict=labeled_split_dict_by_name["test"],
-            general_logger=general_logger,
-            epoch=epoch,
-            config_dict=config_dict,
-        )
-        general_logger.write(f" => Test {metrics_to_evaluate}: {test_results[metrics_to_evaluate]:.3f}\n\n")
+        if epoch % num_training_epochs_per_evaluation == 0:
+            metrics_to_evaluate = config_dict["metric"]
+            test_results, y_pred = _run_eval_epoch(
+                algorithm=algorithm,
+                labeled_split_dict=labeled_split_dict_by_name["test"],
+                general_logger=general_logger,
+                epoch=epoch,
+                config_dict=config_dict,
+            )
+            general_logger.write(f" => Test {metrics_to_evaluate}: {test_results[metrics_to_evaluate]:.3f}\n\n")
 
-        val_results, y_pred = _run_eval_epoch(
-            algorithm=algorithm,
-            labeled_split_dict=labeled_split_dict_by_name["val"],
-            general_logger=general_logger,
-            epoch=epoch,
-            config_dict=config_dict,
-        )
+            val_results, y_pred = _run_eval_epoch(
+                algorithm=algorithm,
+                labeled_split_dict=labeled_split_dict_by_name["val"],
+                general_logger=general_logger,
+                epoch=epoch,
+                config_dict=config_dict,
+            )
 
-        curr_val_metric = val_results[metrics_to_evaluate]
-        general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n\n")
+            curr_val_metric = val_results[metrics_to_evaluate]
+            general_logger.write(f" => OOD Validation {metrics_to_evaluate}: {curr_val_metric:.3f}\n\n")
 
-        if best_val_metric is None:
-            is_best = True
-            best_val_metric = curr_val_metric
+            if best_val_metric is None:
+                is_best = True
+                best_val_metric = curr_val_metric
 
-        if config_dict["val_metric_decreasing"]:
-            is_best = curr_val_metric <= best_val_metric
-        else:
-            is_best = curr_val_metric >= best_val_metric
+            if config_dict["val_metric_decreasing"]:
+                is_best = curr_val_metric <= best_val_metric
+            else:
+                is_best = curr_val_metric >= best_val_metric
 
-        if is_best:
-            best_val_metric = curr_val_metric
-            general_logger.write(f"Epoch {epoch} has the best validation performance so far.\n")
-        save_model_if_needed(algorithm, labeled_split_dict_by_name["val"], epoch, config_dict, is_best, best_val_metric)
-        save_pred_if_needed(y_pred, labeled_split_dict_by_name["val"], epoch, config_dict, is_best)
+            if is_best:
+                best_val_metric = curr_val_metric
+                general_logger.write(f"Epoch {epoch} has the best validation performance so far.\n")
+            save_model_if_needed(
+                algorithm, labeled_split_dict_by_name["val"], epoch, config_dict, is_best, best_val_metric
+            )
+            save_pred_if_needed(y_pred, labeled_split_dict_by_name["val"], epoch, config_dict, is_best)
+
         general_logger.write("======================================================= \n\n")
 
 
@@ -143,6 +150,7 @@ def _run_train_epoch(
     if use_unlabeled_data:
         unlabeled_data_iterator = InfiniteDataIterator(unlabeled_split_dict["loader"])
 
+    algorithm.update_loss_weight_based_on_epoch(epoch=epoch)
     for batch_idx, labeled_batch in enumerate(batches):
         logging.debug(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
         if use_unlabeled_data:
@@ -150,9 +158,12 @@ def _run_train_epoch(
                 labeled_batch=labeled_batch,
                 unlabeled_batch=next(unlabeled_data_iterator),
                 is_epoch_end=(batch_idx == last_batch_idx),
+                epoch=epoch,
             )
         else:
-            batch_results = algorithm.update(labeled_batch=labeled_batch, is_epoch_end=(batch_idx == last_batch_idx))
+            batch_results = algorithm.update(
+                labeled_batch=labeled_batch, is_epoch_end=(batch_idx == last_batch_idx), epoch=epoch
+            )
 
         epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
         epoch_y_pred.append(detach_and_clone(batch_results["y_pred"]))
@@ -170,7 +181,7 @@ def _run_train_epoch(
 
     # Running the evaluation on all the training slides.
     results, results_str = labeled_split_dict["dataset"].eval(
-        epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=binary_logits_to_pred
+        epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=multiclass_logits_to_pred
     )
 
     if config_dict["scheduler_metric_split"] == labeled_split_dict["split"]:
@@ -242,9 +253,8 @@ def _run_eval_epoch(
     epoch_y_true = torch.cat(epoch_y_true, dim=0)
     epoch_y_pred = torch.cat(epoch_y_pred, dim=0)
     epoch_metadata = torch.cat(epoch_metadata, dim=0)
-
     results, results_str = labeled_split_dict["dataset"].eval(
-        epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=binary_logits_to_pred
+        epoch_y_pred, epoch_y_true, epoch_metadata, prediction_fn=multiclass_logits_to_pred
     )
 
     if config_dict["scheduler_metric_split"] == labeled_split_dict["split"]:

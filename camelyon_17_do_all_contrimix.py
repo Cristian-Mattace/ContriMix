@@ -4,8 +4,7 @@ import sys
 from typing import Any
 from typing import Dict
 
-package_path = "/jupyter-users-home/shima-2enofallah/intraminibatch_permutation_drit/"
-
+package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
@@ -82,7 +81,7 @@ def main():
             run_on_cluster=FLAGS.run_on_cluster,
             batch_size_per_gpu=FLAGS.batch_size_per_gpu,
         ),
-        "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
+        "uniform_over_groups": True,  # FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",

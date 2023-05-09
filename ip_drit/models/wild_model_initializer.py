@@ -36,14 +36,14 @@ def initialize_model_from_configuration(
         output_classifier: Creates a sequential architecture in which the classifier will be at the output.
 
     Returns:
-         If output_classifier=True, returns a sequential module that is a concatenation of the featurizer and classifier
-         Here, featurizer is a model that outputs feature Tensors of shape (batch_size, ..., feature dimensionality).
-         classifier is a model that takes in feature Tensors and outputs predictions. In most cases, this is a linear
-         layer.
+        If output_classifier=True, returns a sequential module that is a concatenation of the featurizer and classifier
+        Here, featurizer is a model that outputs feature Tensors of shape (batch_size, ..., feature dimensionality).
+        classifier is a model that takes in feature Tensors and outputs predictions. In most cases, this is a linear
+        layer.
 
         If output_classifier=False, returns the featurizer module only.
     """
-    if model_type == WildModel.DENSENET121:
+    if model_type in [WildModel.DENSENET121, WildModel.RESNET50]:
         featurizer = _initialize_torchvision_model(name=model_type, d_out=d_out)
 
         out = featurizer

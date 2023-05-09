@@ -21,6 +21,7 @@ from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.grouper import MultiDatasetCombinatorialGrouper
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
+from ip_drit.patch_transform import CutMixJointTensorTransform
 from script_utils import configure_split_dict_by_names
 from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
@@ -48,7 +49,7 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     labeled_camelyon_dataset = CamelyonDataset(
-        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset
+        dataset_dir=all_dataset_dir / "camelyon17/", use_full_size=FLAGS.use_full_dataset, return_one_hot=True
     )
 
     unlabeled_camelyon_dataset = CamelyonUnlabeledDataset(
@@ -62,7 +63,7 @@ def main():
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],
-        "loss_function": "multitask_bce",
+        "loss_function": "cross_entropy",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
@@ -71,15 +72,19 @@ def main():
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
-        "batch_size": calculate_batch_size(algorithm=ModelAlgorithm.CONTRIMIX, run_on_cluster=FLAGS.run_on_cluster),
+        "batch_size": calculate_batch_size(
+            dataset_name=labeled_camelyon_dataset.dataset_name,
+            algorithm=ModelAlgorithm.CONTRIMIX,
+            run_on_cluster=FLAGS.run_on_cluster,
+        ),
         "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
+        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
         "optimizer": "AdamW",
-        "lr": 1e-3,
+        "lr": 1e-4,
         "weight_decay": 1e-2,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
@@ -100,6 +105,7 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
+        "num_attr_vectors": FLAGS.contrimix_num_attr_vectors,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -118,17 +124,20 @@ def main():
     )
 
     algorithm = initialize_algorithm(
+        train_dataset=labeled_split_dict_by_names["train"]["dataset"],
         config=config_dict,
         train_grouper=train_grouper,
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=labeled_split_dict_by_names["train"]["loader"]
         ),
+        convert_to_absorbance_in_between=True,
         loss_weights_by_name={
-            "entropy_weight": 0.1,
-            "attr_cons_weight": 0.1,
-            "self_recon_weight": 0.3,
-            "cont_cons_weight": 0.5,
+            "attr_cons_weight": 0.05,
+            "self_recon_weight": 0.5,
+            "cont_cons_weight": 0.25,
+            "entropy_weight": 0.2,
         },
+        batch_transform=CutMixJointTensorTransform(x_resolution=labeled_camelyon_dataset.original_resolution),
     )
 
     if not config_dict["eval_only"]:

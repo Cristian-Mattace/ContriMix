@@ -1,4 +1,8 @@
-"""A scripts to run the benchmark for the Camelyon dataset."""
+"""A scripts to obtain the baseline for the RxRx1 dataset.
+
+Reference:
+    https://worksheets.codalab.org/bundles/0x7d33860545b64acca5047396d42c0ea0
+"""
 import logging
 import sys
 from typing import Any
@@ -14,7 +18,7 @@ import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.common.grouper import CombinatorialGrouper
-from ip_drit.datasets.camelyon17 import CamelyonDataset
+from ip_drit.datasets.rxrx1 import RxRx1Dataset
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.data_loaders import LoaderType
@@ -25,6 +29,7 @@ from train_utils import train, evaluate_over_splits
 from saving_utils import load
 from script_utils import calculate_batch_size
 from ip_drit.algorithms import calculate_number_of_training_steps
+from ip_drit.datasets import SplitSchemeType
 from ip_drit.patch_transform import CutMixJointTensorTransform
 
 logging.getLogger().setLevel(logging.INFO)
@@ -33,12 +38,12 @@ from script_utils import set_visible_gpus
 
 
 def main():
-    """Demo scripts for training, evaluation with Camelyon."""
-    logging.info("Running the Camelyon 17 dataset benchmark.")
+    """Demo scripts for training, evaluation with the labeled RxRx1 data."""
+    logging.info("Running the RxRx1 dataset benchmark with the ERM algorithm.")
     parser = configure_parser()
     FLAGS = parser.parse_args()
 
-    set_visible_gpus(gpu_ids=None)
+    set_visible_gpus(gpu_ids=FLAGS.gpu_ids)
     all_dataset_dir, log_dir = dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
@@ -50,45 +55,44 @@ def main():
     all_dataset_dir.mkdir(exist_ok=True)
     log_dir.mkdir(exist_ok=True)
 
-    camelyon_dataset = CamelyonDataset(
-        dataset_dir=all_dataset_dir / "camelyon17/",
+    rxrx1_dataset = RxRx1Dataset(
+        dataset_dir=all_dataset_dir / "rxrx1/",
         use_full_size=FLAGS.use_full_dataset,
-        drop_centers=FLAGS.drop_centers,
+        split_scheme=SplitSchemeType.OFFICIAL,
         return_one_hot=True,
+        cache_inputs=False,
     )
 
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.ERM,
-        "model": WildModel.DENSENET121,
-        "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
+        "model": WildModel.RESNET50,
+        "transform": TransformationType.RXRX1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
-        "train_group_by_fields": ["hospital"],
+        "train_group_by_fields": ["experiment"],
         "loss_function": "cross_entropy",
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
         "n_epochs": FLAGS.n_epochs,
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "train_loader": LoaderType.GROUP,
+        "train_loader": LoaderType.STANDARD,
         "reset_random_generator_after_every_epoch": False,
         "batch_size": calculate_batch_size(
-            dataset_name=camelyon_dataset.dataset_name,
-            algorithm=ModelAlgorithm.ERM,
-            run_on_cluster=FLAGS.run_on_cluster,
+            dataset_name=rxrx1_dataset.dataset_name, algorithm=ModelAlgorithm.ERM, run_on_cluster=FLAGS.run_on_cluster
         ),
         "run_on_cluster": FLAGS.run_on_cluster,
-        "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": False,  # If True, enforce groups sampled per batch are distinct.
+        "uniform_over_groups": False,  #
+        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": FLAGS.optimizer,
+        "optimizer": "AdamW",
         "lr": 1e-3,
-        "weight_decay": 1e-2,
+        "weight_decay": 1e-4,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
-        "max_grad_norm": 0.5,
+        "max_grad_norm": 0.8,
         "use_data_parallel": use_data_parallel(),
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
@@ -110,10 +114,10 @@ def main():
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
 
-    train_grouper = CombinatorialGrouper(dataset=camelyon_dataset, groupby_fields=config_dict["train_group_by_fields"])
+    train_grouper = CombinatorialGrouper(dataset=rxrx1_dataset, groupby_fields=config_dict["train_group_by_fields"])
 
     split_dict_by_names = configure_split_dict_by_names(
-        full_dataset=camelyon_dataset, grouper=train_grouper, config_dict=config_dict
+        full_dataset=rxrx1_dataset, grouper=train_grouper, config_dict=config_dict
     )
     algorithm = initialize_algorithm(
         train_dataset=split_dict_by_names["train"]["dataset"],
@@ -133,6 +137,7 @@ def main():
             general_logger=logger,
             config_dict=config_dict,
             epoch_offset=0,
+            num_training_epochs_per_evaluation=5,
         )
     if config_dict["eval_only"] or FLAGS.run_eval_after_train:
         logging.info("Evaluation mode!")

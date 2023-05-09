@@ -78,7 +78,9 @@ def main():
     target_device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     algorithm = ModelAlgorithm.NOISY_STUDENT
-    batch_size = calculate_batch_size(algorithm=algorithm, run_on_cluster=FLAGS.run_on_cluster)
+    batch_size = calculate_batch_size(
+        dataset_name=labeled_camelyon_dataset.dataset_name, algorithm=algorithm, run_on_cluster=FLAGS.run_on_cluster
+    )
 
     config_dict: Dict[str, Any] = {
         "algo_log_metric": "accuracy",
@@ -91,7 +93,7 @@ def main():
         "gradient_accumulation_steps": 1,
         "log_dir": str(log_dir),
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "loss_function": "multitask_bce",
+        "loss_function": "cross_entropy",
         "lr": 1e-3,
         "max_grad_norm": 0.5,
         "metric": "acc_avg",
@@ -174,6 +176,7 @@ def main():
     )
 
     algorithm = initialize_algorithm(
+        train_dataset=labeled_split_dict_by_names["train"]["dataset"],
         config=config_dict,
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=labeled_split_dict_by_names["train"]["loader"]

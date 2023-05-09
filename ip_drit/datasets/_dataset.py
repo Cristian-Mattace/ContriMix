@@ -17,6 +17,7 @@ from typing import Union
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from absl import logging
 
 from ._utils import download_and_extract_archive
@@ -211,9 +212,17 @@ class AbstractPublicDataset(ABC):
 
 
 class AbstractLabelledPublicDataset(AbstractPublicDataset):
-    """An abstract class for labeled dataset."""
+    """An abstract class for labeled dataset.
 
-    def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None) -> None:
+    Args:
+        dataset_dir: The directory to the dataset.
+        transform (optional): The transformation to apply on the data. Defaults to None, meanings no transformation
+            will be applied.
+        return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
+    """
+
+    def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None, return_one_hot: bool = False) -> None:
+        self._return_one_hot: bool = return_one_hot
         super().__init__(dataset_dir, transform)
 
     def __getitem__(self, idx: int) -> Tuple[np.ndarray, torch.Tensor, torch.Tensor]:
@@ -221,6 +230,9 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
         # since different subsets (e.g., train vs test) might have different transforms
         x = self._get_input(idx)
         y = self.y_array[idx]
+        if self._return_one_hot:
+            y = F.one_hot(y, self.n_classes).float()
+
         if self._transform is not None:
             x = self._transform(x)
         metadata = self.metadata_array[idx]
@@ -238,6 +250,31 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
         self, split_idx: np.ndarray, transform: Optional[Callable] = None
     ) -> "SubsetLabeledPublicDataset":
         return SubsetLabeledPublicDataset(self, split_idx, transform)
+
+    @property
+    def y_size(self) -> int:
+        """Returns The number of dimensions/elements in the target, i.e., len(y_array[i]).
+
+        For standard classification/regression tasks, y_size = 1.
+        For multi-task or structured prediction settings, y_size > 1.
+        Used for logging and to configure models to produce appropriately-sized output.
+        """
+        return self._y_size
+
+    @property
+    def n_classes(self):
+        """Number of classes for single-task classification datasets.
+
+        Used for logging and to configure models to produce appropriately-sized output.
+        None by default.
+        Leave as None if not applicable (e.g., regression or multi-task classification).
+        """
+        return getattr(self, "_n_classes", None)
+
+    @property
+    def is_classification(self) -> bool:
+        """True if the task is classification, and false otherwise."""
+        return True if self.n_classes is not None else False
 
     @abstractmethod
     def eval(

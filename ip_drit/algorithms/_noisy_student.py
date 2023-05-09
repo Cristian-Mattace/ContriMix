@@ -1,6 +1,7 @@
 """A module that implements the Noisy student algorithm."""
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 
 import torch
@@ -12,6 +13,7 @@ from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
 from ip_drit.loss import ElementwiseLoss
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
+from ip_drit.patch_transform import AbstractJointTensorTransform
 
 
 class NoisyStudent(SingleModelAlgorithm):
@@ -48,6 +50,8 @@ class NoisyStudent(SingleModelAlgorithm):
         loss: The loss module, calculated on the labeled data.
         unlabeled_loss: The loss module, calculated on the unlabeled data.
         metric: The metric to use.
+        batch_transform (optional): A module perform batch processing. Defaults to None, in which case, no batch
+            processing will be performed.
 
     References:
         1. @inproceedings{xie2020self,
@@ -75,11 +79,15 @@ class NoisyStudent(SingleModelAlgorithm):
         unlabeled_loss: ElementwiseLoss,
         metric: Metric,
         n_train_steps: int,
+        batch_transform: Optional[AbstractJointTensorTransform] = None,
     ) -> None:
         super().__init__(
             config=config,
             model=self._initialize_student_model(
-                noisystudent_add_dropout=config["noisystudent_add_dropout"], config=config, d_out=d_out
+                noisystudent_add_dropout=config["noisystudent_add_dropout"],
+                config=config,
+                d_out=d_out,
+                batch_transform=batch_transform,
             ),
             grouper=grouper,
             loss=loss,
