@@ -59,8 +59,8 @@ class ContriMixLoss(MultiTaskMetric):
         aggregation: ContriMixAggregationType = ContriMixAggregationType.MEAN,
         aug_reg_variance_weight: float = 10.0,
         weight_ramp_up_steps: int = 1,
-        use_cut_mix: bool = True,
-        normalize_signals_into_to_backbone: bool = True,
+        use_cut_mix: bool = False,
+        normalize_signals_into_to_backbone: bool = False,
         use_original_image_for_entropy_loss: bool = False,
     ) -> None:
         self._loss_fn = loss_fn

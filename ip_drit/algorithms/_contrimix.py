@@ -26,6 +26,7 @@ from ip_drit.models import TransmittanceToAbsorbance
 from ip_drit.models.wild_model_initializer import initialize_model_from_configuration
 from ip_drit.patch_transform import PostContrimixTransformPipeline
 
+
 class ContriMixMixingType(Enum):
     """An enum class that defines the type of mixings."""
 
@@ -70,8 +71,8 @@ class ContriMix(MultimodelAlgorithm):
         metric: Metric,
         n_train_steps: int,
         convert_to_absorbance_in_between: bool = True,
-        num_mixing_per_image: int = 2,
-        num_attr_vectors: int = 6,
+        num_mixing_per_image: int = 5,
+        num_attr_vectors: int = 4,
         batch_transforms: Optional[PostContrimixTransformPipeline] = None,
         contrimix_mixing_type: ContriMixMixingType = ContriMixMixingType.RANDOM,
     ) -> None:

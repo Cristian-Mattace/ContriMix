@@ -286,6 +286,7 @@ def configure_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--contrimix_num_attr_vectors", type=int, default=8, help="number of attribute vectors to use for contrimix"
     )
+    parser.add_argument("--noise_std", type=float, default=0.0, help="gaussian noise std")
     return parser
 
 
@@ -323,7 +324,7 @@ def calculate_batch_size(
     num_devices = num_of_available_devices()
     logging.info(f"Number of training devices = {num_devices}.")
     DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
-        "camelyon17": {ModelAlgorithm.CONTRIMIX: 300, ModelAlgorithm.ERM: 1500, ModelAlgorithm.NOISY_STUDENT: 900},
+        "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500, ModelAlgorithm.NOISY_STUDENT: 900},
         "rxrx1": {ModelAlgorithm.ERM: 300},
     }
 

@@ -81,14 +81,14 @@ def main():
             run_on_cluster=FLAGS.run_on_cluster,
             batch_size_per_gpu=FLAGS.batch_size_per_gpu,
         ),
-        "uniform_over_groups": FLAGS.sample_uniform_over_groups,  #
-        "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
+        "uniform_over_groups": True,  # FLAGS.sample_uniform_over_groups,  #
+        "distinct_groups": False,  # True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
         "scheduler": "linear_schedule_with_warmup",
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
         "optimizer": "AdamW",
-        "lr": 1e-4,
+        "lr": 1e-3,  # 1e-4,
         "weight_decay": 1e-3,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
@@ -110,6 +110,7 @@ def main():
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
         "num_attr_vectors": 5,
+        "noise_std": FLAGS.noise_std,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -128,20 +129,21 @@ def main():
         ),
         convert_to_absorbance_in_between=True,
         loss_weights_by_name={
-            "attr_cons_weight": 0.05,
-            "self_recon_weight": 0.5,
-            "cont_cons_weight": 0.25,
-            "entropy_weight": 0.2,
+            "attr_cons_weight": 0.1,
+            "self_recon_weight": 0.1,
+            "cont_cons_weight": 0.3,
+            "entropy_weight": 0.5,
         },
         batch_transform=PostContrimixTransformPipeline(
             transforms=[
                 RandomRotation(),
                 transforms.RandomVerticalFlip(),
                 transforms.RandomHorizontalFlip(),
-                GaussianNoiseAdder(noise_std=0.02),
+                GaussianNoiseAdder(noise_std=config_dict["noise_std"]),  # 0.02),
             ]
         ),
     )
+    print("noise_std: ", config_dict["noise_std"])
 
     if not config_dict["eval_only"]:
         logging.info("Training mode!")
