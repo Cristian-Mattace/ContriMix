@@ -287,6 +287,29 @@ def configure_parser() -> argparse.ArgumentParser:
         "--contrimix_num_attr_vectors", type=int, default=8, help="number of attribute vectors to use for contrimix"
     )
     parser.add_argument("--noise_std", type=float, default=0.0, help="gaussian noise std")
+    parser.add_argument(
+        "--num_mixing_per_image", type=int, default=2, help="number of mixing per image for contrimix. Defaults to 2"
+    )
+    parser.add_argument(
+        "--use_cut_mix", type=parse_bool,
+        default=True,
+        help="If true, only evaluation is done. Defaults to True, in which case, cutmix will be used.",
+    )
+    parser.add_argument(
+        "--distinct_groups", type=parse_bool,
+        default=True,
+        help="If true, distinct groups will be used. Defaults to True.",
+    )
+    parser.add_argument(
+        "--normalize_signals_into_to_backbone", type=parse_bool,
+        default=True,
+        help="If true, the inputs will be normalized to the backbone. Defaults to True.",
+    )
+    parser.add_argument(
+        "--cut_mix_alpha", type=float,
+        default=1.0,
+        help="If true, the alpha parameters for CutMix. Defaults to 1.0.",
+    )
     return parser
 
 

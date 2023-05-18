@@ -1,5 +1,4 @@
 """A module that defines the loss class for the contrimix."""
-import logging
 from enum import auto
 from enum import Enum
 from typing import Callable
@@ -17,6 +16,7 @@ from ..common.metrics._base import MultiTaskMetric
 from ip_drit.models import SignalType
 from ip_drit.patch_transform import CutMixJointTensorTransform
 from ip_drit.patch_transform import ZeroMeanUnitStdNormalizer
+from ip_drit.visualization import visualize_content_channels
 
 
 class ContriMixAggregationType(Enum):
@@ -43,11 +43,13 @@ class ContriMixLoss(MultiTaskMetric):
             Defaults to 10.0.
         weight_ramp_up_steps (int): The number of steps that the weights of cross-entropy should ramp up. Defaults to 1.
         max_cross_entropy_loss_weight (float): The maximum values for the cross-entropy loss weight. Defaults to 0.2.
-        use_cut_mix (optional): If True, the CutMix transform will be used before computing the cross-entropy loss.
+        use_cut_mix (optional): If True, the CutMix transform will be used before computing the cross-entropy loss. 
+            Defaults to False.
         normalize_signals_into_to_backbone (bool): If True, the input signal into the backbone will be normalized.
-            Defaults to True.
+            Defaults to False.
         use_original_image_for_entropy_loss (bool): If True, the original image instead of the self-recon will be used
             for the cross-entropy loss. Defaults to False.
+        cut_mix_alpha (optional): The hyper-parameter of cutmix. Defaults to 1.0.
     """
 
     def __init__(
@@ -62,6 +64,7 @@ class ContriMixLoss(MultiTaskMetric):
         use_cut_mix: bool = False,
         normalize_signals_into_to_backbone: bool = False,
         use_original_image_for_entropy_loss: bool = False,
+        cut_mix_alpha: float = 1.0,
     ) -> None:
         self._loss_fn = loss_fn
         self._loss_weights_by_name = self._clean_up_loss_weight_dictionary(loss_weights_by_name)
@@ -73,7 +76,7 @@ class ContriMixLoss(MultiTaskMetric):
         super().__init__(name)
         self._weight_ramp_up_steps: float = weight_ramp_up_steps
         self._epoch: int = 0
-        self._cut_mix_transform = CutMixJointTensorTransform() if use_cut_mix else None
+        self._cut_mix_transform = CutMixJointTensorTransform(alpha=cut_mix_alpha) if use_cut_mix else None
         self._use_original_image_for_entropy_loss: bool = use_original_image_for_entropy_loss
 
     @staticmethod
@@ -229,11 +232,12 @@ class ContriMixLoss(MultiTaskMetric):
             + all_loss_weights["cont_cons_weight"] * cont_cons_loss
         )
 
-        if self._save_images_for_debugging:
+        if self._save_images_for_debugging and not self._is_training:
             target_image = np.concatenate(target_images, axis=1)
             augmented_image = np.concatenate(save_images, axis=1)
-            self._debug_image = np.clip(np.concatenate([target_image, augmented_image], axis=0), a_min=0.0, a_max=1.0)
-
+            self._debug_image = np.clip(np.concatenate([target_image, augmented_image], axis=0), a_min=0.0, a_max=1.0)            
+            visualize_content_channels(org_ims=x_org_1, zcs = zc)
+        
         if return_dict:
             # Used for updating logs.
             return {

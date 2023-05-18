@@ -134,6 +134,7 @@ def main():
             config_dict=config_dict,
             epoch_offset=0,
         )
+        
     if config_dict["eval_only"] or FLAGS.run_eval_after_train:
         logging.info("Evaluation mode!")
         eval_model_path = generate_eval_model_path(FLAGS.eval_epoch, FLAGS.model_prefix, FLAGS.seed)
