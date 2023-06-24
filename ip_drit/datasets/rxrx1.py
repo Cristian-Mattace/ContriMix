@@ -121,7 +121,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
 
             # Assign Site 2 of the training to in-domain test set
             mask = ((self._metadata_df.site == 2) & (self._metadata_df.dataset == "train")).values
-            self._split_array[mask] == self._SPLIT_INDEX_BY_SPLIT_STRING["id_test"]
+            self._split_array[mask] = self._SPLIT_INDEX_BY_SPLIT_STRING["id_test"]
         elif split_scheme == SplitSchemeType.MIX_TO_TEST:
             self._update_slide_field_for_mix_to_test_split_scheme()
         else:
