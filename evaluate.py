@@ -68,7 +68,7 @@ def evaluate_benchmark(
 
         for replicate in replicates:
             predictions_file = _get_prediction_file(predictions_dir, dataset_name, split, replicate)
-            logging.info(f"Processing split={split}, replicate={replicate}, predictions_file={predictions_file}...")
+            print(f"Processing split={split}, replicate={replicate}, predictions_file={predictions_file}...")
             full_path = os.path.join(predictions_dir, predictions_file)
             predicted_labels: torch.Tensor = get_predictions(full_path)
 
@@ -91,7 +91,7 @@ def evaluate_benchmark(
             aggregated_results[split][metric] = np.mean(replicates_metric_values)
 
     # Write out aggregated results to output file
-    logging.info(f"Writing aggregated results for {dataset_name} to {output_dir}...")
+    print(f"Writing aggregated results for {dataset_name} to {output_dir}...")
     Path(output_dir).mkdir(exist_ok=True)
     with open(os.path.join(output_dir, f"{dataset_name}_results.json"), "w") as f:
         json.dump(aggregated_results, f, indent=4)

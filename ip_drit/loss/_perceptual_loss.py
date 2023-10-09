@@ -78,7 +78,7 @@ class PerceptualLoss(nn.Module):
     def __init__(self, verbose=True) -> None:
         super().__init__()
         if verbose:
-            logging.info("Setting up the perceptual loss")
+            print("Setting up the perceptual loss")
 
         self.net = AlexNet(requires_grad=False, pretrained=True)
         self.chns = [64, 192, 384, 256, 256]

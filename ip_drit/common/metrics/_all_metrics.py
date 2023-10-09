@@ -6,6 +6,7 @@ import sklearn.metrics
 import torch
 import torch.nn.functional as F
 from scipy.stats import pearsonr
+from torchmetrics.functional import f1_score
 from torchvision.models.detection._utils import Matcher
 from torchvision.ops.boxes import box_iou
 
@@ -176,29 +177,52 @@ class F1(Metric):
 
     Args:
         prediction_fn (optional): A function that convert the prediction from the network to the output label.
-        name (optional): Default name The name of the class. Defaults to None.
-        average (optional): The type of average being performed. Defaults to 'binary'.
+        name (optional): Default name of the class. Defaults to None.
+        average (optional): The type of average being performed. Defaults to 'micro'. The following modes
+            are supported
+            'micro'    - computes metric globally. Only works for multilabel problems
+            'macro'    - computes metric for each class and uniformly averages them
+            'weighted' - computes metric for each class and does a weighted-average,
+                         where each class is weighted by their support (accounts for class imbalance)
+            'binary'   - deprecated, not supported by torchmetrics, please use None.
+            None       - treated as a binary classification task using `pos_label` as the positive class
+        beta (optional): The weights for recall. Defaults to 1.0.
     """
 
     def __init__(
         self,
         prediction_fn: Optional[Callable] = None,
         name: Optional[Callable] = None,
-        average: Optional[str] = "binary",
+        average: Optional[str] = "micro",
+        beta: float = 1.0,
+        num_classes: int = 2,
     ):
         self.prediction_fn = prediction_fn
         if name is None:
             name = f"F1"
             if average is not None:
                 name += f"-{average}"
-        self.average = average
+        self._average = average
+        self._beta = beta
+        self._num_classes = num_classes
         super().__init__(name=name)
 
     def _compute(self, y_pred, y_true):
+        """Computes the F1 score.
+
+        Args:
+            y_pred: The prediction tensors that contains the logits.
+        """
         if self.prediction_fn is not None:
             y_pred = self.prediction_fn(y_pred)
-        score = sklearn.metrics.f1_score(y_true, y_pred, average=self.average, labels=torch.unique(y_true))
-        return torch.tensor(score)
+
+        return f1_score(
+            preds=y_pred.type(torch.int),
+            target=y_true.type(torch.int),
+            beta=self._beta,
+            average=self._average,
+            num_classes=self._num_classes,
+        )
 
     def worst(self, metrics):
         return minimum(metrics)

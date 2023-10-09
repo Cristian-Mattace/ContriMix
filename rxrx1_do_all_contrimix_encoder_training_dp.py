@@ -1,49 +1,61 @@
-"""A scripts to obtain the baseline for the RxRx1 dataset.
+"""A scripts that adopts the RxRx1 dataset for Contrimix.
 
 Reference:
-    https://worksheets.codalab.org/bundles/0x7d33860545b64acca5047396d42c0ea0
+    [1]. https://worksheets.codalab.org/bundles/0x7d33860545b64acca5047396d42c0ea0
+    [2]. https://worksheets.codalab.org/worksheets/0x231465946de84c06976a0f6626597024
+    [3]. https://github.com/huaxiuyao/LISA
 """
 import logging
 import sys
 from typing import Any
 from typing import Dict
 
+import torch
+import torch.nn as nn
+import wilds
+
 package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_drit/"
 if package_path not in sys.path:
     sys.path.append(package_path)
 
+from wilds.common.grouper import CombinatorialGrouper
+from script_utils import log_group_data
+
+import torch.multiprocessing
+
 from script_utils import dataset_and_log_location, generate_eval_model_path
 from script_utils import configure_parser
+from script_utils import set_seed
+from script_utils import num_of_available_devices
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
-from ip_drit.common.grouper import CombinatorialGrouper
-from ip_drit.datasets.rxrx1 import RxRx1Dataset
+from ip_drit.algorithms._contrimix_utils import ContrimixTrainingMode
+
 from ip_drit.logger import Logger
 from ip_drit.models.wild_model_initializer import WildModel
 from ip_drit.common.data_loaders import LoaderType
 from ip_drit.patch_transform import TransformationType
 from script_utils import configure_split_dict_by_names
-from script_utils import use_data_parallel
 from train_utils import train, evaluate_over_splits
 from saving_utils import load
-from script_utils import calculate_batch_size
 from ip_drit.algorithms import calculate_number_of_training_steps
-from ip_drit.datasets import SplitSchemeType
-from ip_drit.patch_transform import CutMixJointTensorTransform
+from ip_drit.algorithms._contrimix_utils import ContriMixMixingType
+from ip_drit.loss import ContriMixAggregationType
 
 logging.getLogger().setLevel(logging.INFO)
 
 from script_utils import set_visible_gpus
 
+parser = configure_parser()
+FLAGS = parser.parse_args()
+set_visible_gpus(gpu_ids=FLAGS.gpu_ids)  # This one will need to be call outside the program.
+
 
 def main():
     """Demo scripts for training, evaluation with the labeled RxRx1 data."""
-    logging.info("Running the RxRx1 dataset benchmark with the ERM algorithm.")
-    parser = configure_parser()
-    FLAGS = parser.parse_args()
+    print("Running the RxRx1 dataset benchmark with the ERM algorithm.")
 
-    set_visible_gpus(gpu_ids=FLAGS.gpu_ids)
     all_dataset_dir, log_dir = dataset_and_log_location(
         FLAGS.run_on_cluster,
         FLAGS.log_dir_cluster,
@@ -55,18 +67,10 @@ def main():
     all_dataset_dir.mkdir(exist_ok=True)
     log_dir.mkdir(exist_ok=True)
 
-    rxrx1_dataset = RxRx1Dataset(
-        dataset_dir=all_dataset_dir / "rxrx1/",
-        use_full_size=FLAGS.use_full_dataset,
-        split_scheme=SplitSchemeType.OFFICIAL,
-        return_one_hot=True,
-        cache_inputs=False,
-    )
-
     config_dict: Dict[str, Any] = {
-        "algorithm": ModelAlgorithm.ERM,
+        "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.RESNET50,
-        "transform": TransformationType.RXRX1,
+        "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["experiment"],
@@ -74,26 +78,25 @@ def main():
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
-        "n_epochs": FLAGS.n_epochs,
+        "n_epochs": 800,
         "log_every_n_batches": FLAGS.log_every_n_batches,
-        "train_loader": LoaderType.STANDARD,
+        "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": False,
-        "batch_size": calculate_batch_size(
-            dataset_name=rxrx1_dataset.dataset_name, algorithm=ModelAlgorithm.ERM, run_on_cluster=FLAGS.run_on_cluster
-        ),
+        "model_kwargs": {"pretrained": True},  # RxRx1 always use the pre-trained model.
+        "batch_size": 45 * num_of_available_devices(),
         "run_on_cluster": FLAGS.run_on_cluster,
         "uniform_over_groups": False,  #
         "distinct_groups": True,  # If True, enforce groups sampled per batch are distinct.
-        "n_groups_per_batch": FLAGS.num_groups_per_training_batch,  # 4
-        "scheduler": "linear_schedule_with_warmup",
-        "scheduler_kwargs": {"num_warmup_steps": 3},
+        "n_groups_per_batch": 9,
+        "scheduler": "StepLR",
+        "scheduler_kwargs": {"verbose": True, "step_size": 2000, "gamma": 0.9},
         "scheduler_metric_name": "scheduler_metric_name",
-        "optimizer": "AdamW",
-        "lr": 1e-3,
-        "weight_decay": 1e-4,
+        "optimizer": "Adam",
+        "lr": 3e-4,
+        "weight_decay": 1e-5,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
-        "max_grad_norm": 0.8,
-        "use_data_parallel": use_data_parallel(),
+        "max_grad_norm": 0.2,
+        "use_ddp_over_dp": False,
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
         "verbose": FLAGS.verbose,
@@ -110,39 +113,77 @@ def main():
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
+        "num_attr_vectors": 10,
+        "weight_warm_up_steps": 0,  # No weights warm up in ERM
+        "process_outputs_function": "multiclass_logits_to_pred",
+        "progress_bar": True,
+        "evaluate_all_splits": False,
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
+
+    # Set random seed
+    set_seed(FLAGS.seed)
+
+    rxrx1_dataset = wilds.get_dataset(
+        dataset="rxrx1", version=None, root_dir=all_dataset_dir, download=False, split_scheme="official"
+    )
 
     train_grouper = CombinatorialGrouper(dataset=rxrx1_dataset, groupby_fields=config_dict["train_group_by_fields"])
 
     split_dict_by_names = configure_split_dict_by_names(
         full_dataset=rxrx1_dataset, grouper=train_grouper, config_dict=config_dict
     )
+
+    log_group_data(split_dict_by_names, train_grouper, logger)
+
+    # Initialize algorithm & load pretrained weights if provided
     algorithm = initialize_algorithm(
         train_dataset=split_dict_by_names["train"]["dataset"],
-        config=config_dict,
-        train_grouper=train_grouper,
         num_train_steps=calculate_number_of_training_steps(
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
+        config=config_dict,
+        datasets=split_dict_by_names,
+        train_grouper=train_grouper,
+        unlabeled_dataset=None,
+        loss_weights_by_name={
+            "attr_cons_weight": 0.04,
+            "attr_similarity_weight": 0.01,
+            "self_recon_weight": 0.90,
+            "cont_cons_weight": 0.05,
+        },
+        algorithm_parameters={
+            "convert_to_absorbance_in_between": False,
+            "num_mixing_per_image": 3,
+            "contrimix_mixing_type": ContriMixMixingType.RANDOM,
+        },
         batch_transform=None,
+        loss_kwargs={
+            "loss_fn": nn.CrossEntropyLoss(reduction="none"),
+            "use_cut_mix": False,
+            "cut_mix_alpha": FLAGS.cut_mix_alpha,
+            "normalize_signals_into_to_backbone": True,  # Important to match with the RxRx1 transform.
+            "use_original_image_for_entropy_loss": True,
+            "aggregation": ContriMixAggregationType.MAX,
+            "training_mode": ContrimixTrainingMode.ENCODERS,
+        },
     )
 
     if not config_dict["eval_only"]:
-        logging.info("Training mode!")
+        print("Training mode!")
         train(
             algorithm=algorithm,
             labeled_split_dict_by_name=split_dict_by_names,
-            general_logger=logger,
             config_dict=config_dict,
             epoch_offset=0,
-            num_training_epochs_per_evaluation=5,
+            num_training_epochs_per_evaluation=1,
         )
+
     if config_dict["eval_only"] or FLAGS.run_eval_after_train:
-        logging.info("Evaluation mode!")
+        print("Evaluation mode!")
         eval_model_path = generate_eval_model_path(FLAGS.eval_epoch, FLAGS.model_prefix, FLAGS.seed)
-        best_epoch, best_val_metric = load(algorithm, eval_model_path, device=config_dict["device"])
+        best_epoch, _ = load(algorithm, eval_model_path, device=config_dict["device"])
         epoch = best_epoch if FLAGS.eval_epoch is None else FLAGS.eval_epoch
         is_best = epoch == best_epoch
         evaluate_over_splits(
@@ -154,6 +195,11 @@ def main():
             is_best=is_best,
             save_results=True,
         )
+
+    logger.close()
+    for split in split_dict_by_names:
+        split_dict_by_names[split]["eval_logger"].close()
+        split_dict_by_names[split]["algo_logger"].close()
 
 
 if __name__ == "__main__":

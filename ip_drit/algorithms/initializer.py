@@ -1,22 +1,20 @@
 """A module that initialize different algorithms."""
-import logging
 import math
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Optional
 
-import torch.nn as nn
 from torch.utils.data import DataLoader
 
 from ._contrimix import ContriMix
 from ._erm import ERM
-from ._noisy_student import NoisyStudent
 from .single_model_algorithm import ModelAlgorithm
 from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Accuracy
 from ip_drit.common.metrics import binary_logits_to_pred
+from ip_drit.common.metrics import F1
 from ip_drit.common.metrics import MSE
 from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.common.metrics import MultiTaskAccuracy
@@ -34,6 +32,7 @@ algo_log_metrics = {
     "multitask_accuracy": MultiTaskAccuracy(prediction_fn=multiclass_logits_to_pred),
     "multitask_binary_accuracy": MultiTaskAccuracy(prediction_fn=binary_logits_to_pred),
     "multitask_avgprec": MultiTaskAveragePrecision(prediction_fn=None),
+    "f1": F1(prediction_fn=multiclass_logits_to_pred),
     None: None,
 }
 
@@ -66,7 +65,7 @@ def initialize_algorithm(
     Returns:
         The initialized algorithm.
     """
-    logging.info(f"Initializing the {config['algorithm'].name} algorithm!")
+    print(f"Initializing the {config['algorithm'].name} algorithm!")
 
     output_dim = _infer_output_dimensions(train_dataset=train_dataset, config=config)
 
@@ -84,39 +83,17 @@ def initialize_algorithm(
             **algorithm_parameters,
         )
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
-        logging.warning(
-            f"Initlializing the ContriMix algorithm, using ContriMixLoss ignoring the specified loss type of"
-            + f"{config['loss_function']}."
-        )
-
+        print(f"Initlializing the ContriMix algorithm!")
         algorithm = ContriMix(
             config=config,
             d_out=output_dim,
             grouper=train_grouper,
-            loss=ContriMixLoss(
-                loss_weights_by_name=loss_weights_by_name,
-                loss_fn=nn.CrossEntropyLoss(reduction="none"),
-                save_images_for_debugging=True,
-                **loss_kwargs,
-            ),
+            loss=ContriMixLoss(d_out=output_dim, loss_weights_by_name=loss_weights_by_name, loss_params=loss_kwargs),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
             num_attr_vectors=config["num_attr_vectors"],
             batch_transforms=batch_transform,
-            **algorithm_parameters,
-        )
-    elif config["algorithm"] == ModelAlgorithm.NOISY_STUDENT:
-        algorithm = NoisyStudent(
-            config=config,
-            d_out=output_dim,
-            grouper=train_grouper,
-            loss=initialize_loss(loss_type=config["loss_function"]),
-            unlabeled_loss=_compute_unlabeled_loss(
-                use_soft_pseudo_label=config["soft_pseudolabels"], loss_type=config["loss_function"]
-            ),
-            metric=algo_log_metrics[config["algo_log_metric"]],
-            n_train_steps=num_train_steps,
-            batch_transform=batch_transform,
+            training_mode=loss_kwargs["training_mode"],
             **algorithm_parameters,
         )
     else:
@@ -124,9 +101,9 @@ def initialize_algorithm(
 
     if config["pretrained_model_path"] is not None:
         pretrain_model_path = config["pretrained_model_path"]
-        logging.info(f"Loading pretrain model from {pretrain_model_path}.")
+        print(f"Loading pretrain model from {pretrain_model_path}.")
         load(module=algorithm, path=pretrain_model_path, device=config["device"])
-        logging.info(f"Loaded model state from {pretrain_model_path}!")
+        print(f"Loaded model state from {pretrain_model_path}!")
 
     return algorithm
 
@@ -145,11 +122,3 @@ def _infer_output_dimensions(train_dataset: AbstractLabelledPublicDataset, confi
 def calculate_number_of_training_steps(config: Dict[str, Any], train_loader: DataLoader) -> int:
     """Computes the number of training steps."""
     return math.ceil(len(train_loader) / config["gradient_accumulation_steps"]) * config["n_epochs"]
-
-
-def _compute_unlabeled_loss(use_soft_pseudo_label: bool, loss_type: str) -> Callable:
-    """Returns a loss function for the unlabeled samples."""
-    if use_soft_pseudo_label:
-        raise ValueError("NoisyStudent currently does not support soft pseudo labels.")
-    else:
-        return initialize_loss(loss_type=loss_type)

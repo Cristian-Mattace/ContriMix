@@ -1,7 +1,6 @@
 """A module that defines a the Camelyon 17 dataset."""
 import logging
 import os
-from pathlib import Path
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -12,11 +11,11 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
+from wilds.common.grouper import CombinatorialGrouper
 
 from ._dataset import AbstractLabelledPublicDataset
 from ._utils import SplitSchemeType
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.common.metrics import Accuracy
 
 
@@ -26,13 +25,13 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
     Args:
         dataset_dir: The location of the dataset.
         split_scheme: The splitting scheme.
-        use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
-            40000, which is faster for code development. Defaults to True.
-        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
         eval_grouper_group_by_fields (optional): A list of strings that defines the field to group by when displaying.
             the summary. Defaults to "slides". In the experiment that relates to droping center, ["y"] can be used
             because using "slides" caused an exception when droping center 0.
         return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
+        use_full_size (optional): If true, will use the full dataset. Otherwise, limit the dataset size to
+            40000, which is faster for code development. Defaults to True.
+        drop_centers (optional): If specified, describes which train centers to drop (should be a subset of [0, 3, 4])
     """
 
     _dataset_name: Optional[str] = "camelyon17"
@@ -72,6 +71,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._y_array = torch.LongTensor(self._metadata_df["tumor"].values)
         self._y_size = 1
         self._n_classes = 2
+        self._split_names = {"train": "Train", "id_val": "Validation (ID)", "test": "Test", "val": "Validation (OOD)"}
 
         self._file_names: List[str] = [
             f"patches/patient_{p}_node_{n}/patch_patient_{p}_node_{n}_x_{x}_y_{y}.png"
@@ -99,7 +99,7 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(
             dataset=self, groupby_fields=eval_grouper_group_by_fields
         )
-        logging.info(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
+        print(f"Evaluation grouper created for the Camelyon dataset with {self._eval_grouper.n_groups} groups.")
 
     def _update_split_field_index_of_metadata(self) -> None:
         centers = self._metadata_df["center"]

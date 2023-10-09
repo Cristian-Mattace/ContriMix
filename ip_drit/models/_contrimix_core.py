@@ -164,6 +164,7 @@ class Downsampling2xkWithSkipConnection(nn.Module):
                 padding_mode="reflect",
                 bias=True,
             ),
+            nn.LeakyReLU(negative_slope=0.2, inplace=False),
             nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,

@@ -31,7 +31,7 @@ class ZeroMeanUnitStdNormalizer:
         if x.ndim != 4:
             raise ValueError("NormalizeToZeroMeanUnitStd can't be used for tensors without 4 dimensions [N, C, H, W]!")
         mean_val = x.mean(dim=(2, 3), keepdim=True).detach()
-        std_val = x.mean(dim=(2, 3), keepdim=True).detach()
+        std_val = x.std(dim=(2, 3), keepdim=True).detach()
         std_val[std_val == 0.0] = 1.0
         return (x - mean_val) / std_val
 

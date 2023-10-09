@@ -1,7 +1,5 @@
 """A module that defines an algorithm with a model."""
-import logging
 from abc import abstractmethod
-from collections import OrderedDict
 from enum import auto
 from enum import Enum
 from typing import Any
@@ -29,7 +27,7 @@ class ModelAlgorithm(Enum):
 
     ERM = auto()
     CONTRIMIX = auto()
-    NOISY_STUDENT = auto()
+    LABEL_ASSOCIATED_CONTENT_CONTRIMIX = auto()
 
 
 class SingleModelAlgorithm(GroupAlgorithm):
@@ -57,6 +55,7 @@ class SingleModelAlgorithm(GroupAlgorithm):
         batch_transform: Optional[AbstractJointTensorTransform] = None,
     ):
         self._loss = loss
+        self._has_log = False
         logged_metrics = [self._loss]
         if metric is not None:
             self._metric = metric
@@ -69,12 +68,12 @@ class SingleModelAlgorithm(GroupAlgorithm):
             self._optimizer = initialize_optimizer(config, models=[model])
         self._max_grad_norm = config["max_grad_norm"]
 
-        if config["use_data_parallel"]:
+        if not config["use_ddp_over_dp"]:
             parallelized_model = DataParallel(model)
         else:
-            parallelized_model = model
+            raise ValueError("DDP is not supported in single-model algorithms!")
 
-        logging.info(f"Using device {config['device']} for training.")
+        print(f"Using device {config['device']} for training.")
         parallelized_model.to(config["device"])
         self._batch_idx = 0
         self._gradient_accumulation_steps = config["gradient_accumulation_steps"]
@@ -131,7 +130,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
         y_true = move_to(y_true, self._device)
         if self._batch_transform is not None:
             x, y_true = self._batch_transform.transform(x, y_true)
-        g = move_to(self._grouper.metadata_to_group_indices(metadata), self._device)
+        g = move_to(self._grouper.metadata_to_group(metadata), self._device)
+
         results = {"g": g, "y_true": y_true, "y_pred": self._get_model_output(x, y_true), "metadata": metadata}
 
         if unlabeled_batch is not None:
@@ -147,11 +147,19 @@ class SingleModelAlgorithm(GroupAlgorithm):
         """Returnst the value of the objective function."""
         raise NotImplementedError
 
-    def evaluate(self, batch: Tuple[torch.Tensor, ...]) -> Dict[str, Union[torch.Tensor, float]]:
+    def evaluate(
+        self,
+        batch: Tuple[torch.Tensor, ...],
+        ddp_params: Optional[Dict[str, Any]] = None,
+        return_loss_components: bool = True,
+    ) -> Dict[str, Union[torch.Tensor, float]]:
         """Process the batch and update the log, without updating the model.
 
         Args:
             batch: A batch of data yielded by data loaders.
+            ddp_params: A dictionary that contains the parameters for DDP.
+            return_loss_components (optional): If True, returns different components of the loss dictionary.. Defaults
+                to True.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -164,13 +172,14 @@ class SingleModelAlgorithm(GroupAlgorithm):
         """
         assert not self._is_training
         results = self._process_batch(batch)
-        results["objective"] = self.objective(results).item()
+        results["objective"] = self.objective(results, return_loss_components=return_loss_components).item()
         self.update_log(results)
         return self._sanitize_dict(results)
 
     def update(
         self,
         labeled_batch: Tuple[torch.Tensor, ...],
+        return_loss_components: bool,
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         is_epoch_end: bool = False,
         epoch: Optional[int] = None,
@@ -183,6 +192,8 @@ class SingleModelAlgorithm(GroupAlgorithm):
             is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
             epoch (optional): The index of the current epoch.
+            return_loss_components (optional): Returns different components of the loss.
+            return_loss_components (optional): If True, the component of the loss will be return.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -200,9 +211,13 @@ class SingleModelAlgorithm(GroupAlgorithm):
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(
-            results, should_step=(((self._batch_idx + 1) % self._gradient_accumulation_steps == 0) or (is_epoch_end))
+            results,
+            should_step=(((self._batch_idx + 1) % self._gradient_accumulation_steps == 0) or (is_epoch_end),),
+            return_loss_components=return_loss_components,
         )
-        self.update_log(results)
+
+        if return_loss_components:
+            self.update_log(results)
 
         if is_epoch_end:
             self._batch_idx = 0
@@ -212,15 +227,14 @@ class SingleModelAlgorithm(GroupAlgorithm):
         # return only this batch's results
         return self._sanitize_dict(results)
 
-    def _update(self, results: Dict[str, Any], should_step: bool = False) -> None:
+    def _update(self, results: Dict[str, Any], should_step: bool, return_loss_components: bool) -> None:
         """Computes the objective and updates the model.
 
         Also updates the results dictionary yielded by process_batch().
         Should be overridden to change algorithm update beyond modifying the objective.
         """
-        objective = self.objective(results)
+        objective = self.objective(results, return_loss_components=return_loss_components)
         results["objective"] = objective.item()
-        objective = objective / self._gradient_accumulation_steps
         objective.backward()
 
         if should_step:

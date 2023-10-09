@@ -25,6 +25,7 @@ class TransformationType(Enum):
     RANDAUGMENT = auto()
     RANDAUGMENT_TO_0_1 = auto()
     RXRX1 = auto()
+    PDL1 = auto()
 
 
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_MEAN = [0.485, 0.456, 0.406]
@@ -148,6 +149,8 @@ def _get_rxrx1_transform(is_training: bool):
             x = tf.rotate(x, angle)
         return x
 
+    t_random_rotation = transforms.Lambda(lambda x: random_rotation(x))
+
     def normalize(x: torch.Tensor) -> torch.Tensor:
         mean = x.mean(dim=(1, 2))
         std = x.std(dim=(1, 2))
@@ -156,4 +159,9 @@ def _get_rxrx1_transform(is_training: bool):
 
     t_normalize = transforms.Lambda(lambda x: normalize(x))
 
-    return transforms.Compose([RandomRotation(), transforms.RandomHorizontalFlip(), transforms.ToTensor(), t_normalize])
+    if is_training:
+        return transforms.Compose(
+            [t_random_rotation, transforms.RandomHorizontalFlip(), transforms.ToTensor(), t_normalize]
+        )
+    else:
+        return transforms.Compose([transforms.ToTensor(), t_normalize])

@@ -10,6 +10,8 @@ import torch
 import torch.nn as nn
 import torchvision
 
+from ip_drit.models import PathNetBX1
+
 
 class WildModel(Enum):
     """An enum class that defines the model used for the WILDS dataset."""
@@ -20,10 +22,11 @@ class WildModel(Enum):
     RESNET34 = auto()
     RESNET50 = auto()
     RESNET101 = auto()
+    PathNetBX1Torch = auto()
 
 
 def initialize_model_from_configuration(
-    model_type: WildModel, d_out: int, output_classifier: bool = False
+    model_type: WildModel, d_out: int, output_classifier: bool = False, use_pretrained_backbone: bool = False
 ) -> Union[nn.Module, Tuple[nn.Module, nn.Module]]:
     """Initializes the model based on the input configuration file.
 
@@ -34,9 +37,10 @@ def initialize_model_from_configuration(
         model_type: The type of the model to initialize.
         d_out: The dimensionality of the output.
         output_classifier: Creates a sequential architecture in which the classifier will be at the output.
+        use_pretrained_backbone (optional): If True, a pretrained network will be used. Defaults to False.
 
     Returns:
-        If output_classifier=True, returns a sequential module that is a concatenation of the featurizer and classifier
+        If output_classifier=True, returns a tuple of featurizer and classifier
         Here, featurizer is a model that outputs feature Tensors of shape (batch_size, ..., feature dimensionality).
         classifier is a model that takes in feature Tensors and outputs predictions. In most cases, this is a linear
         layer.
@@ -44,31 +48,33 @@ def initialize_model_from_configuration(
         If output_classifier=False, returns the featurizer module only.
     """
     if model_type in [WildModel.DENSENET121, WildModel.RESNET50]:
-        featurizer = _initialize_torchvision_model(name=model_type, d_out=d_out)
+        featurizer = _initialize_torchvision_model(
+            name=model_type, d_out=d_out, use_pretrained_backbone=use_pretrained_backbone
+        )
 
-        out = featurizer
-
-        classifier = nn.Linear(featurizer.d_out, d_out)
-
-        # The `needs_y_input` attribute specifies whether the model's forward function
+        # The `needs_y` attribute specifies whether the model's forward function
         # needs to take in both (x, y).
         # If False, Algorithm.process_batch will call model(x).
         # If True, Algorithm.process_batch() will call model(x, y) during training,
         # and model(x, None) during eval.
         if output_classifier:
+            out = featurizer
             if not hasattr(featurizer, "needs_y_input"):
                 out.needs_y_input = False
+            classifier = nn.Linear(featurizer.d_out, d_out)
             out = featurizer, classifier
         else:
-            out = nn.Sequential(*(featurizer, classifier))
+            out = featurizer
             if not hasattr(out, "needs_y_input"):
                 out.needs_y_input = False
         return out
+    elif model_type == WildModel.PathNetBX1Torch:
+        return PathNetBX1(in_channels=3, num_outputs=d_out, bn_momentum=0.01, use_bn=True)
     else:
         raise ValueError(f"Model type ({model_type}) is not supported!")
 
 
-def _initialize_torchvision_model(name: WildModel, d_out: int, **kwargs):
+def _initialize_torchvision_model(name: WildModel, d_out: int, use_pretrained_backbone: bool):
     # get constructor and last layer names
     if name == WildModel.WIDERESNET50:
         constructor_name = "wide_resnet50_2"
@@ -88,7 +94,7 @@ def _initialize_torchvision_model(name: WildModel, d_out: int, **kwargs):
         raise ValueError(f"Torchvision model {name} not recognized")
     # construct the default model, which has the default last layer
     constructor = getattr(torchvision.models, constructor_name)
-    model = constructor(**kwargs)
+    model = constructor(pretrained=use_pretrained_backbone)
     # adjust the last layer
     d_features = getattr(model, last_layer_name).in_features
 

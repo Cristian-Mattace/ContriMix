@@ -39,10 +39,12 @@ class GroupAlgorithm(Algorithm):
     ) -> None:
         super().__init__(device)
         self._grouper = grouper
+        self._group_prefix = "group_"
         self._count_field = "count"
+        self._group_count_field = f"{self._group_prefix}{self._count_field}"
         self._logged_metrics = logged_metrics
         self._logged_fields = logged_fields
-
+        self._no_group_logging = False
         self._schedulers = schedulers
         self._scheduler_metric_names = scheduler_metric_names
 
@@ -74,13 +76,18 @@ class GroupAlgorithm(Algorithm):
         batch_log: Dict[str, float] = {}
         with torch.no_grad():
             for m in self._logged_metrics:
+                if not self._no_group_logging and not isinstance(m, ContriMixLoss):
+                    group_metrics, group_counts, worst_group_metric = m.compute_group_wise(
+                        results["y_pred"], results["y_true"], results["g"], self._grouper.n_groups, return_dict=False
+                    )
+                    batch_log[f"{self._group_prefix}{m.name}"] = group_metrics
                 if isinstance(m, ContriMixLoss):
-                    # TODO: add a function to generate the log.
                     batch_log.update(m.compute(in_dict=results, return_dict=True))
                 else:
                     batch_log[m.agg_metric_field] = m.compute(
                         results["y_pred"], results["y_true"], return_dict=False
                     ).item()
+                count = numel(results["y_true"])
 
         for field in self._logged_fields:
             v = results[field]
@@ -92,6 +99,27 @@ class GroupAlgorithm(Algorithm):
                         v.numel() == self._grouper.n_groups
                     ), "Current implementation deals only with group-wise statistics or a single-number statistic"
                 batch_log[field] = v
+
+        # update the log dict with the current batch
+        if not self._has_log:  # since it is the first log entry, just save the current log
+            self.log_dict = batch_log
+            if not self._no_group_logging:
+                self.log_dict[self._group_count_field] = group_counts
+            self.log_dict[self._count_field] = count
+        else:  # take a running average across batches otherwise
+            for k, v in batch_log.items():
+                if k.startswith(self._group_prefix):
+                    if self._no_group_logging:
+                        continue
+                    self.log_dict[k] = _update_average(
+                        self.log_dict[k], self.log_dict[self._group_count_field], v, group_counts
+                    )
+                else:
+                    self.log_dict[k] = _update_average(self.log_dict[k], self.log_dict[self._count_field], v, count)
+            if not self._no_group_logging:
+                self.log_dict[self._group_count_field] += group_counts
+            self.log_dict[self._count_field] += count
+        self._has_log = True
         return batch_log
 
     def _check_log_fields_to_be_in_the_results(self, results: Dict[str, Any]):
@@ -103,7 +131,33 @@ class GroupAlgorithm(Algorithm):
 
     def get_log(self) -> Dict[str, float]:
         """Sanitizes the internal log (Algorithm.log_dict) and outputs it."""
-        return self.log_dict
+        sanitized_log = {}
+        for k, v in self.log_dict.items():
+            if k.startswith(self._group_prefix):
+                field = k[len(self._group_prefix) :]
+                for g in range(self._grouper.n_groups):
+                    # set relevant values to NaN depending on the group count
+                    count = self.log_dict[self._group_count_field][g].item()
+                    if count == 0 and k != self._group_count_field:
+                        outval = np.nan
+                    else:
+                        outval = v[g].item()
+                    # add to dictionary with an appropriate name
+                    # in practice, it is saving each value as {field}_group:{g}
+                    added = False
+                    for m in self._logged_metrics:
+                        if field == m.name:
+                            sanitized_log[m.group_metric_field(g)] = outval
+                            added = True
+                    if k == self._group_count_field:
+                        sanitized_log[self._loss.group_count_field(g)] = outval
+                        added = True
+                    elif not added:
+                        sanitized_log[f"{field}_group:{g}"] = outval
+            else:
+                # assert not isinstance(v, torch.Tensor)
+                sanitized_log[k] = v
+        return sanitized_log
 
     def step_schedulers(self, is_epoch: bool, metrics: Dict[str, Any] = {}, log_access: bool = False) -> None:
         """Updates the scheduler after an epoch.
@@ -167,7 +221,30 @@ class GroupAlgorithm(Algorithm):
         for metric in self._logged_metrics:
             results_str += f"   {metric.agg_metric_field}: {log[metric.agg_metric_field]:.3f}\n"
 
-        results_str += "\n"
+        # Process logs for each group
+        if not self._no_group_logging:
+            for g in range(self._grouper.n_groups):
+                group_count = log[f"count_group:{g}"]
+                if group_count <= 0:
+                    continue
+
+                results_str += f"  {self._grouper.group_str(g)}  " f"[n = {group_count:6.0f}]:\t"
+
+                # Process grouped logged fields
+                for field in self._logged_fields:
+                    if field.startswith(self._group_prefix):
+                        field_suffix = field[len(self._group_prefix) :]
+                        log_key = f"{field_suffix}_group:{g}"
+                        results_str += f"{field_suffix}: " f"{log[log_key]:5.3f}\t"
+
+                # Process grouped metric fields
+                for metric in self._logged_metrics:
+                    if not isinstance(metric, ContriMixLoss):
+                        results_str += f"{metric.name}: " f"{log[metric.group_metric_field(g)]:5.3f}\t"
+                results_str += "\n"
+        else:
+            results_str += "\n"
+
         return results_str
 
 
