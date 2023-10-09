@@ -12,6 +12,7 @@ from tqdm import tqdm
 from ip_drit.common.data_loaders import DataLoader
 from ip_drit.common.metrics import binary_logits_to_pred
 from ip_drit.common.metrics import PSEUDO_LABEL_PROCESS_FUNC_BY_TYPE
+from script_utils import is_master_process
 
 
 def infer_predictions(
@@ -36,8 +37,8 @@ def infer_predictions(
     torch.set_grad_enabled(False)
 
     y_pred: List[float] = []
-    logging.info(f"Evaluating the model on {len(loader)} batches.")
-    for batch in tqdm(loader):
+    print(f"Evaluating the model on {len(loader)} batches.")
+    for batch in tqdm(loader, disable=is_master_process(config_dict=config)):
         x = batch[0].to(config["device"])
         if len(batch) > 0:
             y_gt = batch[1].to(config["device"])

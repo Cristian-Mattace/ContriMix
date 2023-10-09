@@ -5,6 +5,7 @@ from ._encoder_decoder import AttributeEncoder
 from ._encoder_decoder import ContentEncoder
 from ._initializer import InitializationType
 from ._initializer import Initializer
+from ._pathnets import PathNetBX1
 from ._trans_abs_converters import AbsorbanceToTransmittance
 from ._trans_abs_converters import SignalType
 from ._trans_abs_converters import TransmittanceToAbsorbance

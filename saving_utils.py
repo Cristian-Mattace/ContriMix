@@ -13,9 +13,10 @@ import pandas as pd
 import torch
 import torch.nn as nn
 
-from ip_drit.algorithms.multi_model_algorithm import MultimodelAlgorithm
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.metrics import Metric
+
+# from ip_drit.algorithms.multi_model_algorithm import 'MultimodelAlgorithm'
 
 
 def save_pred_if_needed(
@@ -89,7 +90,7 @@ def _get_model_prefix(dataset_name: str, config_dict: Dict[str, Any]) -> str:
 
 
 def _save_model(
-    algorithm: Union[SingleModelAlgorithm, MultimodelAlgorithm], epoch: int, best_val_metric: float, path: str
+    algorithm: Union[SingleModelAlgorithm, "MultimodelAlgorithm"], epoch: int, best_val_metric: float, path: str
 ) -> None:
     """Save the model checkpoint.
 
@@ -104,10 +105,10 @@ def _save_model(
     state["epoch"] = epoch
     state["best_val_metric"] = best_val_metric
     torch.save(state, path)
-    logging.info(f"Saving the model to {path}.")
+    print(f"Saving the model to {path}.")
 
 
-def load(module: nn.Module, path: str, device: Optional[str] = None, tries: int = 2) -> Tuple[int, Metric]:
+def load(module: nn.Module, path: str, device: Optional[str] = None) -> Tuple[int, Metric]:
     """Handles loading weights saved from this repo/model into an algorithm/model.
 
     Attempts to handle key mismatches between this module's state_dict and the loaded state_dict.
@@ -143,20 +144,9 @@ def load(module: nn.Module, path: str, device: Optional[str] = None, tries: int 
     try:
         module.load_state_dict(state)
     except Exception:
+        logging.warning("Mistmatch between the checkpoint detected, trying to load in non-strict mode")
         # Otherwise, attempt to reconcile mismatched keys and load with strict=False
-        module_keys = module.state_dict().keys()
-        for _ in range(tries):
-            state = _match_keys(state, list(module_keys))
-            module.load_state_dict(state, strict=False)
-            leftover_state = {k: v for k, v in state.items() if k in list(state.keys() - module_keys)}
-            leftover_module_keys = module_keys - state.keys()
-            if len(leftover_state) == 0 or len(leftover_module_keys) == 0:
-                break
-            state, module_keys = leftover_state, leftover_module_keys
-        if len(module_keys - state.keys()) > 0:
-            logging.warning(
-                f"Some module parameters could not be found in the loaded state:" f" {module_keys-state.keys()}"
-            )
+        module.load_state_dict(state, strict=False)
     return prev_epoch, best_val_metric
 
 

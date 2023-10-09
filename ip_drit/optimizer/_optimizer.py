@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import Iterable
 from typing import List
+from typing import Union
 
 import torch
 import torch.nn as nn
@@ -11,7 +12,7 @@ from torch.optim import AdamW
 from torch.optim import SGD
 
 
-def initialize_optimizer(config: Dict[str, Any], models: List[nn.Module]) -> torch.optim.Optimizer:
+def initialize_optimizer(config: Dict[str, Any], models: Union[List[nn.Module], nn.Module]) -> torch.optim.Optimizer:
     """Initializes an initializer.
 
     Args:
@@ -36,9 +37,12 @@ def initialize_optimizer(config: Dict[str, Any], models: List[nn.Module]) -> tor
     return optimizer
 
 
-def get_parameters_from_models(models: Iterable[nn.Module]) -> List:
+def get_parameters_from_models(models: Union[Iterable[nn.Module], nn.Module]) -> List:
     """Returns a list of parameters from all models."""
     params = []
+    if isinstance(models, nn.Module):
+        models = [models]
+
     for model in models:
         params = params + list(model.parameters())
     return params

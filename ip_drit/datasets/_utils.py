@@ -42,7 +42,7 @@ def download_and_extract_archive(
 
     if not filename:
         filename = os.path.basename(url)
-    logging.info(f"Downloading the zipped data file from {download_root}.")
+    print(f"Downloading the zipped data file from {download_root}.")
     _download_url(url, download_root, filename, md5, size)
 
     archive = os.path.join(download_root, filename)
@@ -76,7 +76,7 @@ def _download_url(
         logging.debug("Using downloaded and verified file: " + file_path)
     else:  # download the file
         try:
-            logging.info("Downloading " + url + " to " + file_path)
+            print("Downloading " + url + " to " + file_path)
             urllib.request.urlretrieve(url, file_path, reporthook=_gen_bar_updater(size))
         except (urllib.error.URLError, IOError) as e:
             if url[:5] == "https":

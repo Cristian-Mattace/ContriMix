@@ -41,7 +41,12 @@ class ERM(SingleModelAlgorithm):
         n_train_steps: int,
         batch_transform: Optional[AbstractJointTensorTransform] = None,
     ) -> None:
-        model = initialize_model_from_configuration(config["model"], d_out, output_classifier=False)
+        model = initialize_model_from_configuration(
+            config["model"],
+            d_out,
+            output_classifier=False,
+            use_pretrained_backbone=config["model_kwargs"]["pretrained"],
+        )
         super().__init__(
             config=config,
             model=model,
@@ -53,7 +58,7 @@ class ERM(SingleModelAlgorithm):
         )
         self._use_unlabeled_y = config["use_unlabeled_y"]
 
-    def objective(self, results: Dict[str, Any]) -> float:
+    def objective(self, results: Dict[str, Any], return_loss_components: bool) -> float:
         return self._loss.compute(results["y_pred"], results["y_true"], return_dict=False)
 
     def _process_unlabeled_batch(self, unlabeled_batch: Tuple[torch.Tensor, torch.Tensor]) -> Dict[str, Any]:

@@ -1,7 +1,7 @@
 """A utility module for training."""
 import argparse
-import logging
 import os
+import random
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -10,21 +10,20 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+import numpy as np
 import torch.cuda
 from torch.utils.data import DataLoader
+from wilds.common.grouper import CombinatorialGrouper
 
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.data_loaders import get_eval_loader
 from ip_drit.common.data_loaders import get_train_loader
 from ip_drit.common.data_loaders import LoaderType
-from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets import AbstractPublicDataset
 from ip_drit.datasets import SubsetLabeledPublicDataset
 from ip_drit.logger import BatchLogger
-from ip_drit.logger import Logger
 from ip_drit.patch_transform import initialize_transform
-from ip_drit.patch_transform import TransformationType
 
 
 def parse_bool(v: str) -> bool:
@@ -53,17 +52,20 @@ def configure_split_dict_by_names(
     """
     split_dict = defaultdict(dict)
     for split_name in full_dataset.split_dict:
-        logging.info(f"Generating split dict for split {split_name}")
+        print(f"Generating split dict for split {split_name}")
         subdataset = full_dataset.get_subset(
             split=split_name,
             frac=1.0,
             transform=initialize_transform(
-                transform_name=config_dict["transform"], config_dict=config_dict, full_dataset=full_dataset
+                transform_name=config_dict["transform"],
+                config_dict=config_dict,
+                full_dataset=full_dataset,
+                is_training=(split_name == "train"),
             ),
         )
 
         split_dict[split_name]["dataset"] = subdataset
-        logging.info(f"Dataset size = {len(subdataset)}")
+        print(f"Dataset size = {len(subdataset)}")
 
         split_dict[split_name]["loader"] = _get_data_loader_by_split_name(
             sub_dataset=subdataset, grouper=grouper, split_name=split_name, config_dict=config_dict
@@ -80,6 +82,7 @@ def configure_split_dict_by_names(
         split_dict[split_name]["verbose"] = config_dict["verbose"]
         split_dict[split_name]["report_batch_metric"] = config_dict["report_batch_metric"]
         split_dict[split_name]["split"] = split_name
+        split_dict[split_name]["name"] = full_dataset.split_names[split_name]
 
     return split_dict
 
@@ -100,6 +103,9 @@ def _get_data_loader_by_split_name(
             reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
             seed=config_dict["seed"],
             run_on_cluster=config_dict["run_on_cluster"],
+            loader_kwargs=config_dict.get("loader_kwargs", {}),
+            ddp_params=config_dict.get("ddp_params", {}),
+            use_ddp_over_dp=config_dict["use_ddp_over_dp"],
         )
 
     elif split_name in ("id_val", "test", "val", "val_unlabeled", "test_unlabeled", "id_test"):
@@ -110,14 +116,12 @@ def _get_data_loader_by_split_name(
             reset_random_generator_after_every_epoch=config_dict["reset_random_generator_after_every_epoch"],
             seed=config_dict["seed"],
             run_on_cluster=config_dict["run_on_cluster"],
+            loader_kwargs=config_dict.get("loader_kwargs", {}),
+            ddp_params=config_dict.get("ddp_params", {}),
+            use_ddp_over_dp=config_dict["use_ddp_over_dp"],
         )
     else:
         raise ValueError(f"Unknown split name {split_name}")
-
-
-def use_data_parallel() -> bool:
-    """Returns True if more than 1 training device is available, otherwise, False."""
-    return num_of_available_devices() > 1
 
 
 def num_of_available_devices() -> int:
@@ -136,18 +140,13 @@ def detach_and_clone(obj: torch.Tensor) -> torch.Tensor:
 
 
 def log_results(
-    algorithm: SingleModelAlgorithm,
-    split_dict: Dict[str, Any],
-    general_logger: Logger,
-    epoch: int,
-    effective_batch_idx: int,
+    algorithm: SingleModelAlgorithm, split_dict: Dict[str, Any], epoch: int, effective_batch_idx: int
 ) -> None:
     """Logs the results of the algorithm.
 
     Args:
         algorithm: the algorithm that was run on.
         split_dict: The dictionary for the current split.
-        general_logger: The general logger that is used to write the log output.
         epoch: The current epoch index.
         effective_batch_idx: The effective batch index.
     """
@@ -157,7 +156,7 @@ def log_results(
         log["batch"] = effective_batch_idx
         split_dict["algo_logger"].log(log)
         if split_dict["verbose"] and split_dict["report_batch_metric"]:
-            general_logger.write(algorithm.get_pretty_log_str())
+            print(algorithm.get_pretty_log_str())
         algorithm.reset_log()
 
 
@@ -291,24 +290,25 @@ def configure_parser() -> argparse.ArgumentParser:
         "--num_mixing_per_image", type=int, default=2, help="number of mixing per image for contrimix. Defaults to 2"
     )
     parser.add_argument(
-        "--use_cut_mix", type=parse_bool,
+        "--use_cut_mix",
+        type=parse_bool,
         default=True,
         help="If true, only evaluation is done. Defaults to True, in which case, cutmix will be used.",
     )
     parser.add_argument(
-        "--distinct_groups", type=parse_bool,
+        "--distinct_groups",
+        type=parse_bool,
         default=True,
         help="If true, distinct groups will be used. Defaults to True.",
     )
     parser.add_argument(
-        "--normalize_signals_into_to_backbone", type=parse_bool,
+        "--normalize_signals_into_to_backbone",
+        type=parse_bool,
         default=True,
         help="If true, the inputs will be normalized to the backbone. Defaults to True.",
     )
     parser.add_argument(
-        "--cut_mix_alpha", type=float,
-        default=1.0,
-        help="If true, the alpha parameters for CutMix. Defaults to 1.0.",
+        "--cut_mix_alpha", type=float, default=1.0, help="If true, the alpha parameters for CutMix. Defaults to 1.0."
     )
     return parser
 
@@ -333,7 +333,11 @@ def generate_eval_model_path(eval_epoch: int, model_prefix: str, seed: int) -> s
 
 
 def calculate_batch_size(
-    dataset_name: str, algorithm: ModelAlgorithm, run_on_cluster: bool, batch_size_per_gpu: Optional[int] = None
+    dataset_name: str,
+    algorithm: ModelAlgorithm,
+    run_on_cluster: bool,
+    batch_size_per_gpu: Optional[int] = None,
+    ddp_mode: bool = False,
 ) -> int:
     """Calculates the batch size for a given 'algorithm' and wether the code 'run_on_cluster' or not.
 
@@ -343,17 +347,25 @@ def calculate_batch_size(
         run_on_cluster: If True, the code will be run on the cluster. Otherwise, it will be run locally on a Mac.
         batch_size_per_gpu (optional): The specified number of samples per GPUs. If specified, returns that values.
             Otherwise, returns the default values.
+        ddp_mode: If True, the ddp mode is used. In this case, the batch size is for 1 GPU.
     """
-    num_devices = num_of_available_devices()
-    logging.info(f"Number of training devices = {num_devices}.")
-    DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
-        "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500, ModelAlgorithm.NOISY_STUDENT: 900},
-        "rxrx1": {ModelAlgorithm.ERM: 300},
-    }
+    if ddp_mode:
+        num_devices = 1
+        DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 360}
+        }
 
-    DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
-        "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90, ModelAlgorithm.NOISY_STUDENT: 45}
-    }
+    else:
+        num_devices = num_of_available_devices()
+        DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500}
+        }
+        DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90}
+        }
+
+    print(f"Number of training devices = {num_devices}.")
+
     if batch_size_per_gpu is None:
         if run_on_cluster:
             batch_size_per_gpu = DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER[dataset_name][algorithm]
@@ -363,7 +375,7 @@ def calculate_batch_size(
         batch_size_per_gpu = batch_size_per_gpu
 
     batch_size = batch_size_per_gpu * num_devices
-    logging.info(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device * {num_devices} device(s).")
+    print(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device.")
     return batch_size
 
 
@@ -377,6 +389,40 @@ def set_visible_gpus(gpu_ids: Optional[List[int]] = None) -> None:
         gpu_ids = ",".join(str(i) for i in gpu_ids)
     else:
         gpu_ids = ",".join(str(i) for i in range(torch.cuda.device_count()))
-    logging.info(f"Setting GPU ids {gpu_ids} to be visible!")
+    print(f"Setting GPU ids {gpu_ids} to be visible!")
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = gpu_ids
+
+
+def is_master_process(config_dict: Dict[str, Any]) -> bool:
+    """Returns True if this is a master process."""
+    if config_dict["use_ddp_over_dp"]:
+        return config_dict["ddp_params"]["local_rank"] == 0
+    return True
+
+
+def set_seed(seed: int):
+    """Sets seed."""
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
+
+def log_group_data(datasets, grouper, logger):
+    """Logs the data from different groups."""
+    for k, dataset in datasets.items():
+        name = dataset["name"]
+        dataset = dataset["dataset"]
+        logger.write(f"{name} data...\n")
+        if grouper is None:
+            logger.write(f"    n = {len(dataset)}\n")
+        else:
+            _, group_counts = grouper.metadata_to_group(dataset.metadata_array, return_counts=True)
+            group_counts = group_counts.tolist()
+            for group_idx in range(grouper.n_groups):
+                logger.write(f"    {grouper.group_str(group_idx)}: n = {group_counts[group_idx]:.0f}\n")
+    logger.flush()

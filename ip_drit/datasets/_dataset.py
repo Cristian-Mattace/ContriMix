@@ -16,6 +16,7 @@ from typing import Tuple
 from typing import Union
 
 import numpy as np
+import pandas as pd
 import torch
 import torch.nn.functional as F
 from absl import logging
@@ -45,7 +46,7 @@ class AbstractPublicDataset(ABC):
         self._transform = transform
         self._make_sure_folder_exists()
         if not self._dataset_exists_locally():
-            logging.info(f"{self._dataset_name} does not exist locally. Downloading it now!")
+            print(f"{self._dataset_name} does not exist locally. Downloading it now!")
             self._download_dataset()
 
     def _make_sure_folder_exists(self) -> None:
@@ -63,8 +64,8 @@ class AbstractPublicDataset(ABC):
         download_url = self._DOWNLOAD_URL_BY_VERSION[self._version]
 
         # from wilds.datasets.download_utils import download_and_extract_archive
-        logging.info(f"Downloading dataset to {self._data_dir}...")
-        logging.info(f"You can also download the dataset manually at https://wilds.stanford.edu/downloads!")
+        print(f"Downloading dataset to {self._data_dir}...")
+        print(f"You can also download the dataset manually at https://wilds.stanford.edu/downloads!")
 
         try:
             start_time = time.time()
@@ -76,9 +77,9 @@ class AbstractPublicDataset(ABC):
                 remove_finished=True,
             )
 
-            logging.info(f"\nIt took {round((time.time() - start_time) / 60, 2)} minutes to download.\n")
+            print(f"\nIt took {round((time.time() - start_time) / 60, 2)} minutes to download.\n")
         except Exception as e:
-            logging.info(
+            print(
                 f"\n{os.path.join(self._data_dir, 'archive.tar.gz')} may be corrupted. Please try deleting it and "
                 + "rerunning this command.\n"
             )
@@ -221,6 +222,8 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
         return_one_hot (optional): If True, return the label as a 1 hot vector. Defaults to False.
     """
 
+    _DEFAULT_SPLIT_NAMES = {"train": "Train", "val": "Validation", "test": "Test"}
+
     def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None, return_one_hot: bool = False) -> None:
         self._return_one_hot: bool = return_one_hot
         super().__init__(dataset_dir, transform)
@@ -232,7 +235,6 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
         y = self.y_array[idx]
         if self._return_one_hot:
             y = F.one_hot(y, self.n_classes).float()
-
         if self._transform is not None:
             x = self._transform(x)
         metadata = self.metadata_array[idx]
@@ -327,7 +329,7 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
             results_str += f"    Average {metric.name}: {results[metric.agg_metric_field]:.3f}\n"
 
         num_groups = grouper.n_groups
-        group_indices = grouper.metadata_to_group_indices(metadata)
+        group_indices = grouper.metadata_to_group(metadata)
         group_results = metric.compute_group_wise(y_pred, y_true, group_indices, num_groups)
         for group_idx in range(num_groups):
             group_name = grouper.group_field_str(group_idx)
@@ -343,6 +345,15 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
         results[f"  {metric.worst_group_metric_field}"] = group_results[f"{metric.worst_group_metric_field}"]
         results_str += f"   *Worst-group {metric.name}: {group_results[metric.worst_group_metric_field]:.3f}\n"
         return results, results_str
+
+    @property
+    def metadata_df(self) -> pd.DataFrame:
+        return self._dataset._metadata_df
+
+    @property
+    def split_names(self) -> Dict[str, str]:
+        """Returns a dictonary of the split names, keyed by names."""
+        return getattr(self, "_split_names", self._DEFAULT_SPLIT_NAMES)
 
 
 class SubsetLabeledPublicDataset(AbstractLabelledPublicDataset):
@@ -394,6 +405,10 @@ class SubsetLabeledPublicDataset(AbstractLabelledPublicDataset):
     @property
     def metadata_array(self):
         return self._dataset.metadata_array[self._indices]
+
+    @property
+    def metadata_df(self) -> pd.DataFrame:
+        return self._dataset._metadata_df.iloc[self._indices]
 
     def eval(
         self,

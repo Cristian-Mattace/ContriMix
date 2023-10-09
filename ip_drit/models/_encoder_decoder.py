@@ -56,7 +56,7 @@ class AttributeEncoder(nn.Module):
                 Downsampling2xkWithSkipConnection(in_channels=256, out_channels=512),
                 nn.AdaptiveAvgPool2d(output_size=(1, 1)),  # Condense all the X, Y dimensions to 1 pixels.
                 nn.Conv2d(in_channels=512, out_channels=out_channels, kernel_size=1, stride=1, padding=0, bias=True),
-                nn.LayerNorm([out_channels, 1, 1]),
+                nn.LayerNorm([out_channels, 1, 1], eps=1e-5),
                 nn.LeakyReLU(inplace=False),
             )
         )
@@ -77,58 +77,57 @@ class ContentEncoder(nn.Module):
     Args:
         in_channels: The number of input channels.
         k (optional): The downsampling factor. Defaults to 4.
+        output_logits (optional): If True, the output logits will be used.
 
     Returns:
         For each minibatch with N samples, it returns a tensor of size N x out_channels x H x W in which
         H and W is a down-sampled version of the input image.
     """
 
-    def __init__(self, in_channels: int, num_stain_vectors: int = 32, k: int = 4) -> None:
+    def __init__(self, in_channels: int, num_stain_vectors: int = 32, k: int = 4, output_logits: bool = False) -> None:
         super().__init__()
         self.needs_y_input: bool = False
         if k == 4:
-            self._model = Initializer()(
-                nn.Sequential(
-                    LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
-                    ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
-                    ReLUInstNorm2dConv2d(
-                        in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
-                    ),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    nn.LeakyReLU(inplace=True),
-                )
-            )
+            models = [
+                LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
+                ReLUInstNorm2dConv2d(in_channels=16, out_channels=32, kernel_size=3, stride=2, padding=1),
+                ReLUInstNorm2dConv2d(
+                    in_channels=32, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
+                ),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+            ]
+
         elif k == 2:
-            self._model = Initializer()(
-                nn.Sequential(
-                    LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
-                    ReLUInstNorm2dConv2d(
-                        in_channels=16, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
-                    ),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    nn.LeakyReLU(inplace=True),
-                )
-            )
+            models = [
+                LeakyReLUConv2d(in_channels=in_channels, out_channels=16, kernel_size=7, stride=1, padding=3),
+                ReLUInstNorm2dConv2d(
+                    in_channels=16, out_channels=num_stain_vectors, kernel_size=3, stride=2, padding=1
+                ),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+            ]
+
         else:
-            self._model = Initializer()(
-                nn.Sequential(
-                    LeakyReLUConv2d(in_channels=in_channels, out_channels=8, kernel_size=3, stride=1, padding=1),
-                    ReLUInstNorm2dConv2d(
-                        in_channels=8, out_channels=num_stain_vectors, kernel_size=3, stride=1, padding=1
-                    ),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    ResInstNorm2dConv2d(in_channels=num_stain_vectors),
-                    nn.LeakyReLU(inplace=True),
-                )
-            )
+            models = [
+                LeakyReLUConv2d(in_channels=in_channels, out_channels=8, kernel_size=3, stride=1, padding=1),
+                ReLUInstNorm2dConv2d(in_channels=8, out_channels=num_stain_vectors, kernel_size=3, stride=1, padding=1),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+                ResInstNorm2dConv2d(in_channels=num_stain_vectors),
+            ]
+
+        if not output_logits:
+            models.append(nn.LeakyReLU(inplace=True))
+
+        self._model = Initializer()(nn.Sequential(*models))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # Cast to float32 to avoid nan error caused by Layernorm in the Attribute Encoder
+        # See https://github.com/pytorch/pytorch/issues/66707
         return self._model(x)
 
 
@@ -139,10 +138,12 @@ class AbsorbanceImGenerator(nn.Module):
 
     Args:
         k (optional): The downsampling factor. Defaults to 4.
+        input_zc_logits (optional): If True, the input content is logits. Defaults to False.
     """
 
-    def __init__(self, k: int) -> None:
+    def __init__(self, k: int, input_zc_logits: bool = False) -> None:
         super().__init__()
+        self._input_zc_logits: bool = input_zc_logits
         self.needs_y_input: bool = True
         self._shuffle_layer = torch.nn.PixelShuffle(upscale_factor=k)
         if k == 4:
@@ -152,7 +153,7 @@ class AbsorbanceImGenerator(nn.Module):
         else:
             self._conv = None
 
-    def forward(self, z_c: torch.Tensor, z_a: torch.Tensor) -> torch.Tensor:
+    def forward(self, z_c: torch.Tensor, z_a: torch.Tensor, sum_all_channels: bool = True) -> torch.Tensor:
         """Generates an image based by the content and the attribute tensor.
 
         Args:
@@ -163,15 +164,30 @@ class AbsorbanceImGenerator(nn.Module):
         Returns:
             The generated image tensor of size (N, 3, k*H, k*W)
         """
+        if self._input_zc_logits:
+            z_c = nn.functional.softmax(z_c, dim=1)
+
         if z_c.size(1) != z_a.size(2):
             raise ValueError(
                 f"The number of elements in first dimension of z_c must match the number of elements in the 2nd "
                 + "dimension of z_a"
             )
-        num_rows, num_cols = z_c.size(2), z_c.size(3)
-        x = torch.bmm(z_a, z_c.view(z_c.size(0), z_c.size(1), -1))
-        x = x.view(x.size(0), x.size(1), num_rows, num_cols)
-        if self._conv is not None:
-            return self._conv(self._shuffle_layer(x))
+        num_rows, num_cols = z_c.size(2), z_c.size(3)  # N, 3, nattrs
+        z_c = z_c.view(z_c.size(0), z_c.size(1), -1)  # N, nattrs, nrows * ncols
+        if sum_all_channels:
+            x = torch.bmm(z_a, z_c)
+            x = x.view(x.size(0), x.size(1), num_rows, num_cols)
+            if self._conv is not None:
+                return self._conv(self._shuffle_layer(x))
+            else:
+                return self._shuffle_layer(x)
+
         else:
-            return self._shuffle_layer(x)
+            num_attrs = z_c.size(1)
+            single_attr_ims: torch.Tensor = []
+            for idx in range(num_attrs):
+                single_attr_ims.append(
+                    torch.bmm(z_a[:, :, [idx]], z_c[:, [idx]]).view(z_a.size(0), z_a.size(1), num_rows, num_cols)
+                )
+
+            return torch.stack(single_attr_ims, dim=1)

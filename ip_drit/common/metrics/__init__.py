@@ -1,5 +1,6 @@
 from ._all_metrics import Accuracy
 from ._all_metrics import binary_logits_to_pred
+from ._all_metrics import F1
 from ._all_metrics import MSE
 from ._all_metrics import multiclass_logits_to_pred
 from ._all_metrics import MultiTaskAccuracy

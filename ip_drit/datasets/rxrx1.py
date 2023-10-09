@@ -20,7 +20,7 @@ from ._dataset import AbstractLabelledPublicDataset
 
 3
 from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.grouper import CombinatorialGrouper
+from wilds.common.grouper import CombinatorialGrouper
 from ip_drit.common.metrics import Accuracy
 from ip_drit.datasets import SplitSchemeType
 
@@ -98,13 +98,12 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
         cache_inputs: bool = True,
         return_one_hot: bool = False,
     ) -> None:
-        logging.info("Initializing the RxRx1 data.")
+        print("Initializing the RxRx1 data.")
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._downsampling_factor: int = downsampling_factor
         self._original_resolution = (int(256 / downsampling_factor), int(256 / downsampling_factor))
         self._cache_inputs = cache_inputs
-
         # Read in metadata
         self._metadata_df: pd.DataFrame = pd.read_csv(os.path.join(self._data_dir, "metadata.csv"), index_col=0)
 
@@ -133,7 +132,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
         if len(np.unique(self._metadata_df["sirna_id"])) != self._n_classes:
             raise ValueError("The number of unique siRNA classes does not match expectation!")
 
-        logging.info("Generarting a list of file names for all files.")
+        print("Generarting a list of file names for all files.")
         self._input_array: np.ndarray = self._metadata_df.apply(self._file_path_from_row, axis=1).values
 
         indexed_metadata = self._compute_indexed_metadata()
@@ -154,8 +153,9 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
 
         # The evaluation grouper operates ovfer all the slides.
         self._eval_grouper: AbstractGrouper = CombinatorialGrouper(dataset=self, groupby_fields=["cell_type"])
-        logging.info(f"Evaluation grouper created for the RxRx1 dataset with {self._eval_grouper.n_groups} groups.")
+        print(f"Evaluation grouper created for the RxRx1 dataset with {self._eval_grouper.n_groups} groups.")
 
+        self._split_names = self._SPLIT_NAME_BY_SPLIT_STRING
         if self._cache_inputs:
             self._initialize_cache_array_for_all_data(num_samples=self._metadata_array.shape[0])
 
@@ -213,7 +213,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
             num_data_samples: Number of samples for the whole dataset.
             num_chans (optional): The number of training channels. Defaults to 3.
         """
-        logging.info("Initializing a shared array for caching all RxRx1 samples!")
+        print("Initializing a shared array for caching all RxRx1 samples!")
         h, w = self._original_resolution
         shared_array = mp.Array(ctypes.c_uint8, num_samples * num_chans * h * w)
         shared_array = np.ctypeslib.as_array(shared_array.get_obj())
@@ -221,8 +221,8 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
         for idx in range(num_samples):
             self._shared_array[idx] = np.array(self._get_pil_image_from_input(idx))
             if idx % 10000 == 0:
-                logging.info(f"Cached {idx} samples.")
-        logging.info(f"Done with caching.")
+                print(f"Cached {idx} samples.")
+        print(f"Done with caching.")
 
     def _file_path_from_row(self, row: pd.DataFrame) -> str:
         """Returns the path to the image file from the row dataframe."""
@@ -259,7 +259,7 @@ class RxRx1Dataset(AbstractLabelledPublicDataset):
                 tuple(int(x / self._downsampling_factor) for x in self._original_resolution), resample=PIL.Image.BICUBIC
             )
             resized_im.save(image_name)
-            logging.info(f"Save image named {image_name}")
+            print(f"Save image named {image_name}")
             return resized_im
 
     def _get_input(self, idx: int) -> PIL.Image:
