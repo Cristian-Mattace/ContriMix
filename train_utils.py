@@ -11,10 +11,8 @@ import torch
 from tqdm import tqdm
 
 from ip_drit.algorithms.single_model_algorithm import SingleModelAlgorithm
-from ip_drit.common.data_loaders import InfiniteDataIterator
 from ip_drit.common.metrics import binary_logits_to_pred
 from ip_drit.common.metrics import multiclass_logits_to_pred
-from ip_drit.logger import Logger
 from saving_utils import save_model_if_needed
 from saving_utils import save_pred_if_needed
 from script_utils import detach_and_clone

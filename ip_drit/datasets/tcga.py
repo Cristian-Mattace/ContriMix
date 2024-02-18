@@ -1,15 +1,12 @@
 """A module that defines the TCGA dataset."""
-import logging
 import os
 import shutil
 from collections import defaultdict
 from glob import glob
 from pathlib import Path
-from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 import cv2
 import numpy as np
@@ -18,9 +15,6 @@ import torch
 from PIL import Image
 
 from ._unlabelled_dataset import AbstractUnlabelPublicDataset
-from ._utils import SplitSchemeType
-from ip_drit.common.grouper import AbstractGrouper
-from ip_drit.common.metrics import Accuracy
 
 
 class TCGADataset(AbstractUnlabelPublicDataset):

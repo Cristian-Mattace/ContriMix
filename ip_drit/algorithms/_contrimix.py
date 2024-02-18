@@ -163,7 +163,7 @@ class ContriMix(MultimodelAlgorithm):
         metadata_gpu = move_to(metadata, self._device)
         group_indices = move_to(self._grouper.metadata_to_group(metadata), self._device)
 
-        out_dict = self._get_model_output(x, y_true, unlabeled_x, epoch=epoch)
+        out_dict = self._get_model_output(x, y_true, unlabeled_x)
 
         results = {
             "g": group_indices,
@@ -177,11 +177,7 @@ class ContriMix(MultimodelAlgorithm):
         return results
 
     def _get_model_output(
-        self,
-        x: Optional[torch.Tensor],
-        y_true: Optional[torch.Tensor],
-        unlabeled_x: Optional[torch.Tensor],
-        epoch: Optional[int] = None,
+        self, x: Optional[torch.Tensor], y_true: Optional[torch.Tensor], unlabeled_x: Optional[torch.Tensor]
     ) -> Dict[str, torch.Tensor]:
         """Computes the model outputs.
 
