@@ -359,7 +359,7 @@ def calculate_batch_size(
         num_devices = num_of_available_devices()
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
             "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500},
-            "tcga_unlabeled": {ModelAlgorithm.CONTRIMIX: 12},
+            "tcga_unlabeled": {ModelAlgorithm.CONTRIMIX: 10},
         }
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
             "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90}

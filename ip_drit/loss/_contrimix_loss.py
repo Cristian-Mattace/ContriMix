@@ -6,7 +6,6 @@ from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import Union
 
 import numpy as np
@@ -130,11 +129,7 @@ class ContriMixLoss(MultiTaskMetric):
 
         if in_dict["y_true"] is not None:
             entropy_loss = self._compute_backbone_loss(
-                in_dict=in_dict,
-                x_self_recon=x_self_recon_1,
-                zc=zc,
-                za_targets=za_targets,
-                return_loss_components=return_loss_components,
+                in_dict=in_dict, x_self_recon=x_self_recon_1, zc=zc, za_targets=za_targets
             )
 
         if self._save_images_for_debugging and return_loss_components and self._ddp_local_rank == 0:
