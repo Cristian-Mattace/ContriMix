@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from skimage import io
 
 from ..common.metrics._base import Metric
 from ..common.metrics._base import MultiTaskMetric
@@ -66,6 +67,7 @@ class ContriMixLoss(MultiTaskMetric):
         aug_reg_variance_weight: float = 10.0,
     ) -> None:
         self._loss_fn = loss_params["loss_fn"]
+        self._ddp_local_rank = loss_params.get("ddp_local_rank", None)
         self._loss_weights_by_name = loss_weights_by_name
         self._save_images_for_debugging = save_images_for_debugging
         self._debug_image: Optional[np.ndarray] = None
@@ -109,26 +111,41 @@ class ContriMixLoss(MultiTaskMetric):
         self._trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
         self._batch_transform = getattr(in_dict, "batch_transform", None)
 
-        x_org_1 = in_dict["x_org"]
         all_target_image_indices = in_dict["all_target_image_indices"]
         cont_enc = in_dict["cont_enc"]
         attr_enc = in_dict["attr_enc"]
         im_gen = in_dict["im_gen"]
+
+        if in_dict["x_org"] is not None:  # labeled data only!
+            x_org_1 = in_dict["x_org"]
+        else:
+            x_org_1 = in_dict["unlabeled_x_org"]
 
         x_org_2 = self._one_to_two_conversion(im_1=x_org_1)
         zc = cont_enc(x_org_2)
         za = attr_enc(x_org_2)
         x_self_recon_2 = im_gen(zc, za)
         x_self_recon_1 = self._two_to_one_conversion(im_2=x_self_recon_2)
-        za_targets = self._generate_z_targets(z=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
+        za_targets = self._generate_z_targets(za=za, all_mix_target_im_idxs=all_target_image_indices)
 
-        entropy_loss = self._compute_backbone_loss(
-            in_dict=in_dict,
-            x_self_recon=x_self_recon_1,
-            zc=zc,
-            za_targets=za_targets,
-            return_loss_components=return_loss_components,
-        )
+        if in_dict["y_true"] is not None:
+            entropy_loss = self._compute_backbone_loss(
+                in_dict=in_dict,
+                x_self_recon=x_self_recon_1,
+                zc=zc,
+                za_targets=za_targets,
+                return_loss_components=return_loss_components,
+            )
+
+        if self._save_images_for_debugging and return_loss_components and self._ddp_local_rank == 0:
+            self._visualize_contrimix_res(
+                x_org_1=x_org_1,
+                in_dict=in_dict,
+                x_self_recon=x_self_recon_1,
+                zc=zc,
+                za_targets=za_targets,
+                return_loss_components=return_loss_components,
+            )
 
         if self._training_mode == ContrimixTrainingMode.ENCODERS:
             loss_dict_by_name = self._compute_partial_contrimix_loss(in_dict=in_dict)
@@ -198,38 +215,41 @@ class ContriMixLoss(MultiTaskMetric):
         self._trans_to_abs_cvt = in_dict["trans_to_abs_cvt"]
         self._batch_transform = getattr(in_dict, "batch_transform", None)
 
-        x_org_1 = in_dict["x_org"]
-        unlabeled_x_org_1 = in_dict["unlabeled_x_org"]
         all_target_image_indices = in_dict["all_target_image_indices"]
         cont_enc = in_dict["cont_enc"]
         attr_enc = in_dict["attr_enc"]
         im_gen = in_dict["im_gen"]
 
-        x_org_2 = self._one_to_two_conversion(im_1=x_org_1)
-        zc = cont_enc(x_org_2)
-        za = attr_enc(x_org_2)
-        x_self_recon_2 = im_gen(zc, za)
-        x_self_recon_1 = self._two_to_one_conversion(im_2=x_self_recon_2)
-        za_targets = self._generate_z_targets(z=za, unlabeled_za=za, all_mix_target_im_idxs=all_target_image_indices)
+        x_org_1 = in_dict["x_org"]
+        if x_org_1 is not None:
+            x_org_2 = self._one_to_two_conversion(im_1=x_org_1)
+            zc = cont_enc(x_org_2)
+            za = attr_enc(x_org_2)
+            x_self_recon_2 = im_gen(zc, za)
+            x_self_recon_1 = self._two_to_one_conversion(im_2=x_self_recon_2)
+            za_targets = self._generate_z_targets(za=za, all_mix_target_im_idxs=all_target_image_indices)
+            self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon_1, expected_ims=x_org_1)]
 
         # The index 2 is to tell what space the original image is going to, which can be abs, or trans.
+        unlabeled_x_org_1 = in_dict["unlabeled_x_org"]
         if unlabeled_x_org_1 is not None:
             unlabeled_x_org_2 = self._one_to_two_conversion(im_1=unlabeled_x_org_1)
+            unlabeled_zc = cont_enc(unlabeled_x_org_2)
             unlabeled_za = attr_enc(unlabeled_x_org_2)
-        else:
-            unlabeled_za = None
-
-        # We should not evaluate the error in the absorbance space because it does not uniformly across the range.
-        self_recon_losses = [self._self_recon_consistency_loss(self_recon_ims=x_self_recon_1, expected_ims=x_org_1)]
-        self_recon_loss = torch.max(torch.stack(self_recon_losses, dim=0))
-        if unlabeled_x_org_1 is not None:
-            self_recon_losses.append(
-                self._self_recon_consistency_loss(
-                    self_recon_ims=self._two_to_one_conversion(im_2=im_gen(cont_enc(unlabeled_x_org_2), unlabeled_za)),
-                    expected_ims=unlabeled_x_org_1,
-                )
+            unlabeled_x_self_recon_2 = im_gen(unlabeled_zc, unlabeled_za)
+            unlabeld_x_self_recon_1 = self._two_to_one_conversion(im_2=unlabeled_x_self_recon_2)
+            unlabeled_za_targets = self._generate_z_targets(
+                za=unlabeled_za, all_mix_target_im_idxs=all_target_image_indices
             )
-        if za_targets is not None:
+            self_recon_losses = [
+                self._self_recon_consistency_loss(
+                    self_recon_ims=unlabeld_x_self_recon_1, expected_ims=unlabeled_x_org_1
+                )
+            ]
+
+        self_recon_loss = torch.max(torch.stack(self_recon_losses, dim=0))
+
+        if x_org_1 is not None:
             attr_similarity_loss = self._attribute_similarity_loss(za=za, za_targets=za_targets)
             combined_ims_for_attr_cont_loss_calc = torch.cat(
                 [x_self_recon_2, *[im_gen(zc, za_target) for za_target in za_targets]], dim=0
@@ -248,10 +268,34 @@ class ContriMixLoss(MultiTaskMetric):
                 num_ims=za_targets.size(0) + 1,
             )
 
-        else:
-            attr_similarity_loss = torch.tensor(0.0, requires_grad=False)
-            attr_cons_loss = torch.tensor(0.0, requires_grad=False)
-            cont_cons_loss = torch.tensor(0.0, requires_grad=False)
+        if unlabeled_x_org_1 is not None:
+            attr_similarity_loss = self._attribute_similarity_loss(za=unlabeled_za, za_targets=unlabeled_za_targets)
+            combined_ims_for_attr_cont_loss_calc = torch.cat(
+                [
+                    unlabeled_x_self_recon_2,
+                    *[im_gen(unlabeled_zc, unlabeled_za_target) for unlabeled_za_target in unlabeled_za_targets],
+                ],
+                dim=0,
+            )
+
+            attr_cons_loss = self._attribute_consistency_loss(
+                x_cross_translation_ims=combined_ims_for_attr_cont_loss_calc,
+                expected_zas=torch.cat(
+                    [
+                        unlabeled_za,
+                        unlabeled_za_targets.reshape(-1, unlabeled_za_targets.size(2), unlabeled_za_targets.size(3)),
+                    ],
+                    dim=0,
+                ),
+                attr_enc=in_dict["attr_enc"],
+            )
+
+            cont_cons_loss = self._content_consistency_loss(
+                x_cross_translation_ims=combined_ims_for_attr_cont_loss_calc,
+                expected_zc=unlabeled_zc,
+                cont_enc=in_dict["cont_enc"],
+                num_ims=unlabeled_za_targets.size(0) + 1,
+            )
 
         return {
             "self_recon_loss": self_recon_loss,
@@ -273,30 +317,20 @@ class ContriMixLoss(MultiTaskMetric):
         return torch.clip(x, min=0.0, max=1.0)
 
     @staticmethod
-    def _generate_z_targets(
-        z: torch.Tensor, unlabeled_za: Optional[torch.Tensor], all_mix_target_im_idxs: torch.Tensor
-    ) -> Optional[torch.Tensor]:
+    def _generate_z_targets(za: torch.Tensor, all_mix_target_im_idxs: torch.Tensor) -> Optional[torch.Tensor]:
         """Generates a tensor that contains the target attributes to mix.
 
         Args:
-            z: The (content/attribute) attributes from the labeled images.
-            unlabeled_za: The attributes from the unlabeled images.
+            za: The (content/attribute) attributes from the labeled images.
             all_mix_target_im_idxs: A 2D tensor of size minibatch size x # mixings that contains the indices to use.
         """
         num_mixings = all_mix_target_im_idxs.size(1)
         if num_mixings > 0:
-            z_targets: List[torch.Tensor] = []
+            za_targets: List[torch.Tensor] = []
             for mix_idx in range(num_mixings):
                 target_im_idxs = all_mix_target_im_idxs[:, mix_idx]
-                if unlabeled_za is None:
-                    z_targets.append(z[target_im_idxs])
-                else:
-                    # Either borrow from the label or unlabel dataset
-                    if float(torch.rand(1)) > 0.5:
-                        z_targets.append(unlabeled_za[target_im_idxs])
-                    else:
-                        z_targets.append(z[target_im_idxs])
-            return torch.stack(z_targets, dim=0)
+                za_targets.append(za[target_im_idxs])
+            return torch.stack(za_targets, dim=0)
         return None
 
     @staticmethod
@@ -395,12 +429,7 @@ class ContriMixLoss(MultiTaskMetric):
         self._epoch = epoch
 
     def _compute_backbone_loss(
-        self,
-        in_dict: Dict[str, torch.Tensor],
-        x_self_recon: torch.Tensor,
-        za_targets: torch.Tensor,
-        zc: torch.Tensor,
-        return_loss_components: bool,
+        self, in_dict: Dict[str, torch.Tensor], x_self_recon: torch.Tensor, za_targets: torch.Tensor, zc: torch.Tensor
     ) -> torch.Tensor:
         """Computes the cross-entropy loss for the backbone.
 
@@ -455,6 +484,32 @@ class ContriMixLoss(MultiTaskMetric):
         )
         losses = losses.reshape(-1, num_total_ims_to_backbone)  # [#images, #augs]
 
+        # The following aggregation is over the augnetaitons.
+        if self._aggregation == ContriMixAggregationType.MAX:
+            return torch.mean(losses.max(dim=1)[0])
+        elif self._aggregation == ContriMixAggregationType.MEAN:
+            return torch.mean(losses.mean(dim=1))
+        elif self._aggregation == ContriMixAggregationType.AUGREG:
+            return torch.mean(losses.mean(dim=1)) + self._aug_reg_variance_weight * torch.mean(torch.var(losses, dim=1))
+        else:
+            raise ValueError(f"Aggregation type of {self._aggregation} is not supported!")
+
+    def _initialize_cross_entropy_loss(
+        self, backbone_input: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
+    ) -> torch.Tensor:
+        """Returns a tuple of y_pred logits and the loss values."""
+        return self._loss_fn(backbone(backbone_input).float(), y_true)
+
+    def _visualize_contrimix_res(
+        self,
+        x_org_1: torch.Tensor,
+        in_dict: Dict[str, torch.Tensor],
+        x_self_recon: torch.Tensor,
+        za_targets: torch.Tensor,
+        zc: torch.Tensor,
+        save_debug_im: Optional[bool] = True,
+        return_loss_components: bool = False,
+    ) -> None:
         # Visualizing images
         if self._save_images_for_debugging and return_loss_components:
             im_gen = in_dict["im_gen"]
@@ -469,11 +524,6 @@ class ContriMixLoss(MultiTaskMetric):
             target_images: List[np.ndarray] = [
                 x_org_1[im_idx_to_visualize].clone().detach().cpu().numpy().transpose(1, 2, 0)
             ]
-            # backbone_ims: List[np.ndarray] = [
-            #    backbone_inputs[im_idx_to_visualize + i * batch_size].clone().detach().cpu().numpy().transpose(1, 2, 0)
-            #    for i in range(num_total_ims_to_backbone)
-            # ]
-            # backbone_image = np.concatenate(backbone_ims, axis=1)
 
             if za_targets is not None:
                 for mix_idx, za_target in enumerate(za_targets):
@@ -492,32 +542,14 @@ class ContriMixLoss(MultiTaskMetric):
             target_image = np.concatenate(target_images, axis=1)
             self_recon_image = np.concatenate(self_recon_images, axis=1)
             augmented_image = np.concatenate(save_images, axis=1)
-            # padded_backbone_image = np.zeros_like(target_image)
-            # padded_backbone_image[: backbone_image.shape[0], : backbone_image.shape[1], :] = backbone_image
-
             self._debug_image = np.clip(
-                # np.concatenate([target_image, self_recon_image, augmented_image, padded_backbone_image], axis=0),
-                np.concatenate([target_image, self_recon_image, augmented_image], axis=0),
-                a_min=-0.1,
-                a_max=1.1,
+                np.concatenate([target_image, self_recon_image, augmented_image], axis=0), a_min=0.0, a_max=1.0
             )
-            visualize_content_channels(org_ims=x_org_1, zcs=zc, y_true=in_dict["y_true"])
+            if save_debug_im:
+                io.imsave("debug_image.png", (self.debug_image * 255.0).astype(np.uint8))
 
-        # The following aggregation is over the augnetaitons.
-        if self._aggregation == ContriMixAggregationType.MAX:
-            return torch.mean(losses.max(dim=1)[0])
-        elif self._aggregation == ContriMixAggregationType.MEAN:
-            return torch.mean(losses.mean(dim=1))
-        elif self._aggregation == ContriMixAggregationType.AUGREG:
-            return torch.mean(losses.mean(dim=1)) + self._aug_reg_variance_weight * torch.mean(torch.var(losses, dim=1))
-        else:
-            raise ValueError(f"Aggregation type of {self._aggregation} is not supported!")
-
-    def _initialize_cross_entropy_loss(
-        self, backbone_input: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
-    ) -> torch.Tensor:
-        """Returns a tuple of y_pred logits and the loss values."""
-        return self._loss_fn(backbone(backbone_input).float(), y_true)
+            if in_dict["y_true"] is not None:
+                visualize_content_channels(org_ims=x_org_1, zcs=zc, y_true=in_dict["y_true"])
 
     def _validate_batch_transform(self, batch_transform: Callable) -> None:
         if isinstance(batch_transform, CutMixJointTensorTransform) and (

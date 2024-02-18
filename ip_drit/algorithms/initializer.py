@@ -4,6 +4,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Optional
+from typing import Union
 
 from torch.utils.data import DataLoader
 
@@ -20,6 +21,8 @@ from ip_drit.common.metrics import multiclass_logits_to_pred
 from ip_drit.common.metrics import MultiTaskAccuracy
 from ip_drit.common.metrics import MultiTaskAveragePrecision
 from ip_drit.datasets import AbstractLabelledPublicDataset
+from ip_drit.datasets import AbstractUnlabelPublicDataset
+from ip_drit.datasets import SubsetUnlabeledPublicDataset
 from ip_drit.loss import ContriMixLoss
 from ip_drit.loss.initializer import initialize_loss
 from ip_drit.patch_transform import AbstractJointTensorTransform
@@ -83,7 +86,7 @@ def initialize_algorithm(
             **algorithm_parameters,
         )
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
-        print(f"Initlializing the ContriMix algorithm!")
+        print(f"Initializing the ContriMix algorithm!")
         algorithm = ContriMix(
             config=config,
             d_out=output_dim,
@@ -108,8 +111,13 @@ def initialize_algorithm(
     return algorithm
 
 
-def _infer_output_dimensions(train_dataset: AbstractLabelledPublicDataset, config: Dict[str, Any]) -> int:
+def _infer_output_dimensions(
+    train_dataset: Union[AbstractLabelledPublicDataset, SubsetUnlabeledPublicDataset], config: Dict[str, Any]
+) -> Optional[int]:
     """Calculate the dimension of the output."""
+    if isinstance(train_dataset, SubsetUnlabeledPublicDataset):
+        return None
+
     if train_dataset.is_classification:
         if train_dataset.y_size == 1:  # Single task classification.
             return train_dataset.n_classes

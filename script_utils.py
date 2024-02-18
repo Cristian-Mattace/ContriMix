@@ -358,7 +358,8 @@ def calculate_batch_size(
     else:
         num_devices = num_of_available_devices()
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
-            "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500}
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500},
+            "tcga_unlabeled": {ModelAlgorithm.CONTRIMIX: 12},
         }
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
             "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90}
@@ -375,7 +376,7 @@ def calculate_batch_size(
         batch_size_per_gpu = batch_size_per_gpu
 
     batch_size = batch_size_per_gpu * num_devices
-    print(f"Using a batch size of {batch_size} for {batch_size_per_gpu}/device.")
+    print(f"Using a batch size of {batch_size} for {batch_size_per_gpu} samples per device.")
     return batch_size
 
 

@@ -215,7 +215,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
     def evaluate(
         self,
-        labeld_batch: Tuple[torch.Tensor, ...],
+        labeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]],
         ddp_params: Optional[Dict[str, Any]] = None,
         return_loss_components: bool = True,
     ) -> Dict[str, Union[torch.Tensor, float]]:
@@ -223,6 +224,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
 
         Args:
             batch: A batch of data yielded by data loaders.
+            labeled_batch: A batch of labeled data.
+            unlabeled_batch: A batch of unlabeled data.
             ddp_params (optional): A dictionary that contains the parameters for DDP.
             return_loss_components (optional): If True, returns different components of the loss dictionary.. Defaults
                 to True.
@@ -237,13 +240,15 @@ class MultimodelAlgorithm(GroupAlgorithm):
                 objective: The value of the objective.
         """
         assert not self._is_training
-        results = self._process_batch(labeld_batch)
+        results = self._process_batch(labeled_batch=labeled_batch, unlabeled_batch=unlabeled_batch)
 
         objective, non_objective_loss_by_name = self.objective(results, return_loss_components=return_loss_components)
         results["objective"] = objective
         results.update(non_objective_loss_by_name)
 
-        self.update_log(results)
+        if return_loss_components:
+            self.update_log(results)
+
         if ddp_params is not None:
             results = self._gather_results_from_all_gpus_for_ddp(results=results, ddp_params=ddp_params)
 

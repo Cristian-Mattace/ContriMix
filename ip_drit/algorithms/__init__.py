@@ -1,3 +1,4 @@
+from ._contrimix import ContriMix
 from ._contrimix_utils import ContriMixMixingType
 from ._contrimix_utils import ContrimixTrainingMode
 from ._erm import ERM

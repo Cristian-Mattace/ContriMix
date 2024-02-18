@@ -45,6 +45,7 @@ torchmetrics = "0.9.1"
 transformers = "3.0.2"
 shapely = ">=1.5"
 pillow = "6.0.0"
+wilds = "2.0.0"
 
 [tool.poetry.dev-dependencies]
 black = "22.8.0"

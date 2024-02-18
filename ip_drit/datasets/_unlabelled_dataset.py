@@ -1,6 +1,7 @@
 """A module tat defines a unlabel dataset."""
 from pathlib import Path
 from typing import Callable
+from typing import Dict
 from typing import Optional
 from typing import Tuple
 from typing import Union
@@ -19,6 +20,8 @@ class AbstractUnlabelPublicDataset(AbstractPublicDataset):
         dataset_dir: The target folder for storing the dataset.
         transform (optional): The transform to apply on the whole dataset. Defaults to None.
     """
+
+    _DEFAULT_SPLIT_NAMES = {"train": "Train", "val": "Validation", "test": "Test"}
 
     def __init__(self, dataset_dir: Path, transform: Optional[Callable] = None) -> None:
         super().__init__(dataset_dir, transform)
@@ -48,6 +51,11 @@ class AbstractUnlabelPublicDataset(AbstractPublicDataset):
     @pseudolabels.setter
     def pseudolabels(self, labels: torch.Tensor) -> None:
         self._pseudolabels = labels
+
+    @property
+    def split_names(self) -> Dict[str, str]:
+        """Returns a dictonary of the split names, keyed by names."""
+        return getattr(self, "_split_names", self._DEFAULT_SPLIT_NAMES)
 
 
 class SubsetUnlabeledPublicDataset(SubsetLabeledPublicDataset):
