@@ -35,6 +35,7 @@ class GroupAlgorithm(Algorithm):
         logged_fields: List[str],
         schedulers,
         scheduler_metric_names,
+        no_group_logging: bool = True,
         **kwargs,
     ) -> None:
         super().__init__(device)
@@ -44,7 +45,7 @@ class GroupAlgorithm(Algorithm):
         self._group_count_field = f"{self._group_prefix}{self._count_field}"
         self._logged_metrics = logged_metrics
         self._logged_fields = logged_fields
-        self._no_group_logging = False
+        self._no_group_logging = no_group_logging
         self._schedulers = schedulers
         self._scheduler_metric_names = scheduler_metric_names
 
@@ -61,7 +62,8 @@ class GroupAlgorithm(Algorithm):
 
     def _update_log_dict_with_results(self, results: Dict[str, Union[torch.Tensor, float]]) -> None:
         batch_log = self._compute_batch_log_from_result(results=results)
-        count = numel(results["y_true"])
+        count = numel(results["g"])
+
         if not self._has_log:
             self.log_dict = batch_log
             self.log_dict[self._count_field] = count
@@ -77,17 +79,25 @@ class GroupAlgorithm(Algorithm):
         with torch.no_grad():
             for m in self._logged_metrics:
                 if not self._no_group_logging and not isinstance(m, ContriMixLoss):
-                    group_metrics, group_counts, worst_group_metric = m.compute_group_wise(
-                        results["y_pred"], results["y_true"], results["g"], self._grouper.n_groups, return_dict=False
-                    )
-                    batch_log[f"{self._group_prefix}{m.name}"] = group_metrics
+                    if results["y_true"] is not None:
+                        group_metrics, group_counts, worst_group_metric = m.compute_group_wise(
+                            results["y_pred"],
+                            results["y_true"],
+                            results["g"],
+                            self._grouper.n_groups,
+                            return_dict=False,
+                        )
+                        batch_log[f"{self._group_prefix}{m.name}"] = group_metrics
+
                 if isinstance(m, ContriMixLoss):
                     batch_log.update(m.compute(in_dict=results, return_dict=True))
                 else:
-                    batch_log[m.agg_metric_field] = m.compute(
-                        results["y_pred"], results["y_true"], return_dict=False
-                    ).item()
-                count = numel(results["y_true"])
+                    if results["y_true"] is not None:
+                        batch_log[m.agg_metric_field] = m.compute(
+                            results["y_pred"], results["y_true"], return_dict=False
+                        ).item()
+
+                count = numel(results["g"])
 
         for field in self._logged_fields:
             v = results[field]
@@ -219,7 +229,8 @@ class GroupAlgorithm(Algorithm):
 
         # Process aggregate logged metrics
         for metric in self._logged_metrics:
-            results_str += f"   {metric.agg_metric_field}: {log[metric.agg_metric_field]:.3f}\n"
+            if metric.agg_metric_field in log:
+                results_str += f"   {metric.agg_metric_field}: {log[metric.agg_metric_field]:.3f}\n"
 
         # Process logs for each group
         if not self._no_group_logging:

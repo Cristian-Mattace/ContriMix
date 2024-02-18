@@ -145,22 +145,23 @@ class ContriMix(MultimodelAlgorithm):
 
     def _process_batch(
         self,
-        labeled_batch: Tuple[torch.Tensor, ...],
+        labeled_batch: Optional[Tuple[torch.Tensor, ...]],
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         epoch: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        x, y_true, metadata = labeled_batch
-
-        x = move_to(x, self._device)
-        metadata_gpu = move_to(metadata, self._device)
-
-        y_true = move_to(y_true, self._device)
-        group_indices = move_to(self._grouper.metadata_to_group(metadata), self._device)
+        x, y_true = None, None
+        if labeled_batch is not None:
+            x, y_true, metadata = labeled_batch
+            x = move_to(x, self._device)
+            y_true = move_to(y_true, self._device)
 
         unlabeled_x = None
         if unlabeled_batch is not None:
-            unlabeled_x = unlabeled_batch[0]
+            unlabeled_x, metadata = unlabeled_batch
             unlabeled_x = move_to(unlabeled_x, self._device)
+
+        metadata_gpu = move_to(metadata, self._device)
+        group_indices = move_to(self._grouper.metadata_to_group(metadata), self._device)
 
         out_dict = self._get_model_output(x, y_true, unlabeled_x, epoch=epoch)
 
@@ -176,7 +177,11 @@ class ContriMix(MultimodelAlgorithm):
         return results
 
     def _get_model_output(
-        self, x: torch.Tensor, y_true: torch.Tensor, unlabeled_x: Optional[torch.Tensor], epoch: Optional[int] = None
+        self,
+        x: Optional[torch.Tensor],
+        y_true: Optional[torch.Tensor],
+        unlabeled_x: Optional[torch.Tensor],
+        epoch: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
         """Computes the model outputs.
 
@@ -187,11 +192,11 @@ class ContriMix(MultimodelAlgorithm):
         Returns:
             A dictionary of tensors, keyed by the name of the tensor.
         """
-        # self._models_by_names["cont_enc"].eval()
+        batch_size = x.shape[0] if x is not None else unlabeled_x.shape[0]
         if self._contrimix_mixing_type == ContriMixMixingType.RANDOM:
-            all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=x.shape[0])
+            all_target_image_indices = self._select_random_image_indices_by_image_index(batch_size=batch_size)
         elif self._contrimix_mixing_type == ContriMixMixingType.WITHIN_CHUNK:
-            all_target_image_indices = self._select_image_indices_by_mixing_within_chunk(batch_size=x.shape[0])
+            all_target_image_indices = self._select_image_indices_by_mixing_within_chunk(batch_size=batch_size)
 
         return {
             "x_org": x,

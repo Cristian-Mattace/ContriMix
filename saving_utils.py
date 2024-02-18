@@ -20,7 +20,7 @@ from ip_drit.common.metrics import Metric
 
 
 def save_pred_if_needed(
-    y_pred: torch.Tensor,
+    y_pred: Optional[torch.Tensor],
     split_dict: Dict[str, Any],
     epoch: int,
     config_dict: Dict[str, Any],
@@ -69,14 +69,14 @@ def _save_pred(y_pred: torch.Tensor, path_prefix: str):
 
 def save_model_if_needed(
     algorithm: SingleModelAlgorithm,
-    split_dict: Dict[str, Any],
+    dataset_name: str,
     epoch: int,
     config_dict: Dict[str, Any],
     is_best: bool,
-    best_val_metric: float,
+    best_val_metric: Optional[float],
 ) -> None:
     """Saves the model checkpoint."""
-    prefix = _get_model_prefix(split_dict["dataset"].dataset_name, config_dict)
+    prefix = _get_model_prefix(dataset_name, config_dict)
     if config_dict["save_step"] is not None and (epoch + 1) % config_dict["save_step"] == 0:
         _save_model(algorithm, epoch, best_val_metric, prefix + f"epoch:{epoch}_model.pth")
     if config_dict["save_last"]:
@@ -90,7 +90,10 @@ def _get_model_prefix(dataset_name: str, config_dict: Dict[str, Any]) -> str:
 
 
 def _save_model(
-    algorithm: Union[SingleModelAlgorithm, "MultimodelAlgorithm"], epoch: int, best_val_metric: float, path: str
+    algorithm: Union[SingleModelAlgorithm, "MultimodelAlgorithm"],
+    epoch: int,
+    best_val_metric: Optional[float],
+    path: str,
 ) -> None:
     """Save the model checkpoint.
 

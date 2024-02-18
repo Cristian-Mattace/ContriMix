@@ -1,5 +1,6 @@
 # Adapted from https://github.com/YBZh/Bridging_UDA_SSL
 from typing import Optional
+
 import torch
 from PIL import Image
 from PIL import ImageDraw
@@ -154,7 +155,7 @@ def _sample_uniform(a, b):
 class RandAugment:
     """RandAugment transformation."""
 
-    def __init__(self, n, augmentation_pool: Optional[str]=None):
+    def __init__(self, n, augmentation_pool: Optional[str] = None):
         assert n >= 1, "RandAugment N has to be a value greater than or equal to 1."
         self.n = n
         if augmentation_pool is None:
