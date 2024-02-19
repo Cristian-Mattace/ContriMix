@@ -92,7 +92,7 @@ class GroupAlgorithm(Algorithm):
                 if isinstance(m, ContriMixLoss):
                     batch_log.update(m.compute(in_dict=results, return_dict=True))
                 else:
-                    if results["y_true"] is not None:
+                    if results.get("y_true", None) is not None:
                         batch_log[m.agg_metric_field] = m.compute(
                             results["y_pred"], results["y_true"], return_dict=False
                         ).item()

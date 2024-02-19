@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 from ._contrimix import ContriMix
 from ._erm import ERM
+from ._histaugan import HistauGAN
 from .single_model_algorithm import ModelAlgorithm
 from .single_model_algorithm import SingleModelAlgorithm
 from ip_drit.common.grouper import AbstractGrouper
@@ -24,6 +25,7 @@ from ip_drit.datasets import AbstractLabelledPublicDataset
 from ip_drit.datasets import AbstractUnlabelPublicDataset
 from ip_drit.datasets import SubsetUnlabeledPublicDataset
 from ip_drit.loss import ContriMixLoss
+from ip_drit.loss import HistauGANLoss
 from ip_drit.loss.initializer import initialize_loss
 from ip_drit.patch_transform import AbstractJointTensorTransform
 from saving_utils import load
@@ -85,6 +87,20 @@ def initialize_algorithm(
             batch_transform=batch_transform,
             **algorithm_parameters,
         )
+    elif config["algorithm"] == ModelAlgorithm.HISTAUGAN:
+        print("Initializing the HistauGAN algorithm")
+        algorithm = HistauGAN(
+            config=config,
+            d_out=output_dim,
+            grouper=train_grouper,
+            loss=HistauGANLoss(loss_params=loss_kwargs),
+            metric=algo_log_metrics[config["algo_log_metric"]],
+            n_train_steps=num_train_steps,
+            batch_transforms=batch_transform,
+            training_mode=loss_kwargs["training_mode"],
+            algorithm_parameters=algorithm_parameters,
+        )
+
     elif config["algorithm"] == ModelAlgorithm.CONTRIMIX:
         print(f"Initializing the ContriMix algorithm!")
         algorithm = ContriMix(

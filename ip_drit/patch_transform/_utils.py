@@ -12,6 +12,7 @@ import torch
 import torch.nn as nn
 import torchvision.transforms as transforms
 import torchvision.transforms.functional as tf
+from PIL import Image
 
 from ip_drit.patch_transform.data_augmentation._randaugment import FIX_MATCH_AUGMENTATION_POOL
 from ip_drit.patch_transform.data_augmentation._randaugment import RandAugment
@@ -26,6 +27,7 @@ class TransformationType(Enum):
     RANDAUGMENT_TO_0_1 = auto()
     RXRX1 = auto()
     PDL1 = auto()
+    HISTAUGAN = auto()
 
 
 _DEFAULT_IMAGE_TENSOR_NORMALIZATION_MEAN = [0.485, 0.456, 0.406]
@@ -73,7 +75,6 @@ def initialize_transform(
         return None
     elif transform_name == TransformationType.WEAK:
         return _add_weak_transform(base_transform_steps, normalize=True, default_normalization=default_normalization)
-
     elif transform_name == TransformationType.WEAK_NORMALIZE_TO_0_1:
         return _add_weak_transform(base_transform_steps, normalize=False, default_normalization=default_normalization)
     elif transform_name == TransformationType.RANDAUGMENT:
@@ -90,6 +91,8 @@ def initialize_transform(
         )
     elif transform_name == TransformationType.RXRX1:
         return _get_rxrx1_transform(is_training=is_training)
+    elif transform_name == TransformationType.HISTAUGAN:
+        return _get_histaugan_transform(is_training=is_training)
     else:
         raise ValueError(f"Unsupported transformation type!")
 
@@ -165,3 +168,21 @@ def _get_rxrx1_transform(is_training: bool):
         )
     else:
         return transforms.Compose([transforms.ToTensor(), t_normalize])
+
+
+def _get_histaugan_transform(is_training: bool, resize_size_pixels: int = 256, crop_size_pixels: int = 216):
+    """Gets the transform for HistauGAN.
+
+    Reference:
+        https://github.com/sophiajw/HistAuGAN/blob/main/histaugan/datasets.py#L32
+    """
+    # setup image transformation
+    transforms_pipeline = [transforms.Resize((resize_size_pixels, resize_size_pixels), Image.BICUBIC)]
+    if is_training:
+        transforms_pipeline.append(transforms.RandomCrop(crop_size_pixels))
+    else:
+        transforms_pipeline.append(transforms.CenterCrop(crop_size_pixels))
+    transforms_pipeline.append(transforms.RandomHorizontalFlip())
+    transforms_pipeline.append(transforms.ToTensor())
+    transforms_pipeline.append(transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))
+    return transforms.Compose(transforms_pipeline)

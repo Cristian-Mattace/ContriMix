@@ -1,6 +1,4 @@
 from abc import abstractmethod
-from enum import auto
-from enum import Enum
 from typing import Tuple
 
 import torch
@@ -11,8 +9,6 @@ from ._contrimix_core import LeakyReLUConv2d
 from ._contrimix_core import ReLUInstNorm2dConv2d
 from ._contrimix_core import ResInstNorm2dConv2d
 from ._initializer import Initializer
-from ._trans_abs_converters import AbsorbanceToTransmittance
-from ._trans_abs_converters import TransmittanceToAbsorbance
 
 
 class AttributeEncoder(nn.Module):

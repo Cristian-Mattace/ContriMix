@@ -27,6 +27,7 @@ class ModelAlgorithm(Enum):
 
     ERM = auto()
     CONTRIMIX = auto()
+    HISTAUGAN = auto()
     LABEL_ASSOCIATED_CONTENT_CONTRIMIX = auto()
 
 

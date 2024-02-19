@@ -132,7 +132,7 @@ def get_train_loader(
 
         _validate_grouper_availability(uniform_over_groups=uniform_over_groups, grouper=grouper)
 
-        group_indices_all_datapoints = grouper.metadata_to_group_indices(dataset.metadata_array)
+        group_indices_all_datapoints = grouper.metadata_to_group(dataset.metadata_array)
         num_groups_available = len(np.unique(group_indices_all_datapoints.numpy()))
 
         print(f"Train data loader has {num_groups_available} groups.")

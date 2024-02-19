@@ -84,6 +84,8 @@ def configure_split_dict_by_names(
         split_dict[split_name]["split"] = split_name
         split_dict[split_name]["name"] = full_dataset.split_names[split_name]
 
+        split_dict[split_name]["group_indices"] = []
+
     return split_dict
 
 
@@ -358,7 +360,7 @@ def calculate_batch_size(
     else:
         num_devices = num_of_available_devices()
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_CLUSTER: Dict[str, Dict[ModelAlgorithm, int]] = {
-            "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500},
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 210, ModelAlgorithm.ERM: 1500, ModelAlgorithm.HISTAUGAN: 30},
             "tcga_unlabeled": {ModelAlgorithm.CONTRIMIX: 10},
         }
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {

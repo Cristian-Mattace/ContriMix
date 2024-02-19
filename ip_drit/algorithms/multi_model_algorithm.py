@@ -86,7 +86,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         if self._use_amp:
             self._fp16_scaler = torch.cuda.amp.GradScaler(enabled=True)
 
-        if not hasattr(self, "optimizer") or self.optimizer is None:
+        if not hasattr(self, "optimizer") or self._optimizer is None:
             # TODO: move this piece of code to Contrimix, not here!
             if self._training_mode == ContrimixTrainingMode.ENCODERS:
                 # Freeze the backbne
@@ -102,7 +102,13 @@ class MultimodelAlgorithm(GroupAlgorithm):
                             p.requires_grad = False
 
             # Pass all the models to the optimizer to make sure that they are all registered.
-            self._optimizer = initialize_optimizer(config, models=nn.ModuleList(parallelized_models_by_names.values()))
+            if config["lr"] is not None:
+                self._optimizer = initialize_optimizer(
+                    config, models=nn.ModuleList(parallelized_models_by_names.values())
+                )
+            else:
+                self._optimizer = None
+
         self._max_grad_norm = config["max_grad_norm"]
 
         print(f"Using device {config['device']} for training.")
@@ -122,7 +128,8 @@ class MultimodelAlgorithm(GroupAlgorithm):
         )
 
         for k, m in parallelized_models_by_names.items():
-            m.needs_y_input = models_by_names[k].needs_y_input
+            if getattr(models_by_names[k], "needs_y_input", None) is not None:
+                m.needs_y_input = models_by_names[k].needs_y_input
 
         self._models_by_names: Dict[str, nn.Module] = parallelized_models_by_names
 
@@ -133,6 +140,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         is_epoch_end: bool = False,
         epoch: Optional[int] = None,
         return_loss_components: bool = True,
+        batch_idx: Optional[int] = None,
     ):
         """Process the batch, update the log, and update the model.
 
@@ -143,6 +151,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
                 regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
             epoch (optional): The index of the epoch.
             return_loss_components (optional): If True, the component of the loss will be return.
+            batch_idx (optional): The index of the current batch. Defaults to None.
 
         Returns:
             A dictionary of the results, keyed by the field names. There are following fields.
@@ -156,7 +165,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        batch_results = self._process_batch(labeled_batch, unlabeled_batch, epoch=epoch)
+        batch_results = self._process_batch(labeled_batch, unlabeled_batch)
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(

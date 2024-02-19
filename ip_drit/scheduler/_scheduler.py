@@ -15,7 +15,7 @@ from ip_drit.common.metrics import Metric
 
 
 def initialize_scheduler(
-    config_dict: Dict[str, Any], optimizer: torch.optim.Optimizer, n_train_steps: int
+    config_dict: Dict[str, Any], optimizer: Optional[torch.optim.Optimizer], n_train_steps: int
 ) -> Optional[torch.optim.lr_scheduler.LambdaLR]:
     """Initializes the scheduler.
 
@@ -25,7 +25,7 @@ def initialize_scheduler(
         n_train_steps: Number of training steps.
     """
     # construct schedulers
-    if config_dict["scheduler"] is None:
+    if config_dict["scheduler"] is None or optimizer is None:
         return None
     elif config_dict["scheduler"] == "linear_schedule_with_warmup":
         scheduler = get_linear_schedule_with_warmup(

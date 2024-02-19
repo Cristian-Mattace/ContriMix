@@ -17,11 +17,20 @@ press `Command + Shift + P`  ->  `Developer: Reload Window` so that VSCode can s
 8. Create a folder name `datasets` on your computer, update it to `camelyon_17_do_all.py`.
 9. Run `camelyon_17_do_all.py` with `--run_on_cluster False`.
 
-## Running the script
-1. If you simply want to try the pre-trained ContriMix encoder from the TCGA dataset, run [contrimix_demo.ipynb](./contrimix_demo.ipynb). If you have more images to test, add them to the [sample_data](/sample_data/) folder.
-2. If you want to run the training scripts for different datasets, look at the followings:
+## Contrimix application
+1If you simply want to try the pre-trained ContriMix encoder from the TCGA dataset, run [contrimix_demo.ipynb](./contrimix_demo.ipynb). If you have more images to test, add them to the [sample_data](/sample_data/) folder.
+
+## Contrimix training.
+If you want to run the training scripts for different datasets, look at the followings script:
 - TCGA: ContriMix with Data Parallel(DP) ([code](tcga_do_all_unlabeled_contrimix_dp.py)), ContriMix with Distributed Data Parallel (DDP) ([code](/tcga_do_all_unlabeled_contrimix_ddp.py)).
 - Camelyon: ERM with DP ([code](/camelyon_17_do_all_erm.py)), ContriMix (jointly trained) with DP ([code](./camelyon_17_do_all_contrimix.py)), ContriMix (jointly trained) with DDP ([code](./camelyon_17_do_all_contrimix_ddp.py)).
 - RxRx1: Contrimix encoder training with DP ([code](/rxrx1_do_all_contrimix_encoder_training_dp.py)), Contrimix encoder training with DDP ([code](/rxrx1_do_all_contrimix_encoder_training_ddp.py)), Backbone training using a trained Contrimix encoder ([code](/rxrx1_do_all_contrimix_backbone_training_dp.py)).
+
+## References
+[1]. [HistauGAN implementation](https://github.com/sophiajw/HistAuGAN) and the [HistauGAN paper](https://arxiv.org/abs/2107.12357), Wagner, S. J., Khalili, N., Sharma, R., Boxberg, M., Marr, C., de Back, W., Peng, GAN-based augmentation technique for histopathological images presented in the paper "Structure-Preserving Multi-Domain Stain Color Augmentation using Style-Transfer with Disentangled Representations" (2021).
+
+[2]. [MDMM Implementation](https://github.com/HsinYingLee/MDMM) and [DRIT++ paper](/https://arxiv.org/abs/1905.01270). Lee, H.Y., Tseng, H.Y., Mao, Q., Huang, J.B., Lu, Y.D., Singh, M., Yang, M.H.: DRIT : Diverse Image-to-Image translation via disentangled representations (2020).
+
+[3] Tellez, D., Litjens, G., Ba ́ndi, P., Bulten, W., Bokhorst, J.M., Ciompi, F., van der Laak, J.: Quantifying the effects of data augmentation and stain color normaliza- tion in convolutional neural networks for computational pathology. Med. Image Anal. 58, 101544 (Dec 2019)
 
 

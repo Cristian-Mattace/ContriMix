@@ -1,6 +1,5 @@
 """A module that defines the grouper."""
 import copy
-import logging
 from abc import ABC
 from abc import abstractmethod
 from typing import Dict
@@ -30,7 +29,7 @@ class AbstractGrouper(ABC):
         return self._n_groups
 
     @abstractmethod
-    def metadata_to_group_indices(
+    def metadata_to_group(
         self, metadata: torch.Tensor, return_counts: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """Converts the metadata tensor to the group index.
@@ -84,6 +83,10 @@ class CombinatorialGrouper(AbstractGrouper):
             largest_metadata_map=copy.deepcopy(dataset.metadata_map),
         )
 
+        self._calculate_group_indices_by_split(
+            split_arr=dataset.split_array, split_dict=dataset.split_dict, metadata_array=dataset.metadata_array
+        )
+
     def _initialize_group_metadata(
         self,
         metadata_fields: List[str],
@@ -114,7 +117,21 @@ class CombinatorialGrouper(AbstractGrouper):
             self._meta_to_group_index_adjustment_factor = np.concatenate(([1], cumprod[:-1]))
             self._metadata_map = largest_metadata_map
 
-    def metadata_to_group_indices(
+    def _calculate_group_indices_by_split(
+        self, split_arr: np.ndarray, split_dict: Dict[str, int], metadata_array: torch.Tensor
+    ) -> None:
+        """Calculate a dictionary of group indices by the name of the split.
+
+        Args:
+            split_dict: A dictionary of the split index by split name:
+            metadata_array: An array of the metadata.
+        """
+        all_group_indices = self.metadata_to_group(metadata_array)
+        self.group_indices_by_split_name: Dict[str, torch.Tensor] = {}
+        for split_name, idx in split_dict.items():
+            self.group_indices_by_split_name[split_name] = torch.unique(all_group_indices[split_arr == idx])
+
+    def metadata_to_group(
         self, metadata: torch.Tensor, return_counts: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         if self._groupby_fields is None:
