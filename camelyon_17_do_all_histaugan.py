@@ -16,7 +16,7 @@ from script_utils import configure_parser, dataset_and_log_location, generate_ev
 import torch.cuda
 from ip_drit.algorithms.initializer import initialize_algorithm
 from ip_drit.algorithms.single_model_algorithm import ModelAlgorithm
-
+from ip_drit.loss import ContriMixAggregationType
 from ip_drit.common.grouper import CombinatorialGrouper
 from ip_drit.datasets.camelyon17 import CamelyonDataset
 from ip_drit.logger import Logger
@@ -54,7 +54,7 @@ def main():
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/",
-        use_full_size=FLAGS.use_full_dataset,
+        use_full_size=False,
         drop_centers=FLAGS.drop_centers,
         return_one_hot=False,
     )
@@ -113,6 +113,7 @@ def main():
         "randaugment_n": 2,  # FLAGS.randaugment_n,
         "num_attr_vectors": 5,
         "noise_std": FLAGS.noise_std,
+        "process_outputs_function": "multiclass_logits_to_pred",
     }
 
     logger = Logger(fpath=str(log_dir / "log.txt"))
@@ -139,7 +140,11 @@ def main():
             "cont_corr_weight": 0.0,
             "attr_similarity_weight": 0.0,
         },
-        loss_kwargs={"training_mode": ContrimixTrainingMode.ENCODERS},
+        loss_kwargs={
+            "training_mode": ContrimixTrainingMode.ENCODERS,
+            "loss_fn": nn.CrossEntropyLoss(reduction="none"),
+            "aggregation": ContriMixAggregationType.MEAN,
+        },
         algorithm_parameters={
             "concat": 1,  # concatenate attribute features for translation
             "input_dim": 3,  # Number of input channels.

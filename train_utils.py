@@ -190,19 +190,20 @@ def _run_train_epoch(
             logging.debug(f" -> batch_index: {batch_idx}, data = {labeled_batch[0][0,0,0,0]}")
             effective_batch_idx = (batch_idx + 1) / config_dict["gradient_accumulation_steps"]
             update_log_dict = effective_batch_idx % config_dict["log_every_n_batches"] == 0
-            algorithm.update(
+            batch_results = algorithm.update(
                 labeled_batch=labeled_batch,
                 is_epoch_end=(batch_idx == last_batch_idx),
                 return_loss_components=update_log_dict,
                 batch_idx=batch_idx,
             )
-            # y_pred = detach_and_clone(batch_results["y_pred"])
-            # if config_dict["process_outputs_function"] is not None:
-            #     y_pred = process_outputs_functions[config_dict["process_outputs_function"]](y_pred)
-            # epoch_y_pred.append(y_pred)
 
-            # epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
-            # epoch_metadata.append(detach_and_clone(batch_results["metadata"]))
+            y_pred = detach_and_clone(batch_results["y_pred"])
+            if config_dict["process_outputs_function"] is not None:
+                y_pred = process_outputs_functions[config_dict["process_outputs_function"]](y_pred)
+            epoch_y_pred.append(y_pred)
+
+            epoch_y_true.append(detach_and_clone(batch_results["y_true"]))
+            epoch_metadata.append(detach_and_clone(batch_results["metadata"]))
 
             if update_log_dict:
                 if config_dict["verbose"]:

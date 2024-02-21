@@ -11,6 +11,7 @@ from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
 from ip_drit.common.utils import numel
 from ip_drit.loss import ContriMixLoss
+from ip_drit.loss import HistauGANLoss
 from ip_drit.scheduler._scheduler import step_scheduler
 
 
@@ -89,7 +90,7 @@ class GroupAlgorithm(Algorithm):
                         )
                         batch_log[f"{self._group_prefix}{m.name}"] = group_metrics
 
-                if isinstance(m, ContriMixLoss):
+                if isinstance(m, ContriMixLoss) or isinstance(m, HistauGANLoss):
                     batch_log.update(m.compute(in_dict=results, return_dict=True))
                 else:
                     if results.get("y_true", None) is not None:

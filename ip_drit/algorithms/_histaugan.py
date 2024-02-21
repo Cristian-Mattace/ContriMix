@@ -194,12 +194,21 @@ class HistauGAN(MultimodelAlgorithm):
 
         batch_results = {
             "g": c_org,
+            "metadata": input_dict["metadata"],
             "gan_loss": self._gan_loss,
             "gan_cls_loss": self._gan_cls_loss,
             "z_L1_loss": self._z_L1_loss,
             "l1_self_rec_loss": self._l1_self_rec_loss,
             "l1_cc_rec_loss": self._l1_cc_rec_loss,
+            "y_true": input_dict["y_true"],
+            "backbone": self._models_by_names["backbone"],
+            "is_training": self._is_training,
+            "x_org": images,
         }
+
+        # Computes the backbone loss.
+        _ = self.objective(batch_results, return_loss_components=return_loss_components)
+
         if return_loss_components:
             self.update_log(batch_results)
 
@@ -288,7 +297,7 @@ class HistauGAN(MultimodelAlgorithm):
             self._device,
         )
 
-        return {"x": x, "g": group_indices, "y_true": y_true}
+        return {"x": x, "g": group_indices, "y_true": y_true, "metadata": metadata}
 
     def _convert_group_index_to_one_hot(
         self, train_group_idxs: torch.Tensor, group_idx_values: torch.Tensor
