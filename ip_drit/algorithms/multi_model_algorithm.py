@@ -165,7 +165,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        batch_results = self._process_batch(labeled_batch, unlabeled_batch)
+        batch_results = self._process_batch(labeled_batch, unlabeled_batch, split="train")
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(
@@ -225,6 +225,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
     def evaluate(
         self,
         labeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        split: str,
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         ddp_params: Optional[Dict[str, Any]] = None,
         return_loss_components: bool = True,
@@ -249,7 +250,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
                 objective: The value of the objective.
         """
         assert not self._is_training
-        results = self._process_batch(labeled_batch=labeled_batch, unlabeled_batch=unlabeled_batch)
+        results = self._process_batch(labeled_batch=labeled_batch, unlabeled_batch=unlabeled_batch, split=split)
 
         objective, non_objective_loss_by_name = self.objective(results, return_loss_components=return_loss_components)
         results["objective"] = objective

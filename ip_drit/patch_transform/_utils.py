@@ -197,6 +197,7 @@ def _get_histaugan_backbone_transform(is_training: bool, resize_size_pixels: int
     The image will be resize to that of the input encoder first.
     """
     transforms_pipeline = [transforms.Resize((crop_size_pixels, crop_size_pixels), Image.BICUBIC)]
+    transforms_pipeline = []
     transforms_pipeline.append(transforms.RandomHorizontalFlip())
     transforms_pipeline.append(transforms.ToTensor())
     transforms_pipeline.append(transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))

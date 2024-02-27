@@ -146,6 +146,7 @@ class ContriMix(MultimodelAlgorithm):
     def _process_batch(
         self,
         labeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        split: str,
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         epoch: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:

@@ -96,17 +96,22 @@ class HistauGANLoss(MultiTaskMetric):
         num_total_ims_to_backbone = 1
 
         num_domains = in_dict["g"].size(1)
-        backbone_inputs_extended.extend(
-            self._generate_synthetic_images(
-                enc_c=in_dict["enc_c"],
-                enc_a=in_dict["enc_a"],
-                gen=in_dict["gen"],
-                x_org=in_dict["x_org"],
-                num_domains=num_domains,
+        if num_domains > 1:
+            # Use fake images only when there are more domains, which is during
+            backbone_inputs_extended.extend(
+                self._generate_synthetic_images(
+                    enc_c=in_dict["enc_c"],
+                    enc_a=in_dict["enc_a"],
+                    gen=in_dict["gen"],
+                    x_org=in_dict["x_org"],
+                    num_domains=num_domains,
+                )
             )
-        )
-        num_total_ims_to_backbone = num_domains + 1
-        y_true_extended = y_true.repeat(num_total_ims_to_backbone)
+            num_total_ims_to_backbone = num_domains + 1
+            y_true_extended = y_true.repeat(num_total_ims_to_backbone)
+        else:
+            y_true_extended = y_true
+
         backbone_inputs_extended = torch.cat(backbone_inputs_extended, dim=0)
 
         # Go back to the original res. to be comparable to Contrimix

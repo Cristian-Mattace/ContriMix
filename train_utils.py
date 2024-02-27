@@ -86,6 +86,7 @@ def train(
                     else unlabeled_split_dict_by_name["test"],
                     epoch=epoch,
                     config_dict=config_dict,
+                    split="test",
                 )
                 if test_res is not None:
                     test_results, y_pred = test_res
@@ -114,6 +115,7 @@ def train(
                     else unlabeled_split_dict_by_name["val"],
                     epoch=epoch,
                     config_dict=config_dict,
+                    split="val",
                 )
 
                 if val_res is not None:
@@ -308,6 +310,7 @@ def _run_eval_epoch(
             with torch.no_grad():  # The BatchNorm2d is known to have unstable performance if using model.eval()
                 batch_results = algorithm.evaluate(
                     labeled_batch,
+                    split=split,
                     # ddp_params=config_dict.get("ddp_params", None),
                 )
 

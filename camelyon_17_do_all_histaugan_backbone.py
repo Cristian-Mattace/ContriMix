@@ -71,12 +71,12 @@ def main():
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
         "n_epochs": 100,
-        "log_every_n_batches": 3,
+        "log_every_n_batches": 20,
         "model_kwargs": {"pretrained": False},  # Train from scratch.
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
-        "batch_size": 750,
+        "batch_size": 1200,
         "uniform_over_groups": True,  # FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 3,  # 4

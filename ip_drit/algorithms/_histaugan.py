@@ -12,6 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 from skimage import io
+from torchvision import transforms as tfs
 
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
@@ -192,7 +193,7 @@ class HistauGAN(MultimodelAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        input_dict = self._parse_inputs(labeled_batch)
+        input_dict = self._parse_inputs(labeled_batch, split="train")
 
         images = input_dict["x"]
         c_org = input_dict["g"]
@@ -308,7 +309,7 @@ class HistauGAN(MultimodelAlgorithm):
             ),
         }
 
-    def _parse_inputs(self, labeled_batch: Optional[Tuple[torch.Tensor, ...]]) -> Dict[str, torch.Tensor]:
+    def _parse_inputs(self, labeled_batch: Optional[Tuple[torch.Tensor, ...]], split: str) -> Dict[str, torch.Tensor]:
         x, y_true = None, None
         if labeled_batch is not None:
             x, y_true, metadata = labeled_batch
@@ -317,7 +318,7 @@ class HistauGAN(MultimodelAlgorithm):
 
         group_indices = move_to(
             self._convert_group_index_to_one_hot(
-                train_group_idxs=self._grouper.group_indices_by_split_name["train"],
+                train_group_idxs=self._grouper.group_indices_by_split_name[split],
                 group_idx_values=self._grouper.metadata_to_group(metadata),
             ),
             self._device,
@@ -594,10 +595,11 @@ class HistauGAN(MultimodelAlgorithm):
     def _process_batch(
         self,
         labeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        split: str,
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         epoch: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        input_dict = self._parse_inputs(labeled_batch)
+        input_dict = self._parse_inputs(labeled_batch, split=split)
         y_true, metadata = input_dict["y_true"], input_dict["metadata"]
         # out_dict = self._get_model_output(x, y_true, unlabeled_x)
         if self._training_mode == ContrimixTrainingMode.ENCODERS:
