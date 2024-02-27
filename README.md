@@ -26,6 +26,8 @@ If you want to run the training scripts for different datasets, look at the foll
 - Camelyon: ERM with DP ([code](/camelyon_17_do_all_erm.py)), ContriMix (jointly trained) with DP ([code](./camelyon_17_do_all_contrimix.py)), ContriMix (jointly trained) with DDP ([code](./camelyon_17_do_all_contrimix_ddp.py)).
 - RxRx1: Contrimix encoder training with DP ([code](/rxrx1_do_all_contrimix_encoder_training_dp.py)), Contrimix encoder training with DDP ([code](/rxrx1_do_all_contrimix_encoder_training_ddp.py)), Backbone training using a trained Contrimix encoder ([code](/rxrx1_do_all_contrimix_backbone_training_dp.py)).
 
+## Model zoo
+We provide model zoo storing the training checkpoints for Contrimix and HistauGAN with different seeds. The mdoel zoo for the HistauGAN can be found [here](./MODELZOO.md).
 ## References
 [1]. [HistauGAN implementation](https://github.com/sophiajw/HistAuGAN) and the [HistauGAN paper](https://arxiv.org/abs/2107.12357), Wagner, S. J., Khalili, N., Sharma, R., Boxberg, M., Marr, C., de Back, W., Peng, GAN-based augmentation technique for histopathological images presented in the paper "Structure-Preserving Multi-Domain Stain Color Augmentation using Style-Transfer with Disentangled Representations" (2021).
 

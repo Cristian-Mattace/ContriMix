@@ -70,7 +70,7 @@ def main():
         "algo_log_metric": "accuracy",
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
-        "n_epochs": FLAGS.n_epochs,
+        "n_epochs": 50,
         "log_every_n_batches": 3,
         "model_kwargs": {"pretrained": False},  # Train from scratch.
         "run_on_cluster": FLAGS.run_on_cluster,
@@ -124,6 +124,7 @@ def main():
         full_dataset=camelyon_dataset, grouper=grouper, config_dict=config_dict
     )
 
+    nz = 8
     algorithm = initialize_algorithm(
         train_dataset=split_dict_by_names["train"]["dataset"],
         config=config_dict,
@@ -132,18 +133,13 @@ def main():
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
         convert_to_absorbance_in_between=True,
-        loss_weights_by_name={
-            "attr_cons_weight": 0.1,
-            "self_recon_weight": 0.1,
-            "cont_cons_weight": 0.3,
-            "entropy_weight": 0.5,
-            "cont_corr_weight": 0.0,
-            "attr_similarity_weight": 0.0,
-        },
+        loss_weights_by_name={},
         loss_kwargs={
             "training_mode": ContrimixTrainingMode.ENCODERS,
             "loss_fn": nn.CrossEntropyLoss(reduction="none"),
             "aggregation": ContriMixAggregationType.MEAN,
+            "nz": nz,
+            "original_resolution": camelyon_dataset.original_resolution,
         },
         algorithm_parameters={
             "concat": 1,  # concatenate attribute features for translation
@@ -152,7 +148,7 @@ def main():
             "dis_spectral_norm": False,  # use spectral normalization in discriminator
             "num_domains": 3,  # The number of domains for the training dataset.
             "crop_size": 216,  # cropped image size for training
-            "nz": 8,
+            "nz": nz,
             "d_iter": 3,
             "lambda_cls": 1.0,
             "lambda_cls_G": 5.0,

@@ -54,7 +54,7 @@ def main():
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/",
-        use_full_size=False,
+        use_full_size=True,
         drop_centers=FLAGS.drop_centers,
         return_one_hot=False,
     )
@@ -129,14 +129,7 @@ def main():
             config=config_dict, train_loader=split_dict_by_names["train"]["loader"]
         ),
         convert_to_absorbance_in_between=True,
-        loss_weights_by_name={
-            "attr_cons_weight": 0.1,
-            "self_recon_weight": 0.1,
-            "cont_cons_weight": 0.3,
-            "entropy_weight": 0.5,
-            "cont_corr_weight": 0.0,
-            "attr_similarity_weight": 0.0,
-        },
+        loss_weights_by_name={},
         loss_kwargs={
             "training_mode": ContrimixTrainingMode.BACKBONE,
             "loss_fn": nn.CrossEntropyLoss(reduction="none"),
