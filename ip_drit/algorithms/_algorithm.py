@@ -111,7 +111,7 @@ class Algorithm(nn.Module):
         Output:
             A sanitized version of in_dict.
         """
-        out_dict = {k: v for k, v in in_dict.items() if type(v) in (torch.Tensor, list, float, int)}
+        out_dict = {k: v for k, v in in_dict.items() if type(v) in (torch.Tensor, list, float, int, Tuple)}
         out_dict = detach_and_clone(out_dict)
         if to_out_device:
             out_dict = move_to(out_dict, self._out_device)

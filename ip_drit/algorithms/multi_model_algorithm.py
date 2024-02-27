@@ -225,7 +225,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
     def evaluate(
         self,
         labeled_batch: Optional[Tuple[torch.Tensor, ...]],
-        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         ddp_params: Optional[Dict[str, Any]] = None,
         return_loss_components: bool = True,
     ) -> Dict[str, Union[torch.Tensor, float]]:

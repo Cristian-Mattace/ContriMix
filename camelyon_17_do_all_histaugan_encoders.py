@@ -54,7 +54,7 @@ def main():
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/",
-        use_full_size=False,
+        use_full_size=True,
         drop_centers=FLAGS.drop_centers,
         return_one_hot=False,
     )
@@ -62,7 +62,7 @@ def main():
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.HISTAUGAN,
         "model": WildModel.DENSENET121,
-        "transform": TransformationType.HISTAUGAN,
+        "transform": TransformationType.HISTAUGAN_ENCODERS,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],
@@ -152,6 +152,11 @@ def main():
             "dis_spectral_norm": False,  # use spectral normalization in discriminator
             "num_domains": 3,  # The number of domains for the training dataset.
             "crop_size": 216,  # cropped image size for training
+            "nz": 8,
+            "d_iter": 3,
+            "lambda_cls": 1.0,
+            "lambda_cls_G": 5.0,
+            "lambda_rec": 10.0,
         },
     )
     if not config_dict["eval_only"]:

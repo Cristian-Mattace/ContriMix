@@ -6,9 +6,12 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
+from skimage import io
 
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
@@ -82,12 +85,15 @@ class HistauGAN(MultimodelAlgorithm):
 
         self._model_type = config["model"]
         self._d_out = d_out
-        self._nz = 8
-        self._d_iter = 3  # The number of epochs to update the encoder before updating the discriminator.
+        self._nz = algorithm_parameters["nz"]
+        self._d_iter = algorithm_parameters[
+            "d_iter"
+        ]  # The number of epochs to update the discriminator before updating the generator.
         self._concat = True
-        self._lambda_cls = 1.0
-        self._lambda_cls_G = 5.0
-        self._lambda_rec = 10.0
+        self._lambda_cls = algorithm_parameters["lambda_cls"]
+        self._lambda_cls_G = algorithm_parameters["lambda_cls_G"]
+        self._lambda_rec = algorithm_parameters["lambda_rec"]
+        self._saving_freq_iters = 20
 
         backbone_network = initialize_model_from_configuration(
             self._model_type,
@@ -121,8 +127,8 @@ class HistauGAN(MultimodelAlgorithm):
         self._gan_loss = None
         self._gan_cls_loss = None
         self._z_L1_loss = None
-        self._l1_self_rec_loss = (None,)
-        self._l1_cc_rec_loss = (None,)
+        self._l1_self_rec_loss = None
+        self._l1_cc_rec_loss = None
 
     def _configure_optimizers(self, lr: float) -> None:
         """Configures the optimizers.
@@ -130,24 +136,29 @@ class HistauGAN(MultimodelAlgorithm):
         Args:
             lr: The learning rate.
         """
-        self._dis1_opt = torch.optim.Adam(
-            self._models_by_names["dis1"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-        self._dis2_opt = torch.optim.Adam(
-            self._models_by_names["dis2"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-        self._enc_c_opt = torch.optim.Adam(
-            self._models_by_names["enc_c"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-        self._enc_a_opt = torch.optim.Adam(
-            self._models_by_names["enc_a"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-        self._gen_opt = torch.optim.Adam(
-            self._models_by_names["gen"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-        self._disContent_opt = torch.optim.Adam(
-            self._models_by_names["disContent"].parameters(), lr=lr / 2.5, betas=(0.5, 0.999), weight_decay=0.0001
-        )
+        if self._training_mode == ContrimixTrainingMode.ENCODERS:
+            self._dis1_opt = torch.optim.Adam(
+                self._models_by_names["dis1"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+            self._dis2_opt = torch.optim.Adam(
+                self._models_by_names["dis2"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+            self._enc_c_opt = torch.optim.Adam(
+                self._models_by_names["enc_c"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+            self._enc_a_opt = torch.optim.Adam(
+                self._models_by_names["enc_a"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+            self._gen_opt = torch.optim.Adam(
+                self._models_by_names["gen"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+            self._disContent_opt = torch.optim.Adam(
+                self._models_by_names["disContent"].parameters(), lr=lr / 2.5, betas=(0.5, 0.999), weight_decay=0.0001
+            )
+        elif self._training_mode == ContrimixTrainingMode.BACKBONE:
+            self._backbone_opt = torch.optim.Adam(
+                self._models_by_names["backbone"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
+            )
 
     def update(
         self,
@@ -181,33 +192,52 @@ class HistauGAN(MultimodelAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        input_dict = self._parse_inputs(labeled_batch, unlabeled_batch)
+        input_dict = self._parse_inputs(labeled_batch)
 
         images = input_dict["x"]
         c_org = input_dict["g"]
 
-        if (batch_idx + 1) % self._d_iter != 0:
-            self._update_D_content(image=images, c_org=c_org)
-        else:
-            self._update_D(image=images, c_org=c_org)
-            self._update_EG(image=images, c_org=c_org)
-
         batch_results = {
             "g": c_org,
             "metadata": input_dict["metadata"],
-            "gan_loss": self._gan_loss,
-            "gan_cls_loss": self._gan_cls_loss,
-            "z_L1_loss": self._z_L1_loss,
-            "l1_self_rec_loss": self._l1_self_rec_loss,
-            "l1_cc_rec_loss": self._l1_cc_rec_loss,
             "y_true": input_dict["y_true"],
             "backbone": self._models_by_names["backbone"],
             "is_training": self._is_training,
             "x_org": images,
+            "gen": self._models_by_names["gen"],
+            "enc_c": self._models_by_names["enc_c"],
+            "enc_a": self._models_by_names["enc_a"],
         }
 
-        # Computes the backbone loss.
-        _ = self.objective(batch_results, return_loss_components=return_loss_components)
+        if self._training_mode == ContrimixTrainingMode.ENCODERS:
+            if (batch_idx + 1) % self._d_iter != 0:
+                self._update_D_content(image=images, c_org=c_org)
+            else:
+                self._update_D(image=images, c_org=c_org)
+                self._update_EG(image=images, c_org=c_org)
+
+            batch_results.update(
+                {
+                    "gan_loss": self._gan_loss,
+                    "gan_cls_loss": self._gan_cls_loss,
+                    "z_L1_loss": self._z_L1_loss,
+                    "l1_self_rec_loss": self._l1_self_rec_loss,
+                    "l1_cc_rec_loss": self._l1_cc_rec_loss,
+                }
+            )
+
+            # Hack to avoid missing the y_pred
+            self.objective(batch_results, return_loss_components=return_loss_components)
+            if batch_idx > 0 and batch_idx % self._saving_freq_iters == 0:
+                self._save_display_image()
+
+        else:
+            # Computes the backbone loss.
+            self._backbone_opt.zero_grad()
+            entropy_loss = self.objective(batch_results, return_loss_components=return_loss_components)[0]
+            entropy_loss.backward()
+            self._backbone_opt.step()
+            batch_results["entropy_loss"] = entropy_loss.detach().item()
 
         if return_loss_components:
             self.update_log(batch_results)
@@ -278,11 +308,7 @@ class HistauGAN(MultimodelAlgorithm):
             ),
         }
 
-    def _parse_inputs(
-        self,
-        labeled_batch: Optional[Tuple[torch.Tensor, ...]],
-        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
-    ) -> Dict[str, torch.Tensor]:
+    def _parse_inputs(self, labeled_batch: Optional[Tuple[torch.Tensor, ...]]) -> Dict[str, torch.Tensor]:
         x, y_true = None, None
         if labeled_batch is not None:
             x, y_true, metadata = labeled_batch
@@ -296,7 +322,6 @@ class HistauGAN(MultimodelAlgorithm):
             ),
             self._device,
         )
-
         return {"x": x, "g": group_indices, "y_true": y_true, "metadata": metadata}
 
     def _convert_group_index_to_one_hot(
@@ -404,23 +429,6 @@ class HistauGAN(MultimodelAlgorithm):
         )
         self._fake_B_recon = self._models_by_names["gen"].forward(
             self._z_content_recon_b, self._z_attr_recon_b, c_org_B
-        )
-
-        # for display
-        self.image_display = torch.cat(
-            (
-                self._real_A[0:1].detach().cpu(),
-                self._fake_B_encoded[0:1].detach().cpu(),
-                self._fake_B_random[0:1].detach().cpu(),
-                self._fake_AA_encoded[0:1].detach().cpu(),
-                self._fake_A_recon[0:1].detach().cpu(),
-                self._real_B[0:1].detach().cpu(),
-                self._fake_A_encoded[0:1].detach().cpu(),
-                self._fake_A_random[0:1].detach().cpu(),
-                self._fake_BB_encoded[0:1].detach().cpu(),
-                self._fake_B_recon[0:1].detach().cpu(),
-            ),
-            dim=0,
         )
 
         # for latent regression
@@ -582,3 +590,63 @@ class HistauGAN(MultimodelAlgorithm):
             ), non_objective_loss_by_name
         else:
             return labeled_loss, non_objective_loss_by_name
+
+    def _process_batch(
+        self,
+        labeled_batch: Optional[Tuple[torch.Tensor, ...]],
+        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
+        epoch: Optional[int] = None,
+    ) -> Dict[str, torch.Tensor]:
+        input_dict = self._parse_inputs(labeled_batch)
+        y_true, metadata = input_dict["y_true"], input_dict["metadata"]
+        # out_dict = self._get_model_output(x, y_true, unlabeled_x)
+        if self._training_mode == ContrimixTrainingMode.ENCODERS:
+            return {
+                "y_true": y_true,
+                "metadata": metadata,
+                "is_training": self._is_training,
+                "g": input_dict["g"],
+                "backbone": self._models_by_names["backbone"],
+                "x_org": input_dict["x"],
+                # These losses are not available in Histogan for the evaluation set.
+                "gan_loss": -1.0,
+                "gan_cls_loss": -1.0,
+                "z_L1_loss": -1.0,
+                "l1_self_rec_loss": -1.0,
+                "l1_cc_rec_loss": -1.0,
+            }
+        elif self._training_mode == ContrimixTrainingMode.BACKBONE:
+            return {
+                "y_true": y_true,
+                "metadata": metadata,
+                "is_training": self._is_training,
+                "g": input_dict["g"],
+                "backbone": self._models_by_names["backbone"],
+                "x_org": input_dict["x"],
+                "gen": self._models_by_names["gen"],
+                "enc_c": self._models_by_names["enc_c"],
+                "enc_a": self._models_by_names["enc_a"],
+            }
+        else:
+            raise ValueError("Unknown training model")
+
+    def _save_display_image(self):
+        # for display
+        image_display = torch.cat(
+            (
+                self._real_A[0:1].detach().cpu(),
+                self._fake_B_encoded[0:1].detach().cpu(),
+                self._fake_B_random[0:1].detach().cpu(),
+                self._fake_AA_encoded[0:1].detach().cpu(),
+                self._fake_A_recon[0:1].detach().cpu(),
+                self._real_B[0:1].detach().cpu(),
+                self._fake_A_encoded[0:1].detach().cpu(),
+                self._fake_A_random[0:1].detach().cpu(),
+                self._fake_BB_encoded[0:1].detach().cpu(),
+                self._fake_B_recon[0:1].detach().cpu(),
+            ),
+            dim=0,
+        )
+
+        image_dis = torchvision.utils.make_grid(image_display, nrow=image_display.size(0) // 2) / 2 + 0.5
+        io.imsave("image_display.png", (image_dis.permute(1, 2, 0).numpy() * 255.0).astype(np.uint8))
