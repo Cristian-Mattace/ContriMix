@@ -102,7 +102,6 @@ class HistauGAN(MultimodelAlgorithm):
             training_mode=training_mode,
         )
 
-        self._use_unlabeled_y = config["use_unlabeled_y"]
         self._use_amp = getattr(config, "use_amp", False)
 
     @staticmethod
@@ -144,27 +143,18 @@ class HistauGAN(MultimodelAlgorithm):
             x = move_to(x, self._device)
             y_true = move_to(y_true, self._device)
 
-        split_group_indices = self._grouper.group_indices_by_split_name[split]
-        group_indices = move_to(
-            self._convert_group_index_to_one_hot(
-                train_group_idxs=split_group_indices, group_idx_values=self._grouper.metadata_to_group(metadata)
-            ),
-            self._device,
-        )
         return {
             "x": x,
-            "g": group_indices,
+            "g": move_to(
+                F.one_hot(self._grouper.metadata_to_group(metadata), num_classes=self._num_domains).float(),
+                self._device,
+            ),
             "y_true": y_true,
             "metadata": metadata,
             "target_domain_indices": torch.arange(self._num_domains)
             if self._aug_with_all_domains
-            else split_group_indices,
+            else self._grouper.group_indices_by_split_name[split],
         }
-
-    def _convert_group_index_to_one_hot(
-        self, train_group_idxs: torch.Tensor, group_idx_values: torch.Tensor
-    ) -> torch.Tensor:
-        return F.one_hot(group_idx_values, num_classes=self._num_domains).float()
 
     def objective(
         self, in_dict: Dict[str, Union[torch.Tensor, SignalType]], return_loss_components: bool
@@ -181,20 +171,7 @@ class HistauGAN(MultimodelAlgorithm):
             )
 
         objective_loss_name = self._loss.agg_metric_field
-        labeled_loss = loss_dict[objective_loss_name]
-        non_objective_loss_by_name = {k: v for k, v in loss_dict.items() if k != objective_loss_name}
-
-        if self._use_unlabeled_y and "unlabeled_y_true" in in_dict:
-            unlabeled_loss = self._loss.compute(
-                in_dict["unlabeled_y_pred"], in_dict["unlabeled_y_true"], return_dict=False
-            )
-            lab_size = len(in_dict["y_pred"])
-            unl_size = len(in_dict["unlabeled_y_pred"])
-            return (lab_size * labeled_loss + unl_size * unlabeled_loss) / (
-                lab_size + unl_size
-            ), non_objective_loss_by_name
-        else:
-            return labeled_loss, non_objective_loss_by_name
+        return loss_dict[objective_loss_name], {k: v for k, v in loss_dict.items() if k != objective_loss_name}
 
     def _process_batch(
         self,
@@ -203,16 +180,13 @@ class HistauGAN(MultimodelAlgorithm):
         unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
         epoch: Optional[int] = None,
     ) -> Dict[str, torch.Tensor]:
-        input_dict = self._parse_inputs(labeled_batch, split=split)
-        y_true, metadata = input_dict["y_true"], input_dict["metadata"]
-        return {
-            "y_true": y_true,
-            "metadata": metadata,
-            "is_training": self._is_training,
-            "g": input_dict["g"],
-            "backbone": self._models_by_names["backbone"],
-            "x_org": input_dict["x"],
-            "gen": self._models_by_names["gen"],
-            "enc_c": self._models_by_names["enc_c"],
-            "target_domain_indices": input_dict["target_domain_indices"],
-        }
+        out_dict = self._parse_inputs(labeled_batch, split=split)
+        out_dict.update(
+            {
+                "is_training": self._is_training,
+                "backbone": self._models_by_names["backbone"],
+                "gen": self._models_by_names["gen"],
+                "enc_c": self._models_by_names["enc_c"],
+            }
+        )
+        return out_dict

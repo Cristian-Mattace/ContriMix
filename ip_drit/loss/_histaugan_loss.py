@@ -1,24 +1,15 @@
 """A module to compute the HistauGAN loss."""
-from enum import auto
-from enum import Enum
 from typing import Any
-from typing import Callable
 from typing import Dict
-from typing import List
 from typing import Optional
 from typing import Union
 
-import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from skimage import io
 from torchvision import transforms as tfs
 
 from ..common.metrics._base import Metric
 from ..common.metrics._base import MultiTaskMetric
-from ._contrimix_loss import ContriMixAggregationType
-from ip_drit.algorithms._contrimix_utils import ContrimixTrainingMode
 
 # Ported from https://github.com/sophiajw/HistAuGAN/blob/main/augmentations.py#L121C1-L145C2
 _MEAN_DOMAINS = torch.Tensor(
@@ -97,7 +88,7 @@ class HistauGANLoss(MultiTaskMetric):
                 x_org: the original image with the range of (-1, 1).
         """
         backbone = in_dict["backbone"]
-        x_org = in_dict["x_org"]
+        x_org = in_dict["x"]
 
         # Compute the prediction on the training set, not doing any synthetic images here.
         in_dict["y_pred"] = backbone(x_org)

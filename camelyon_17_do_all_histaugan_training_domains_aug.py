@@ -53,7 +53,7 @@ def main():
 
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/",
-        use_full_size=True,
+        use_full_size=False,
         drop_centers=FLAGS.drop_centers,
         return_one_hot=False,
     )
