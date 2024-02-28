@@ -132,8 +132,6 @@ def main():
         loss_kwargs={
             "training_mode": ContrimixTrainingMode.BACKBONE,
             "loss_fn": nn.CrossEntropyLoss(reduction="none"),
-            "aggregation": ContriMixAggregationType.MEAN,
-            "nz": nz,
             "original_resolution": camelyon_dataset.original_resolution,
         },
         algorithm_parameters={
