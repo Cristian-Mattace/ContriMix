@@ -12,8 +12,8 @@ This code repo [ContriMix: Unsupervised disentanglement of content and attribute
 3.  Install [Anaconda](https://www.anaconda.com/)
 4.  Clone the ContriMix code repo `git clone https://gitlab.com/huutan86/intraminibatch_permutation_drit`
 5.  Change the directory `cd intraminibatch_permutation_drit`.
+6.  Run `pip install -r requirements.txt` to install all dependencies.
 
-6. Create your virtual environment with poetry: `poetry install`. You can use `Anaconda` for this.
 Set the `PYTHONPATH` to the folder of the `ip_drit` with `export PYTHONPATH=’[path-to-directory]’`. For example,
 `export PYTHONPATH=/jupyter-users-home/tan-2enguyen/intraminibatch_permutation_drit/ip_drit`. If you are using VS Code as an IDE,
 press `Command + Shift + P`  ->  `Developer: Reload Window` so that VSCode can see the `ip_drit` package.
