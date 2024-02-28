@@ -137,7 +137,7 @@ def main():
             "crop_size": 216,  # cropped image size for training
             "nz": 8,
             "gan_model_path": "./checkpoints/gan_weights.pth",
-            "aug_with_all_domains": False,
+            "aug_with_all_domains": True,
         },
     )
     if not config_dict["eval_only"]:
