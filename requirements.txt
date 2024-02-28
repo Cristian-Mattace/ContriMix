@@ -7,4 +7,4 @@ torch
 torchvision
 tqdm
 torchmetrics
-torch_scatter
+pandas

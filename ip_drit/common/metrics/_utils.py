@@ -5,7 +5,6 @@ from typing import Union
 
 import numpy as np
 import torch
-import torch_scatter
 from pandas.api.types import CategoricalDtype
 
 
@@ -118,6 +117,8 @@ def avg_over_groups(v: torch.Tensor, g: torch.Tensor, n_groups: int) -> Tuple[to
         A tensor of group average of length n_groups.
         A tensor of group counts
     """
+    import torch_scatter
+
     assert v.device == g.device
     assert v.numel() == g.numel()
     group_count = get_counts(g, n_groups)
