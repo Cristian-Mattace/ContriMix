@@ -10,8 +10,6 @@ import torch
 import torch.nn as nn
 import torchvision
 
-from ip_drit.models import PathNetBX1
-
 
 class WildModel(Enum):
     """An enum class that defines the model used for the WILDS dataset."""
@@ -22,7 +20,6 @@ class WildModel(Enum):
     RESNET34 = auto()
     RESNET50 = auto()
     RESNET101 = auto()
-    PathNetBX1Torch = auto()
 
 
 def initialize_model_from_configuration(
@@ -68,8 +65,6 @@ def initialize_model_from_configuration(
             if not hasattr(out, "needs_y_input"):
                 out.needs_y_input = False
         return out
-    elif model_type == WildModel.PathNetBX1Torch:
-        return PathNetBX1(in_channels=3, num_outputs=d_out, bn_momentum=0.01, use_bn=True)
     else:
         raise ValueError(f"Model type ({model_type}) is not supported!")
 

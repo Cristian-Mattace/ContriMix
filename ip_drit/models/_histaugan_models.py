@@ -31,101 +31,6 @@ class MD_E_content(nn.Module):
         return self.conv(x)
 
 
-class MD_E_attr(nn.Module):
-    """Attribute encoder."""
-
-    def __init__(self, input_dim, output_nc=8, c_dim=3):
-        super(MD_E_attr, self).__init__()
-        dim = 64
-        self.model = nn.Sequential(
-            nn.ReflectionPad2d(3),
-            nn.Conv2d(input_dim + c_dim, dim, 7, 1),
-            nn.ReLU(inplace=True),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(dim, dim * 2, 4, 2),
-            nn.ReLU(inplace=True),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(dim * 2, dim * 4, 4, 2),
-            nn.ReLU(inplace=True),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(dim * 4, dim * 4, 4, 2),
-            nn.ReLU(inplace=True),
-            nn.ReflectionPad2d(1),
-            nn.Conv2d(dim * 4, dim * 4, 4, 2),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool2d(1),
-            nn.Conv2d(dim * 4, output_nc, 1, 1, 0),
-        )
-
-    def forward(self, x, c):
-        c = c.view(c.size(0), c.size(1), 1, 1)
-        c = c.repeat(1, 1, x.size(2), x.size(3))
-        x_c = torch.cat([x, c], dim=1)
-        output = self.model(x_c)
-        return output.view(output.size(0), -1)
-
-
-class MD_E_attr_concat(nn.Module):
-    """Content encoder concat version."""
-
-    def __init__(self, input_dim, output_nc=8, c_dim=3, norm_layer=None, nl_layer=None):
-        super(MD_E_attr_concat, self).__init__()
-
-        ndf = 64
-        n_blocks = 4
-        max_ndf = 4
-
-        conv_layers = [nn.ReflectionPad2d(1)]
-        conv_layers += [nn.Conv2d(input_dim + c_dim, ndf, kernel_size=4, stride=2, padding=0, bias=True)]
-        for n in range(1, n_blocks):
-            input_ndf = ndf * min(max_ndf, n)  # 2**(n-1)
-            output_ndf = ndf * min(max_ndf, n + 1)  # 2**n
-            conv_layers += [BasicBlock(input_ndf, output_ndf, norm_layer, nl_layer)]
-        conv_layers += [nl_layer(), nn.AdaptiveAvgPool2d(1)]  # AvgPool2d(13)
-        self.fc = nn.Sequential(*[nn.Linear(output_ndf, output_nc)])
-        self.fcVar = nn.Sequential(*[nn.Linear(output_ndf, output_nc)])
-        self.conv = nn.Sequential(*conv_layers)
-
-    def forward(self, x, c):
-        c = c.view(c.size(0), c.size(1), 1, 1)
-        c = c.repeat(1, 1, x.size(2), x.size(3))
-        x_c = torch.cat([x, c], dim=1)
-        x_conv = self.conv(x_c)
-        conv_flat = x_conv.view(x.size(0), -1)
-        output = self.fc(conv_flat)
-        outputVar = self.fcVar(conv_flat)
-        return output, outputVar
-
-
-class MD_G_uni(nn.Module):
-    """MD_G_uni class."""
-
-    def __init__(self, output_dim, c_dim=3):
-        super(MD_G_uni, self).__init__()
-        self.c_dim = c_dim
-        tch = 256
-        dec_share = []
-        dec_share += [INSResBlock(tch, tch)]
-        self.dec_share = nn.Sequential(*dec_share)
-        tch = 256 + self.c_dim
-        dec = []
-        for i in range(0, 3):
-            dec += [INSResBlock(tch, tch)]
-        dec += [ReLUINSConvTranspose2d(tch, tch // 2, kernel_size=3, stride=2, padding=1, output_padding=1)]
-        tch = tch // 2
-        dec += [ReLUINSConvTranspose2d(tch, tch // 2, kernel_size=3, stride=2, padding=1, output_padding=1)]
-        tch = tch // 2
-        dec += [nn.ConvTranspose2d(tch, output_dim, kernel_size=1, stride=1, padding=0)] + [nn.Tanh()]
-        self.dec = nn.Sequential(*dec)
-
-    def forward(self, x, c):
-        out0 = self.dec_share(x)
-        c = c.view(c.size(0), c.size(1), 1, 1)
-        c = c.repeat(1, 1, out0.size(2), out0.size(3))
-        x_c = torch.cat([out0, c], dim=1)
-        return self.dec(x_c)
-
-
 class MD_G_multi_concat(nn.Module):
     """MD_G_multi_concat."""
 
@@ -173,109 +78,6 @@ class MD_G_multi_concat(nn.Module):
         return out4
 
 
-class MD_G_multi(nn.Module):
-    """MD_G_multi class."""
-
-    def __init__(self, output_dim, c_dim=3, nz=8):
-        super(MD_G_multi, self).__init__()
-        self.nz = nz
-        ini_tch = 256
-        tch_add = ini_tch
-        tch = ini_tch
-        self.tch_add = tch_add
-        self.dec1 = MisINSResBlock(tch, tch_add)
-        self.dec2 = MisINSResBlock(tch, tch_add)
-        self.dec3 = MisINSResBlock(tch, tch_add)
-        self.dec4 = MisINSResBlock(tch, tch_add)
-
-        dec5 = []
-        dec5 += [ReLUINSConvTranspose2d(tch, tch // 2, kernel_size=3, stride=2, padding=1, output_padding=1)]
-        tch = tch // 2
-        dec5 += [ReLUINSConvTranspose2d(tch, tch // 2, kernel_size=3, stride=2, padding=1, output_padding=1)]
-        tch = tch // 2
-        dec5 += [nn.ConvTranspose2d(tch, output_dim, kernel_size=1, stride=1, padding=0)]
-        dec5 += [nn.Tanh()]
-        self.decA5 = nn.Sequential(*dec5)
-
-        self.mlp = nn.Sequential(
-            nn.Linear(nz + c_dim, 256),
-            nn.ReLU(inplace=True),
-            nn.Linear(256, 256),
-            nn.ReLU(inplace=True),
-            nn.Linear(256, tch_add * 4),
-        )
-        return
-
-    def forward(self, x, z, c):
-        z_c = torch.cat([c, z], 1)
-        z_c = self.mlp(z_c)
-        z1, z2, z3, z4 = torch.split(z_c, self.tch_add, dim=1)
-        z1, z2, z3, z4 = z1.contiguous(), z2.contiguous(), z3.contiguous(), z4.contiguous()
-        out1 = self.dec1(x, z1)
-        out2 = self.dec2(out1, z2)
-        out3 = self.dec3(out2, z3)
-        out4 = self.dec4(out3, z4)
-        out = self.decA5(out4)
-        return out
-
-
-class MD_Dis(nn.Module):
-    """Domain discriminator."""
-
-    def __init__(self, input_dim, norm="None", sn=False, c_dim=3, image_size=216):
-        super(MD_Dis, self).__init__()
-        ch = 64
-        n_layer = 6
-        self.model, curr_dim = self._make_net(ch, input_dim, n_layer, norm, sn)
-        self.conv1 = nn.Conv2d(curr_dim, 1, kernel_size=1, stride=1, padding=1, bias=False)
-        kernal_size = int(image_size / np.power(2, n_layer))
-        self.conv2 = nn.Conv2d(curr_dim, c_dim, kernel_size=kernal_size, bias=False)
-        self.pool = nn.AdaptiveAvgPool2d(1)
-
-    def _make_net(self, ch, input_dim, n_layer, norm, sn):
-        model = []
-        model += [LeakyReLUConv2d(input_dim, ch, kernel_size=3, stride=2, padding=1, norm=norm, sn=sn)]  # 16
-        tch = ch
-        for i in range(1, n_layer - 1):
-            model += [LeakyReLUConv2d(tch, tch * 2, kernel_size=3, stride=2, padding=1, norm=norm, sn=sn)]  # 8
-            tch *= 2
-        model += [LeakyReLUConv2d(tch, tch, kernel_size=3, stride=2, padding=1, norm="None", sn=sn)]  # 2
-        # model += [LeakyReLUConv2d(tch, tch * 2, kernel_size=3, stride=2, padding=1, norm='None', sn=sn)] # 2
-        # tch *= 2
-        return nn.Sequential(*model), tch
-
-    def cuda(self, gpu):
-        self.model.cuda(gpu)
-        self.conv1.cuda(gpu)
-        self.conv2.cuda(gpu)
-
-    def forward(self, x):
-        h = self.model(x)
-        out = self.conv1(h)
-        out_cls = self.conv2(h)
-        out_cls = self.pool(out_cls)
-        return out, out_cls.view(out_cls.size(0), out_cls.size(1))
-
-
-class MD_Dis_content(nn.Module):
-    """Content discriminator."""
-
-    def __init__(self, c_dim=3):
-        super(MD_Dis_content, self).__init__()
-        model = []
-        model += [LeakyReLUConv2d(256, 256, kernel_size=7, stride=2, padding=1, norm="Instance")]
-        model += [LeakyReLUConv2d(256, 256, kernel_size=7, stride=2, padding=1, norm="Instance")]
-        model += [LeakyReLUConv2d(256, 256, kernel_size=7, stride=2, padding=1, norm="Instance")]
-        model += [LeakyReLUConv2d(256, 256, kernel_size=4, stride=1, padding=0)]
-        model += [nn.Conv2d(256, c_dim, kernel_size=1, stride=1, padding=0)]
-        self.model = nn.Sequential(*model)
-
-    def forward(self, x):
-        out = self.model(x)
-        out = out.view(out.size(0), out.size(1))
-        return out
-
-
 ####################################################################
 # ------------------------- Basic Functions -------------------------
 ####################################################################
@@ -293,32 +95,6 @@ def _convMeanpool(inplanes, outplanes):
     sequence += conv3x3(inplanes, outplanes)
     sequence += [nn.AvgPool2d(kernel_size=2, stride=2)]
     return nn.Sequential(*sequence)
-
-
-def get_norm_layer(layer_type="instance") -> nn.Module:
-    """Gets a normalization layer."""
-    if layer_type == "batch":
-        norm_layer = functools.partial(nn.BatchNorm2d, affine=True)
-    elif layer_type == "instance":
-        norm_layer = functools.partial(nn.InstanceNorm2d, affine=False)
-    elif layer_type == "none":
-        norm_layer = None
-    else:
-        raise NotImplementedError("normalization layer [%s] is not found" % layer_type)
-    return norm_layer
-
-
-def get_non_linearity(layer_type="relu") -> nn.Module:
-    """Get a non-linearity layer."""
-    if layer_type == "relu":
-        nl_layer = functools.partial(nn.ReLU, inplace=True)
-    elif layer_type == "lrelu":
-        nl_layer = functools.partial(nn.LeakyReLU, negative_slope=0.2, inplace=False)
-    elif layer_type == "elu":
-        nl_layer = functools.partial(nn.ELU, inplace=True)
-    else:
-        raise NotImplementedError("nonlinearity activitation [%s] is not found" % layer_type)
-    return nl_layer
 
 
 def conv3x3(in_planes, out_planes) -> List[nn.Module]:
@@ -358,28 +134,6 @@ class LayerNorm(nn.Module):
             )
         else:
             return F.layer_norm(x, normalized_shape)
-
-
-class BasicBlock(nn.Module):
-    """BasicBlock class."""
-
-    def __init__(self, inplanes, outplanes, norm_layer=None, nl_layer=None):
-        super(BasicBlock, self).__init__()
-        layers = []
-        if norm_layer is not None:
-            layers += [norm_layer(inplanes)]
-        layers += [nl_layer()]
-        layers += conv3x3(inplanes, inplanes)
-        if norm_layer is not None:
-            layers += [norm_layer(inplanes)]
-        layers += [nl_layer()]
-        layers += [_convMeanpool(inplanes, outplanes)]
-        self.conv = nn.Sequential(*layers)
-        self.shortcut = _meanpoolConv(inplanes, outplanes)
-
-    def forward(self, x):
-        out = self.conv(x) + self.shortcut(x)
-        return out
 
 
 class LeakyReLUConv2d(nn.Module):
@@ -445,52 +199,6 @@ class INSResBlock(nn.Module):
     def forward(self, x):
         residual = x
         out = self.model(x)
-        out += residual
-        return out
-
-
-class MisINSResBlock(nn.Module):
-    """MisINSResBlock."""
-
-    def conv3x3(self, dim_in, dim_out, stride=1):
-        return nn.Sequential(nn.ReflectionPad2d(1), nn.Conv2d(dim_in, dim_out, kernel_size=3, stride=stride))
-
-    def conv1x1(self, dim_in, dim_out):
-        return nn.Conv2d(dim_in, dim_out, kernel_size=1, stride=1, padding=0)
-
-    def __init__(self, dim, dim_extra, stride=1, dropout=0.0):
-        super(MisINSResBlock, self).__init__()
-        self.conv1 = nn.Sequential(self.conv3x3(dim, dim, stride), nn.InstanceNorm2d(dim))
-        self.conv2 = nn.Sequential(self.conv3x3(dim, dim, stride), nn.InstanceNorm2d(dim))
-        self.blk1 = nn.Sequential(
-            self.conv1x1(dim + dim_extra, dim + dim_extra),
-            nn.ReLU(inplace=False),
-            self.conv1x1(dim + dim_extra, dim),
-            nn.ReLU(inplace=False),
-        )
-        self.blk2 = nn.Sequential(
-            self.conv1x1(dim + dim_extra, dim + dim_extra),
-            nn.ReLU(inplace=False),
-            self.conv1x1(dim + dim_extra, dim),
-            nn.ReLU(inplace=False),
-        )
-        model = []
-        if dropout > 0:
-            model += [nn.Dropout(p=dropout)]
-        self.model = nn.Sequential(*model)
-        self.model.apply(gaussian_weights_init)
-        self.conv1.apply(gaussian_weights_init)
-        self.conv2.apply(gaussian_weights_init)
-        self.blk1.apply(gaussian_weights_init)
-        self.blk2.apply(gaussian_weights_init)
-
-    def forward(self, x, z):
-        residual = x
-        z_expand = z.view(z.size(0), z.size(1), 1, 1).expand(z.size(0), z.size(1), x.size(2), x.size(3))
-        o1 = self.conv1(x)
-        o2 = self.blk1(torch.cat([o1, z_expand], dim=1))
-        o3 = self.conv2(o2)
-        out = self.blk2(torch.cat([o3, z_expand], dim=1))
         out += residual
         return out
 
@@ -608,13 +316,3 @@ def spectral_norm(module, name="weight", n_power_iterations=1, eps=1e-12, dim=No
             dim = 0
     SpectralNorm.apply(module, name, n_power_iterations, dim, eps)
     return module
-
-
-def remove_spectral_norm(module, name="weight") -> nn.Module:
-    """Removes spectral normalization."""
-    for k, hook in module._forward_pre_hooks.items():
-        if isinstance(hook, SpectralNorm) and hook.name == name:
-            hook.remove(module)
-            del module._forward_pre_hooks[k]
-            return module
-    raise ValueError("spectral_norm of '{}' not found in {}.".format(name, module))

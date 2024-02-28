@@ -52,22 +52,14 @@ class HistauGANLoss(MultiTaskMetric):
         name (optional): The name of the loss. Defaults to "histaugan_loss".
     """
 
-    def __init__(
-        self,
-        loss_params: Dict[str, Any],
-        name: Optional[str] = "histaugan_loss",
-        save_images_for_debugging: bool = True,
-    ) -> None:
+    def __init__(self, loss_params: Dict[str, Any], name: Optional[str] = "histaugan_loss") -> None:
         self._loss_fn = loss_params["loss_fn"]
         self._nz = loss_params["nz"]
         self._image_resizer = tfs.Resize(
             size=loss_params["original_resolution"], interpolation=tfs.InterpolationMode.BICUBIC
         )
-        self._training_mode: ContrimixTrainingMode = loss_params["training_mode"]
-        self._save_images_for_debugging = save_images_for_debugging
         self._aggregation: ContriMixAggregationType = loss_params.get("aggregation", ContriMixAggregationType.MEAN)
         super().__init__(name)
-        self._use_original_image_for_entropy_loss = True
 
     def compute(
         self, in_dict: Dict[str, torch.Tensor], return_dict: bool = True, return_loss_components: bool = True
@@ -110,18 +102,15 @@ class HistauGANLoss(MultiTaskMetric):
                 enc_c=in_dict["enc_c"],
                 gen=in_dict["gen"],
                 x_org=in_dict["x_org"],
-                target_domain_indices=in_dict["split_group_indices"],
-            )  # Ran
+                target_domain_indices=in_dict["target_domain_indices"],
+            )  # Randly augment half of the samples
         else:
             x_org = in_dict["x_org"]
-
-        # Go back to the original res. to be comparable to Contrimix
-        backbone_inputs_extended = self._image_resizer(x_org)
 
         # Compute the prediction on the training set.
         in_dict["y_pred"] = backbone(x_org)
         losses = self._initialize_cross_entropy_loss(
-            backbone_input=backbone_inputs_extended, y_true=y_true, backbone=backbone
+            backbone_input=self._image_resizer(x_org), y_true=y_true, backbone=backbone
         )
         losses = losses.reshape(-1, 1)  # [#images, #augs]
         # The following aggregation is over the augnetaitons.
@@ -137,17 +126,20 @@ class HistauGANLoss(MultiTaskMetric):
     def _augment_training_images(
         self, enc_c: nn.Module, gen: nn.Module, x_org: torch.Tensor, target_domain_indices: torch.Tensor
     ) -> torch.Tensor:
-        """Augment half of the image with HistAuGan."""
+        """Augment half of the image with HistAuGan.
+
+        Ported from https://github.com/sophiajw/HistAuGAN/blob/main/README.md.
+        """
         bs = x_org.size(0)
         indices = torch.randint(2, (bs,), device=x_org.device)  # augmentations are applied with probability 0.5
         num_aug = indices.sum()
 
         if num_aug > 0:
             num_target_domains = target_domain_indices.size(0)
-
             aug_target_domain_indices = target_domain_indices[
                 torch.randint(low=0, high=num_target_domains, size=(num_aug,))
             ]
+
             aug_target_domain_one_hots = torch.eye(5, device=x_org.device)[aug_target_domain_indices]
             z_attr = (
                 torch.randn((num_aug, 8)) * _STD_DOMAINS[aug_target_domain_indices]

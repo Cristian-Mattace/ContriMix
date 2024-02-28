@@ -165,7 +165,7 @@ class MultimodelAlgorithm(GroupAlgorithm):
         if not self._is_training:
             raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
 
-        batch_results = self._process_batch(labeled_batch, unlabeled_batch, split="train")
+        batch_results = self._process_batch(labeled_batch, unlabeled_batch=unlabeled_batch, split="train")
 
         # update running statistics and update model if we've reached end of effective batch
         self._update(

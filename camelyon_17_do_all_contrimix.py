@@ -66,7 +66,7 @@ def main():
     config_dict: Dict[str, Any] = {
         "algorithm": ModelAlgorithm.CONTRIMIX,
         "model": WildModel.DENSENET121,
-        "transform": TransformationType.HISTAUGAN_ENCODERS,
+        "transform": TransformationType.WEAK_NORMALIZE_TO_0_1,
         "target_resolution": None,  # Keep the original dataset resolution
         "scheduler_metric_split": "val",
         "train_group_by_fields": ["hospital"],

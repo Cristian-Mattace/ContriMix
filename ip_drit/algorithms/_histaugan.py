@@ -6,28 +6,18 @@ from typing import Optional
 from typing import Tuple
 from typing import Union
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torchvision
-from skimage import io
-from torchvision import transforms as tfs
 
 from ._utils import move_to
 from .multi_model_algorithm import MultimodelAlgorithm
-from ip_drit.algorithms._contrimix_utils import ContriMixMixingType
 from ip_drit.algorithms._contrimix_utils import ContrimixTrainingMode
 from ip_drit.common.grouper import AbstractGrouper
 from ip_drit.common.metrics import Metric
-from ip_drit.loss import ContriMixLoss
 from ip_drit.loss import HistauGANLoss
-from ip_drit.models import get_non_linearity
 from ip_drit.models import InitializationType
 from ip_drit.models import Initializer
-from ip_drit.models import MD_Dis
-from ip_drit.models import MD_Dis_content
-from ip_drit.models import MD_E_attr_concat
 from ip_drit.models import MD_E_content
 from ip_drit.models import MD_G_multi_concat
 from ip_drit.models import SignalType
@@ -81,6 +71,7 @@ class HistauGAN(MultimodelAlgorithm):
             raise ValueError(f"The specified loss module is of type {type(loss)}, not HistauGANLoss!")
         self._gan_model_path = algorithm_parameters["gan_model_path"]
         self._num_domains = algorithm_parameters["num_domains"]
+        self._aug_with_all_domains: bool = algorithm_parameters["aug_with_all_domains"]
         self._model_type = config["model"]
         self._d_out = d_out
         self._nz = algorithm_parameters["nz"]
@@ -111,87 +102,8 @@ class HistauGAN(MultimodelAlgorithm):
             training_mode=training_mode,
         )
 
-        self._configure_optimizers(lr=1e-4)
         self._use_unlabeled_y = config["use_unlabeled_y"]
         self._use_amp = getattr(config, "use_amp", False)
-
-    def _configure_optimizers(self, lr: float) -> None:
-        """Configures the optimizers.
-
-        Args:
-            lr: The learning rate.
-        """
-        self._backbone_opt = torch.optim.Adam(
-            self._models_by_names["backbone"].parameters(), lr=lr, betas=(0.5, 0.999), weight_decay=0.0001
-        )
-
-    def update(
-        self,
-        labeled_batch: Tuple[torch.Tensor, ...],
-        unlabeled_batch: Optional[Tuple[torch.Tensor, ...]] = None,
-        is_epoch_end: bool = False,
-        epoch: Optional[int] = None,
-        return_loss_components: bool = True,
-        batch_idx: Optional[int] = None,
-    ):
-        """Process the batch, update the log, and update the model.
-
-        Args:
-            labeled_batch: A batch of data yielded by data loaders.
-            unlabeled_batch (optional): A batch of data yielded by unlabeled data loader or None.
-            is_epoch_end (optional): Whether this batch is the last batch of the epoch. If so, force optimizer to step,
-                regardless of whether this batch idx divides self.gradient_accumulation_steps evenly. Defaults to False.
-            epoch (optional): The index of the epoch.
-            return_loss_components (optional): If True, the component of the loss will be return.
-            batch_idx (optional): The index of the current batch. Defaults to None.
-
-        Returns:
-            A dictionary of the results, keyed by the field names. There are following fields.
-                g: Groups indices for samples in the for batch.
-                y_true: Ground truth labels for batch.
-                metadata: Metadata for batch.
-                y_pred: model output for batch.
-                outputs: A tensor for the output.
-                objective: The value of the objective.
-        """
-        if not self._is_training:
-            raise RuntimeError("Can't upddate the model parameters because the algorithm is not in the training mode!")
-
-        input_dict = self._parse_inputs(labeled_batch, split="train")
-
-        images = input_dict["x"]
-        c_org = input_dict["g"]
-
-        batch_results = {
-            "g": c_org,
-            "metadata": input_dict["metadata"],
-            "y_true": input_dict["y_true"],
-            "backbone": self._models_by_names["backbone"],
-            "split_group_indices": input_dict["split_group_indices"],
-            "is_training": self._is_training,
-            "x_org": images,
-            "gen": self._models_by_names["gen"],
-            "enc_c": self._models_by_names["enc_c"],
-            "enc_a": self._models_by_names["enc_a"],
-        }
-
-        if self._training_mode == ContrimixTrainingMode.BACKBONE:
-            # Computes the backbone loss.
-            self._backbone_opt.zero_grad()
-            entropy_loss = self.objective(batch_results, return_loss_components=return_loss_components)[0]
-            entropy_loss.backward()
-            self._backbone_opt.step()
-            batch_results["entropy_loss"] = entropy_loss.detach().item()
-
-        if return_loss_components:
-            self.update_log(batch_results)
-
-        if is_epoch_end:
-            self._batch_idx = 0
-        else:
-            self._batch_idx += 1
-
-        return self._sanitize_dict(batch_results)
 
     @staticmethod
     def _update_log_fields_based_on_training_mode(training_mode: ContrimixTrainingMode):
@@ -219,19 +131,9 @@ class HistauGAN(MultimodelAlgorithm):
         enc_c = MD_E_content(input_dim=algorithm_options["input_dim"])
         enc_c.load_state_dict(state_dict["enc_c"])
 
-        enc_a = MD_E_attr_concat(
-            input_dim=algorithm_options["input_dim"],
-            output_nc=self._nz,
-            c_dim=algorithm_options["num_domains"],
-            norm_layer=None,
-            nl_layer=get_non_linearity(layer_type="lrelu"),
-        )
-
-        enc_a.load_state_dict(state_dict["enc_a"])
         return {
             "backbone": Initializer(init_type=InitializationType.NORMAL)(backbone_network),
             "enc_c": enc_c,
-            "enc_a": enc_a,
             "gen": gen,
         }
 
@@ -254,7 +156,9 @@ class HistauGAN(MultimodelAlgorithm):
             "g": group_indices,
             "y_true": y_true,
             "metadata": metadata,
-            "split_group_indices": split_group_indices,
+            "target_domain_indices": torch.arange(self._num_domains)
+            if self._aug_with_all_domains
+            else split_group_indices,
         }
 
     def _convert_group_index_to_one_hot(
@@ -310,6 +214,5 @@ class HistauGAN(MultimodelAlgorithm):
             "x_org": input_dict["x"],
             "gen": self._models_by_names["gen"],
             "enc_c": self._models_by_names["enc_c"],
-            "enc_a": self._models_by_names["enc_a"],
-            "split_group_indices": input_dict["split_group_indices"],
+            "target_domain_indices": input_dict["target_domain_indices"],
         }
