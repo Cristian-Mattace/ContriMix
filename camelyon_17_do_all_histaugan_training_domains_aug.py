@@ -84,8 +84,8 @@ def main():
         "scheduler_kwargs": {"num_warmup_steps": 3},
         "scheduler_metric_name": "scheduler_metric_name",
         "optimizer": "AdamW",
-        "lr": 1e-5,
-        "weight_decay": None,
+        "lr": 1e-4,
+        "weight_decay": 1e-3,
         "optimizer_kwargs": {"SGD": {"momentum": 0.9}, "Adam": {}, "AdamW": {}},
         "max_grad_norm": 0.5,
         "use_ddp_over_dp": False,
@@ -139,8 +139,6 @@ def main():
         algorithm_parameters={
             "concat": 1,  # concatenate attribute features for translation
             "input_dim": 3,  # Number of input channels.
-            "dis_norm": "None",  # normalization layer in discriminator
-            "dis_spectral_norm": False,  # use spectral normalization in discriminator
             "num_domains": 5,  # The number of domains for the pre-trained HistAuGAN
             "crop_size": 216,  # cropped image size for training
             "nz": nz,

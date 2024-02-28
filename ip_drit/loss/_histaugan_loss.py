@@ -74,7 +74,6 @@ class HistauGANLoss(MultiTaskMetric):
             The value of the backbone loss.
         """
         self._is_training = in_dict["is_training"]
-        self._batch_transform = getattr(in_dict, "batch_transform", None)
         entropy_loss = self._compute_backbone_loss(in_dict=in_dict)
 
         total_loss = entropy_loss
@@ -97,22 +96,31 @@ class HistauGANLoss(MultiTaskMetric):
         backbone = in_dict["backbone"]
         y_true = in_dict["y_true"]
 
+        resized_x_org = self._image_resizer(in_dict["x_org"])
+        backbone_inputs_extended = [resized_x_org]
+
+        # Compute the prediction on the training set, not doing any synthetic images here.
+        in_dict["y_pred"] = backbone(resized_x_org)
+        num_total_domains_to_backbone = 1
         if self._is_training:
-            x_org = self._augment_training_images(
+            xs_syn = self._generate_synthetic_images(
                 enc_c=in_dict["enc_c"],
                 gen=in_dict["gen"],
                 x_org=in_dict["x_org"],
                 target_domain_indices=in_dict["target_domain_indices"],
-            )  # Randly augment half of the samples
-        else:
-            x_org = in_dict["x_org"]
+            )
+            xs_syn = self._image_resizer(torch.cat(xs_syn, dim=0))
+            backbone_inputs_extended.append(xs_syn)
+            num_total_domains_to_backbone += len(in_dict["target_domain_indices"])
 
-        # Compute the prediction on the training set.
-        in_dict["y_pred"] = backbone(x_org)
+        backbone_inputs_extended = torch.cat(backbone_inputs_extended, dim=0)
+
         losses = self._initialize_cross_entropy_loss(
-            backbone_input=self._image_resizer(x_org), y_true=y_true, backbone=backbone
+            backbone_input=backbone_inputs_extended,
+            y_true=y_true.repeat(num_total_domains_to_backbone),
+            backbone=backbone,
         )
-        losses = losses.reshape(-1, 1)  # [#images, #augs]
+        losses = losses.reshape(-1, num_total_domains_to_backbone)  # [#images, #augs]
         # The following aggregation is over the augnetaitons.
         if self._aggregation == ContriMixAggregationType.MAX:
             return torch.mean(losses.max(dim=1)[0])
@@ -123,38 +131,25 @@ class HistauGANLoss(MultiTaskMetric):
         else:
             raise ValueError(f"Aggregation type of {self._aggregation} is not supported!")
 
-    def _augment_training_images(
+    def _generate_synthetic_images(
         self, enc_c: nn.Module, gen: nn.Module, x_org: torch.Tensor, target_domain_indices: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> List[torch.Tensor]:
         """Augment half of the image with HistAuGan.
 
         Ported from https://github.com/sophiajw/HistAuGAN/blob/main/README.md.
         """
+        _NUM_DOMAINS = 5
         bs = x_org.size(0)
-        indices = torch.randint(2, (bs,), device=x_org.device)  # augmentations are applied with probability 0.5
-        num_aug = indices.sum()
-
-        if num_aug > 0:
-            num_target_domains = target_domain_indices.size(0)
-            aug_target_domain_indices = target_domain_indices[
-                torch.randint(low=0, high=num_target_domains, size=(num_aug,))
-            ]
-
-            aug_target_domain_one_hots = torch.eye(5, device=x_org.device)[aug_target_domain_indices]
-            z_attr = (
-                torch.randn((num_aug, 8)) * _STD_DOMAINS[aug_target_domain_indices]
-                + _MEAN_DOMAINS[aug_target_domain_indices]
-            ).to(x_org.device)
-
-            # compute content encoding
-            z_c = enc_c(x_org[indices.bool()])
-            # generate augmentations
-            x_aug = gen(z_c, z_attr, aug_target_domain_one_hots).detach()  # in range [-1, 1]
-            x_org[indices.bool()] = x_aug
-        return x_org
-
-    def _get_z_random(self, bs: int) -> torch.Tensor:
-        return torch.randn(bs, self._nz)
+        z_c = enc_c(x_org)
+        synthetic_ims = []
+        for target_domain_index in target_domain_indices:
+            aug_target_domain_one_hots = torch.zeros((bs, _NUM_DOMAINS), device=x_org.device)
+            aug_target_domain_one_hots[:, target_domain_index] = 1.0
+            z_attr = (torch.randn((bs, 8)) * _STD_DOMAINS[target_domain_index] + _MEAN_DOMAINS[target_domain_index]).to(
+                x_org.device
+            )
+            synthetic_ims.append(gen(z_c, z_attr, aug_target_domain_one_hots))
+        return synthetic_ims
 
     def _initialize_cross_entropy_loss(
         self, backbone_input: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
