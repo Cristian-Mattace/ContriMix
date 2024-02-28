@@ -10,7 +10,6 @@ package_path = "/jupyter-users-home/dinkar-2ejuyal/intraminibatch_permutation_dr
 if package_path not in sys.path:
     sys.path.append(package_path)
 
-from script_utils import calculate_batch_size
 from script_utils import set_visible_gpus
 from script_utils import configure_parser, dataset_and_log_location, generate_eval_model_path
 import torch.cuda
@@ -76,7 +75,7 @@ def main():
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
-        "batch_size": 1200,
+        "batch_size": 600,
         "uniform_over_groups": True,  # FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 3,  # 4
@@ -142,13 +141,11 @@ def main():
             "input_dim": 3,  # Number of input channels.
             "dis_norm": "None",  # normalization layer in discriminator
             "dis_spectral_norm": False,  # use spectral normalization in discriminator
-            "num_domains": 3,  # The number of domains for the training dataset.
+            "num_domains": 5,  # The number of domains for the pre-trained HistAuGAN
             "crop_size": 216,  # cropped image size for training
             "nz": nz,
-            "d_iter": 3,
-            "lambda_cls": 1.0,
-            "lambda_cls_G": 5.0,
-            "lambda_rec": 10.0,
+            "gan_model_path": "./checkpoints/gan_weights.pth",
+            "aug_with_train_domains_only": True,
         },
     )
     if not config_dict["eval_only"]:

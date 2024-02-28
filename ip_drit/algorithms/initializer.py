@@ -96,7 +96,6 @@ def initialize_algorithm(
             loss=HistauGANLoss(loss_params=loss_kwargs),
             metric=algo_log_metrics[config["algo_log_metric"]],
             n_train_steps=num_train_steps,
-            batch_transforms=batch_transform,
             training_mode=loss_kwargs["training_mode"],
             algorithm_parameters=algorithm_parameters,
         )

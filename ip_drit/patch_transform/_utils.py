@@ -92,8 +92,6 @@ def initialize_transform(
         )
     elif transform_name == TransformationType.RXRX1:
         return _get_rxrx1_transform(is_training=is_training)
-    elif transform_name == TransformationType.HISTAUGAN_ENCODERS:
-        return _get_histaugan_encoder_transform(is_training=is_training)
     elif transform_name == TransformationType.HISTAUGAN_BACKBONE:
         return _get_histaugan_backbone_transform(is_training=is_training)
     else:
@@ -173,31 +171,12 @@ def _get_rxrx1_transform(is_training: bool):
         return transforms.Compose([transforms.ToTensor(), t_normalize])
 
 
-def _get_histaugan_encoder_transform(is_training: bool, resize_size_pixels: int = 256, crop_size_pixels: int = 216):
-    """Gets the transform for HistauGAN.
-
-    Reference:
-        https://github.com/sophiajw/HistAuGAN/blob/main/histaugan/datasets.py#L32
-    """
-    # setup image transformation
-    transforms_pipeline = [transforms.Resize((resize_size_pixels, resize_size_pixels), Image.BICUBIC)]
-    if is_training:
-        transforms_pipeline.append(transforms.RandomCrop(crop_size_pixels))
-    else:
-        transforms_pipeline.append(transforms.CenterCrop(crop_size_pixels))
-    transforms_pipeline.append(transforms.RandomHorizontalFlip())
-    transforms_pipeline.append(transforms.ToTensor())
-    transforms_pipeline.append(transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))
-    return transforms.Compose(transforms_pipeline)
-
-
 def _get_histaugan_backbone_transform(is_training: bool, resize_size_pixels: int = 256, crop_size_pixels: int = 216):
     """Gets the transform for HistauGAN backbone training.
 
     The image will be resize to that of the input encoder first.
     """
     transforms_pipeline = [transforms.Resize((crop_size_pixels, crop_size_pixels), Image.BICUBIC)]
-    transforms_pipeline = []
     transforms_pipeline.append(transforms.RandomHorizontalFlip())
     transforms_pipeline.append(transforms.ToTensor())
     transforms_pipeline.append(transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))
