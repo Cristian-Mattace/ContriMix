@@ -171,13 +171,14 @@ def _get_rxrx1_transform(is_training: bool):
         return transforms.Compose([transforms.ToTensor(), t_normalize])
 
 
-def _get_histaugan_backbone_transform(is_training: bool, resize_size_pixels: int = 256, crop_size_pixels: int = 216):
+def _get_histaugan_backbone_transform(is_training: bool):
     """Gets the transform for HistauGAN backbone training.
 
     The image will be resize to that of the input encoder first.
     """
-    transforms_pipeline = [transforms.Resize((crop_size_pixels, crop_size_pixels), Image.BICUBIC)]
-    transforms_pipeline.append(transforms.RandomHorizontalFlip())
+    transforms_pipeline = []
+    if is_training:
+        transforms_pipeline.append(transforms.RandomHorizontalFlip())
     transforms_pipeline.append(transforms.ToTensor())
     transforms_pipeline.append(transforms.Normalize(mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]))
     return transforms.Compose(transforms_pipeline)

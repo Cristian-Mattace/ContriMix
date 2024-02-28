@@ -1,2 +1,10 @@
+matplotlib
+numpy
+torchmetrics
 wilds==2.0.0
 transformers
+torch
+torchvision
+tqdm
+torchmetrics
+torch_scatter

@@ -55,9 +55,11 @@ class HistauGANLoss(MultiTaskMetric):
     def __init__(self, loss_params: Dict[str, Any], name: Optional[str] = "histaugan_loss") -> None:
         self._loss_fn = loss_params["loss_fn"]
         self._nz = loss_params["nz"]
-        self._image_resizer = tfs.Resize(
+        self._upsampler = tfs.Resize(size=(216, 216), interpolation=tfs.InterpolationMode.BICUBIC)
+        self._downsampler = tfs.Resize(
             size=loss_params["original_resolution"], interpolation=tfs.InterpolationMode.BICUBIC
         )
+        self._original_resolution = loss_params["original_resolution"]
         self._aggregation: ContriMixAggregationType = loss_params.get("aggregation", ContriMixAggregationType.MEAN)
         super().__init__(name)
 
@@ -95,21 +97,19 @@ class HistauGANLoss(MultiTaskMetric):
         """
         backbone = in_dict["backbone"]
         y_true = in_dict["y_true"]
-
-        resized_x_org = self._image_resizer(in_dict["x_org"])
-        backbone_inputs_extended = [resized_x_org]
+        x_org = in_dict["x_org"]
+        backbone_inputs_extended = [x_org]
 
         # Compute the prediction on the training set, not doing any synthetic images here.
-        in_dict["y_pred"] = backbone(resized_x_org)
+        in_dict["y_pred"] = backbone(x_org)
         num_total_domains_to_backbone = 1
         if self._is_training:
             xs_syn = self._generate_synthetic_images(
                 enc_c=in_dict["enc_c"],
                 gen=in_dict["gen"],
-                x_org=in_dict["x_org"],
+                x_org=x_org,
                 target_domain_indices=in_dict["target_domain_indices"],
             )
-            xs_syn = self._image_resizer(torch.cat(xs_syn, dim=0))
             backbone_inputs_extended.append(xs_syn)
             num_total_domains_to_backbone += len(in_dict["target_domain_indices"])
 
@@ -133,14 +133,14 @@ class HistauGANLoss(MultiTaskMetric):
 
     def _generate_synthetic_images(
         self, enc_c: nn.Module, gen: nn.Module, x_org: torch.Tensor, target_domain_indices: torch.Tensor
-    ) -> List[torch.Tensor]:
+    ) -> torch.Tensor:
         """Augment half of the image with HistAuGan.
 
         Ported from https://github.com/sophiajw/HistAuGAN/blob/main/README.md.
         """
         _NUM_DOMAINS = 5
         bs = x_org.size(0)
-        z_c = enc_c(x_org)
+        z_c = enc_c(self._upsampler(x_org))
         synthetic_ims = []
         for target_domain_index in target_domain_indices:
             aug_target_domain_one_hots = torch.zeros((bs, _NUM_DOMAINS), device=x_org.device)
@@ -149,7 +149,7 @@ class HistauGANLoss(MultiTaskMetric):
                 x_org.device
             )
             synthetic_ims.append(gen(z_c, z_attr, aug_target_domain_one_hots))
-        return synthetic_ims
+        return self._downsampler(torch.cat(synthetic_ims, dim=0))
 
     def _initialize_cross_entropy_loss(
         self, backbone_input: torch.Tensor, y_true: torch.Tensor, backbone: nn.Module
