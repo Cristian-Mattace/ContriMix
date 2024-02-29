@@ -95,6 +95,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <th valign="bottom">cont cons weight</th>
 <th valign="bottom">entropy weight</th>
 <th valign="bottom">Training type</th>
+<th valign="bottom">Val. Acc. (%)</th>
+<th valign="bottom">Test Acc. (%)</th>
 <th valign="bottom">Download</th>
 <!-- TABLE BODY -->
 <!-- ROW: HistAuGan encoder training -->
@@ -111,6 +113,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">92.1</td>
+<td align="center">95.5</td>
 <td align="center"><a href="https://drive.google.com/file/d/1k0_eDyiSl96XVvdTdghdUGS_0jRio0zg/view?usp=sharing">model</a></td>
 </tr>
 
@@ -127,6 +131,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">91.8</td>
+<td align="center">94.1</td>
 <td align="center"><a href="https://drive.google.com/file/d/1CdFJTUmwGniiIyZxx1ScYqKMr3vKZm1A/view?usp=sharing">model</a></td>
 </tr>
 
@@ -143,6 +149,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">91.9</td>
+<td align="center">95.7</td>
 <td align="center"><a href="https://drive.google.com/file/d/1CT-P31f1Vo36zHZaaAajd5J1tBAEtWCA/view?usp=sharing">model</a></td>
 </tr>
 
@@ -159,6 +167,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">90.7</td>
+<td align="center">95.4</td>
 <td align="center"><a href="https://drive.google.com/file/d/1YFQGYC4jHssZETGFkU709hBfd-poY8vD/view?usp=sharing">model</a></td>
 </tr>
 
@@ -175,6 +185,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">92.5</td>
+<td align="center">94.6</td>
 <td align="center"><a href="https://drive.google.com/file/d/1iKW6qf7YKXOXR53r5lieH9rpenJAeaT2/view?usp=sharing">model</a></td>
 </tr>
 
@@ -191,6 +203,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">91.2</td>
+<td align="center">94.1</td>
 <td align="center"><a href="https://drive.google.com/file/d/1Kx0C9J7eIMmqSokOO4jIImHsl4hNIrbY/view?usp=sharing">model</a></td>
 </tr>
 
@@ -207,6 +221,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">92.6</td>
+<td align="center">94.1</td>
 <td align="center"><a href="https://drive.google.com/file/d/158NY_SXdu70Zi1fObwnN_qV1Xdk_CPLZ/view?usp=sharing">model</a></td>
 </tr>
 
@@ -223,6 +239,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">91.9</td>
+<td align="center">95.6</td>
 <td align="center"><a href="https://drive.google.com/file/d/1-Dx_ahuKP2bHfNk6inzb8A9v-ri4hfiR/view?usp=sharing">model</a></td>
 </tr>
 
@@ -239,6 +257,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">91.3</td>
+<td align="center">94.8</td>
 <td align="center"><a href="https://drive.google.com/file/d/1lV0Zt69fttUAYXWZ6RaRlGxvbeHBHml1/view?usp=sharing">model</a></td>
 </tr>
 
@@ -255,6 +275,8 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">0.3</td>
 <td align="center">0.5</td>
 <td align="center">Jointly</td>
+<td align="center">92.1</td>
+<td align="center">91.5</td>
 <td align="center"><a href="https://drive.google.com/file/d/12RzqsM0KsvQjAZv53lDhRdY0138mIItj/view?usp=sharing">model</a></td>
 </tr>
 
