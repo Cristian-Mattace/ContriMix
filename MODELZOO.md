@@ -50,6 +50,7 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 
 
 ## Camelyon-based models
+### HistAuGan with augmentated images from 3 training domains
 <table><tbody>
 <!-- START TABLE -->
 <!-- TABLE HEADER -->
@@ -60,24 +61,126 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <th valign="bottom">Per-GPU Batch size</th>
 <th valign="bottom">nz</th>
 <th valign="bottom">crop size</th>
-<th valign="bottom">lambda_cls</th>
 <th valign="bottom">Training type</th>
+<th valign="bottom">Val. Acc. (%)</th>
+<th valign="bottom">Test Acc. (%)</th>
 <th valign="bottom">Download</th>
 <!-- TABLE BODY -->
 <!-- ROW: HistAuGan encoder training -->
  <tr> <td align="center">Camelyon WILDS 17</td>
 <td align="center">HistAuGAN</td>
-<td align="center">50</td>
+<td align="center">40</td>
 <td align="center">0</td>
-<td align="center">30</td>
+<td align="center">300</td>
 <td align="center">8</td>
 <td align="center">216</td>
-<td align="center">1.0</td>
 <td align="center">Backbone only</td>
-<td align="center"><a href="https://drive.google.com/file/d/1rUCSYjLIIh-H_8iLgw3eYQcqOPubpOir/view?usp=sharing">model</a></td>
+<td align="center">87.0</td>
+<td align="center">71.9</td>
+<td align="center"><a href="https://drive.google.com/file/d/1LZH-ipDf-U7vZh3lb-WVfCmGWdu6Yp8z/view?usp=sharing">model</a></td>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">1</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">88.1</td>
+<td align="center">82.0</td>
+<td align="center"><a href="https://drive.google.com/file/d/1eMRGL8C31cV6OMj6Lbi5xH9gKwDxL9_4/view?usp=sharing">model</a></td>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">2</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">85.3</td>
+<td align="center">63.2</td>
+<td align="center"><a href="https://drive.google.com/file/d/1wXVv2KlBZQg73Vwy4bBY4QAx3QVfobPC/view?usp=sharing">model</a></td>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">3</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">88.3</td>
+<td align="center">76.7</td>
+<td align="center"><a href="https://drive.google.com/file/d/1aL-G_HJpu--IUdq5_ogegu8Qst5jpx8L/view?usp=sharing">model</a></td>
+</tbody></table>
+
+### HistAuGan with augmented images from all 5 domains (3 training, 1 validation, 1 test)
+<table><tbody>
+<!-- START TABLE -->
+<!-- TABLE HEADER -->
+<th valign="bottom">Dataset</th>
+<th valign="bottom">Algorithm</th>
+<th valign="bottom">Epochs</th>
+<th valign="bottom">Seed</th>
+<th valign="bottom">Per-GPU Batch size</th>
+<th valign="bottom">nz</th>
+<th valign="bottom">crop size</th>
+<th valign="bottom">Training type</th>
+<th valign="bottom">Val. Acc. (%)</th>
+<th valign="bottom">Test Acc. (%)</th>
+<th valign="bottom">Download</th>
+<!-- TABLE BODY -->
+<!-- ROW: HistAuGan encoder training -->
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">0</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">90.4</td>
+<td align="center">93.3</td>
+<td align="center"><a href="https://drive.google.com/file/d/12jwbDuNVIHwJd8J1KNMNkXMwC7zIlGfd/view?usp=sharing">model</a></td>
+</tr>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">1</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">86.8</td>
+<td align="center">91.6</td>
+<td align="center"><a href="https://drive.google.com/file/d/1wUkvwL0Y-JLKUWN_xfj_LqEWLeJ6AGh-/view?usp=sharing">model</a></td>
+</tr>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">2</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">89.7</td>
+<td align="center">91.8</td>
+<td align="center"><a href="https://drive.google.com/file/d/1fKafCEP7xa95rxF_BjQ0ViuUtyx5nF7-/view?usp=sharing">model</a></td>
+</tr>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">3</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">86.7</td>
+<td align="center">92.8</td>
+<td align="center"><a href="https://drive.google.com/file/d/1fKafCEP7xa95rxF_BjQ0ViuUtyx5nF7-/view?usp=sharing">model</a></td>
 </tr>
 </tbody></table>
 
+### ContriMix with augmentated images from 3 training domains
 
 <table><tbody>
 <!-- START TABLE -->

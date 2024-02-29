@@ -248,7 +248,7 @@ def _generate_standard_data_loader(
 
 
 def _num_of_workers(run_on_cluster: bool) -> int:
-    return 32 if run_on_cluster else 1
+    return 16 if run_on_cluster else 1
 
 
 def _worker_init_fn(worker_id: int) -> None:
