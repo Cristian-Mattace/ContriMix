@@ -544,7 +544,7 @@ class ContriMixLoss(MultiTaskMetric):
                 io.imsave("debug_image.png", (self.debug_image * 255.0).astype(np.uint8))
 
             if in_dict["y_true"] is not None:
-                visualize_content_channels(org_ims=x_org_1, zcs=zc, y_true=in_dict["y_true"])
+                visualize_content_channels(org_ims=x_org_1, zcs=zc)
 
     def _validate_batch_transform(self, batch_transform: Callable) -> None:
         if isinstance(batch_transform, CutMixJointTensorTransform) and (

@@ -1,4 +1,7 @@
 """A module to visualize the attribute of the image."""
+from typing import List
+from typing import Optional
+
 import numpy as np
 import torch
 import torchvision
@@ -6,14 +9,14 @@ from matplotlib import cm
 from torch.nn.functional import interpolate
 
 
-def visualize_content_channels(org_ims: torch.Tensor, zcs: torch.Tensor, y_true: torch.Tensor) -> np.ndarray:
+def visualize_content_channels(org_ims: torch.Tensor, zcs: torch.Tensor) -> np.ndarray:
     """Creates a combined image of the content channels.
 
     Args:
-        org_ims: The original image tensor, in the range of [0.0, 1.0].
+        org_ims: The original image tensor, in the range of [0.0, 1.0] in the [H, W, C] format
     """
     colors = _construct_colormap_list(num_colors=256, colormap=cm.get_cmap("hot"), device=zcs.device)
-    NUM_IMAGES_TO_EVAL = 4
+    NUM_IMAGES_TO_EVAL = min(4, len(zcs))
     combined_ims = []
     for im_idx in range(NUM_IMAGES_TO_EVAL):
         org_im_8bit = (org_ims[im_idx].unsqueeze(0) * 255.0).type(torch.uint8)
