@@ -73,7 +73,7 @@ def main():
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
-        "batch_size": 1200,
+        "batch_size": 300,
         "uniform_over_groups": True,  # FLAGS.sample_uniform_over_groups,  #
         "distinct_groups": False,  # True,  # If True, enforce groups sampled per batch are distinct.
         "n_groups_per_batch": 3,  # 4

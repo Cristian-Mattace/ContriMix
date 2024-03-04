@@ -58,7 +58,7 @@ def main():
     camelyon_dataset = CamelyonDataset(
         dataset_dir=all_dataset_dir / "camelyon17/",
         # use_full_size=FLAGS.use_full_dataset,
-        use_full_size=False,
+        use_full_size=True,
         drop_centers=FLAGS.drop_centers,
         return_one_hot=False,
     )
@@ -75,8 +75,8 @@ def main():
         "log_dir": str(log_dir),
         "gradient_accumulation_steps": 1,
         "n_epochs": FLAGS.n_epochs,
-        "log_every_n_batches": FLAGS.log_every_n_batches,
-        "model_kwargs": {"pretrained": False},  # Train from scratch.
+        "log_every_n_batches": 20,
+        "model_kwargs": {"pretrained": True},  # Train from scratch.
         "run_on_cluster": FLAGS.run_on_cluster,
         "train_loader": LoaderType.GROUP,
         "reset_random_generator_after_every_epoch": FLAGS.reset_random_generator_after_every_epoch,
@@ -101,7 +101,7 @@ def main():
         "use_ddp_over_dp": False,
         "device": torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu"),
         "use_unlabeled_y": False,  # If true, unlabeled loaders will also the true labels for the unlabeled data.
-        "verbose": FLAGS.verbose,
+        "verbose": True,
         "report_batch_metric": True,
         "metric": "acc_avg",
         "val_metric_decreasing": False,

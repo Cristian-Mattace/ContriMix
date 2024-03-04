@@ -237,7 +237,7 @@ class AbstractLabelledPublicDataset(AbstractPublicDataset):
             y = F.one_hot(y, self.n_classes).float()
         if self._transform is not None:
             x = self._transform(x)
-        metadata = self.metadata_array[idx]
+        metadata = torch.cat((self.metadata_array[idx], torch.tensor([idx])))
         return x, y, metadata
 
     @property

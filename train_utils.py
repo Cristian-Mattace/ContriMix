@@ -1,6 +1,7 @@
 """A module for training the model."""
 import logging
 import math
+from pathlib import Path
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -18,6 +19,7 @@ from saving_utils import save_pred_if_needed
 from script_utils import detach_and_clone
 from script_utils import is_master_process
 from script_utils import log_results
+
 
 process_outputs_functions = {
     "binary_logits_to_pred": binary_logits_to_pred,
@@ -59,7 +61,7 @@ def train(
     best_val_metric = None
     for epoch in range(epoch_offset, config_dict["n_epochs"]):
         print(f"Epoch {epoch}: \n")
-        do_training = True
+        do_training = False
         if do_training:
             _run_train_epoch(
                 algorithm=algorithm,
@@ -86,6 +88,7 @@ def train(
                     else unlabeled_split_dict_by_name["test"],
                     epoch=epoch,
                     config_dict=config_dict,
+                    save_results=True,
                     split="test",
                 )
                 if test_res is not None:
@@ -115,6 +118,7 @@ def train(
                     else unlabeled_split_dict_by_name["val"],
                     epoch=epoch,
                     config_dict=config_dict,
+                    save_results=True,
                     split="val",
                 )
 
@@ -334,6 +338,11 @@ def _run_eval_epoch(
         epoch_y_true = torch.cat(epoch_y_true, dim=0)
         epoch_y_pred = torch.cat(epoch_y_pred, dim=0)
         epoch_metadata = torch.cat(epoch_metadata, dim=0)
+
+        _save_prediction_with_metadata(
+            y_pred=epoch_y_pred, y_true=epoch_y_true, metadata=epoch_metadata, data_loc="./contrimix_seed_0"
+        )
+
         results, results_str = labeled_split_dict["dataset"].eval(epoch_y_pred, epoch_y_true, epoch_metadata)
 
         if config_dict["scheduler_metric_split"] == labeled_split_dict["split"]:
@@ -386,3 +395,13 @@ def evaluate_over_splits(algorithm, datasets, epoch, general_logger, config_dict
             split=split,
             save_results=save_results,
         )
+
+
+def _save_prediction_with_metadata(
+    y_pred: torch.Tensor, y_true: torch.Tensor, metadata: torch.Tensor, data_loc: str = "."
+):
+    data_loc = Path(data_loc)
+    data_loc.mkdir(exist_ok=True, parents=True)
+    torch.save(y_pred, data_loc / "y_pred.pt")
+    torch.save(y_true, data_loc / "y_true.pt")
+    torch.save(metadata, data_loc / "metadata.pt")

@@ -111,6 +111,18 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">88.3</td>
 <td align="center">76.7</td>
 <td align="center"><a href="https://drive.google.com/file/d/1aL-G_HJpu--IUdq5_ogegu8Qst5jpx8L/view?usp=sharing">model</a></td>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">4</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">87.6</td>
+<td align="center">63.1</td>
+<td align="center"><a href="https://drive.google.com/file/d/1AXHbcoG9kyg5BOMxz53MfK94JJOUH88C/view?usp=sharing">model</a></td>
+
 </tbody></table>
 
 ### HistAuGan with augmented images from all 5 domains (3 training, 1 validation, 1 test)
@@ -176,6 +188,18 @@ This zoo collects all the trained ContriMix models trained in our paper, togethe
 <td align="center">Backbone only</td>
 <td align="center">86.7</td>
 <td align="center">92.8</td>
+<td align="center"><a href="https://drive.google.com/file/d/1fPdSFO4V51VKFN3gZVNG7x98P3jBzScx/view?usp=sharing">model</a></td>
+</tr>
+<tr> <td align="center">Camelyon WILDS 17</td>
+<td align="center">HistAuGAN</td>
+<td align="center">40</td>
+<td align="center">4</td>
+<td align="center">300</td>
+<td align="center">8</td>
+<td align="center">216</td>
+<td align="center">Backbone only</td>
+<td align="center">84.</td>
+<td align="center">93.3</td>
 <td align="center"><a href="https://drive.google.com/file/d/1fKafCEP7xa95rxF_BjQ0ViuUtyx5nF7-/view?usp=sharing">model</a></td>
 </tr>
 </tbody></table>
