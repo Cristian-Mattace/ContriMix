@@ -362,7 +362,7 @@ def calculate_batch_size(
             "tcga_unlabeled": {ModelAlgorithm.CONTRIMIX: 10},
         }
         DEFAULT_BATCHSIZE_DICT_BY_DATASET_NAME_ON_LOCAL: Dict[str, Dict[ModelAlgorithm, int]] = {
-            "camelyon17": {ModelAlgorithm.CONTRIMIX: 153, ModelAlgorithm.ERM: 90}
+            "camelyon17": {ModelAlgorithm.CONTRIMIX: 72, ModelAlgorithm.ERM: 90}
         }
 
     print(f"Number of training devices = {num_devices}.")
