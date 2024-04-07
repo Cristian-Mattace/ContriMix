@@ -306,7 +306,8 @@ def _run_eval_epoch(
 
             with torch.no_grad():  # The BatchNorm2d is known to have unstable performance if using model.eval()
                 batch_results = algorithm.evaluate(
-                    labeled_batch
+                    labeled_batch=labeled_batch,
+                    unlabeled_batch=None,
                     # ddp_params=config_dict.get("ddp_params", None),
                 )
 
