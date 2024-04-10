@@ -3,6 +3,8 @@ import logging
 import sys
 from typing import Any
 from typing import Dict
+from my_gradcam import my_gradcam
+
 
 import torch.nn as nn
 
@@ -180,6 +182,24 @@ def main():
             is_best=is_best,
             save_results=True,
         )
+    
+    
+    # Initialize a list to hold the tensors
+    data_tensors = torch.Tensor()
+
+    # Iterate through the DataLoader to extract tensors
+    for i, img in enumerate(split_dict_by_names["test"]["dataset"]):
+        # Add the batch tensors to the list
+        data_tensors = torch.cat((data_tensors, img[0].unsqueeze(0)))
+        if i == 4:
+          break
+
+    # Concatenate the tensors of the list into a single tensor
+    print(data_tensors.shape)
+
+    model = algorithm
+
+    my_gradcam(model._models_by_names['backbone'].module, data_tensors, '/content/gradcam')
 
 
 if __name__ == "__main__":
