@@ -15,6 +15,7 @@ from ip_drit.common.metrics import binary_logits_to_pred
 from ip_drit.common.metrics import multiclass_logits_to_pred
 from saving_utils import save_model_if_needed
 from saving_utils import save_pred_if_needed
+from saving_utils import _save_model
 from script_utils import detach_and_clone
 from script_utils import is_master_process
 from script_utils import log_results
@@ -144,7 +145,9 @@ def train(
                             best_val_metric,
                         )
                         save_pred_if_needed(y_pred, labeled_split_dict_by_name["val"], epoch, config_dict, is_best)
-
+        
+        # save the model after each epoch
+        _save_model(algorithm, epoch, None, config_dict["log_dir"] + f"/model/epoch:{epoch}_model.pth")   
         print("======================================================= \n\n")
 
 
