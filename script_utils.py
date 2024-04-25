@@ -248,6 +248,13 @@ def configure_parser() -> argparse.ArgumentParser:
     )
 
     parser.add_argument(
+        "--epoch_offset",
+        type=int,
+        default=0,
+        help="If specified, this epoch is used to restart the train.",
+    )
+
+    parser.add_argument(
         "--model_prefix",
         type=str,
         default="/jupyter-users-home/dinkar-2ejuyal/all_log_dir/erm_camelyon",

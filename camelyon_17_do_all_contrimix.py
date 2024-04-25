@@ -115,6 +115,7 @@ def main():
         "eval_only": FLAGS.eval_only,  # If True, only evaluation will be performed, no training.
         "eval_epoch": FLAGS.eval_epoch,  # If not none, use this epoch for eval, else use the best epoch by val perf.
         "pretrained_model_path": FLAGS.pretrained_model_path,
+        "epoch_offset": FLAGS.epoch_offset,
         "randaugment_n": 2,  # FLAGS.randaugment_n,
         "num_attr_vectors": 5,
         "noise_std": FLAGS.noise_std,
@@ -165,7 +166,7 @@ def main():
     if not config_dict["eval_only"]:
         print("Training mode!")
         train(
-            algorithm=algorithm, labeled_split_dict_by_name=split_dict_by_names, config_dict=config_dict, epoch_offset=0
+            algorithm=algorithm, labeled_split_dict_by_name=split_dict_by_names, config_dict=config_dict, epoch_offset=config_dict['epoch_offset']
         )
     if config_dict["eval_only"] or FLAGS.run_eval_after_train:
         print("Evaluation mode!")
