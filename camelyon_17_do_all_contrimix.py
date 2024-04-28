@@ -195,6 +195,8 @@ def main():
         if i == 4:
           break
 
+    # to avoid --> RuntimeError: element 0 of variables does not require grad and does not have a grad_fn
+    data_tensors.requires_grad = True
     # Concatenate the tensors of the list into a single tensor
     print(data_tensors.shape)
 
