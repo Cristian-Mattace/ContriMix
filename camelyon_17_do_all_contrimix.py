@@ -58,6 +58,8 @@ def main():
     log_dir.mkdir(exist_ok=True)
 
     camelyon_dataset = CamelyonDataset(
+        val_center=FLAGS.val_center,
+        test_center=FLAGS.test_center,
         dataset_dir=all_dataset_dir / "camelyon17/",
         use_full_size=FLAGS.use_full_dataset,
         drop_centers=FLAGS.drop_centers,

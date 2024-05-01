@@ -280,6 +280,21 @@ def configure_parser() -> argparse.ArgumentParser:
         default=None,
         help="The list of GPUs to use. Defaults to " + "None, in which case, all GPUs will be used.",
     )
+
+    parser.add_argument(
+        "--val_center",
+        type=int,
+        default=1,
+        help="The default valuation center is center number 1.",
+    )
+
+    parser.add_argument(
+        "--test_center",
+        type=int,
+        default=2,
+        help="The default test center is center number 1.",
+    )
+
     parser.add_argument(
         "--batch_size_per_gpu",
         type=int,
