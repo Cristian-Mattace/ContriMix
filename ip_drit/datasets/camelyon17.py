@@ -38,14 +38,16 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
     _DOWNLOAD_URL_BY_VERSION: Dict[str, str] = {
         "1.0": "https://worksheets.codalab.org/rest/bundles/0xe45e15f39fb54e9d9e919556af67aabe/contents/blob/"
     }
-    _OOD_VAL_CENTER = 1
-    _TEST_CENTER = 2
+    OOD_VAL_CENTER = 1
+    TEST_CENTER = 2
     _SPLIT_INDEX_BY_SPLIT_STRING: Dict[str, int] = {"train": 0, "id_val": 1, "test": 2, "val": 3}
     _SPLIT_NAME_BY_SPLIT_STRING: Dict[str, str] = {}
     _SMALL_DATASET_LIMIT = 40000
 
     def __init__(
         self,
+        val_center,
+        test_center,
         dataset_dir: str,
         split_scheme: SplitSchemeType = SplitSchemeType.OFFICIAL,
         eval_grouper_group_by_fields: List[str] = ["slide"],
@@ -56,6 +58,9 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
         self._version = "1.0"
         super().__init__(dataset_dir=dataset_dir, return_one_hot=return_one_hot)
         self._original_resolution = (96, 96)
+
+        self.OOD_VAL_CENTER = val_center
+        self.TEST_CENTER = test_center
 
         # Read in metadata
         self._metadata_df: pd.DataFrame = pd.read_csv(
@@ -103,10 +108,10 @@ class CamelyonDataset(AbstractLabelledPublicDataset):
 
     def _update_split_field_index_of_metadata(self) -> None:
         centers = self._metadata_df["center"]
-        test_center_mask = centers == self._TEST_CENTER
+        test_center_mask = centers == self.TEST_CENTER
         self._metadata_df.loc[test_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["test"]
 
-        val_center_mask = centers == self._OOD_VAL_CENTER
+        val_center_mask = centers == self.OOD_VAL_CENTER
         # 'val' means OOD val center, its different from id_val
         self._metadata_df.loc[val_center_mask, "split"] = self._SPLIT_INDEX_BY_SPLIT_STRING["val"]
 
